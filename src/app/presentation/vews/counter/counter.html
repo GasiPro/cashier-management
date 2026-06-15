@@ -1,0 +1,199 @@
+<div class="bg-[#FAFAFA] min-h-screen flex flex-col">
+
+  <header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sticky top-0 z-20">
+    <div class="max-w-6xl mx-auto flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <button (click)="goBack()" aria-label="Retour" class="text-gray-400 hover:text-gray-600 transition-colors
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 bg-[#1E3A5F] rounded-sm flex items-center justify-center">
+            <span class="text-white text-[10px] font-bold">G</span>
+          </div>
+          <span class="text-sm font-semibold text-gray-800 hidden sm:block">GasiPro</span>
+          <span class="text-gray-300 hidden sm:block">/</span>
+          <span class="text-sm text-gray-500 hidden sm:block">Comptoir</span>
+        </div>
+      </div>
+      <span class="text-xs text-gray-400">{{ currentTime }}</span>
+    </div>
+  </header>
+
+  @if (toastVisible) {
+  <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50
+                bg-[#1E3A5F] text-white text-sm font-medium px-5 py-3 rounded-lg shadow-lg
+                animate-fade-in">
+    {{ toastMessage }}
+  </div>
+  }
+
+  <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6">
+    <div class="flex flex-col lg:flex-row gap-6">
+
+      <div class="flex-1 min-w-0">
+        <h1 class="text-base font-semibold text-[#1A1A1A] mb-4">Nouvelle commande</h1>
+
+        <div class="flex gap-2 mb-3">
+          @for (tf of typeFilters; track tf.value) {
+          <button (click)="setTypeFilter(tf.value)" [class]="activeTypeFilter === tf.value
+                ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'" class="flex-shrink-0 text-xs font-semibold border px-4 py-1.5 rounded-full
+                     transition-colors whitespace-nowrap
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            {{ tf.label }}
+          </button>
+          }
+        </div>
+
+        <div class="flex gap-2 mb-4 overflow-x-auto pb-1">
+          @for (cat of filteredCategories; track cat) {
+          <button (click)="setCategory(cat)" [class]="activeCategory === cat
+                ? 'bg-[#EFF4FA] text-[#1E3A5F] border-[#1E3A5F]'
+                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'" class="flex-shrink-0 text-xs font-medium border px-3 py-1 rounded-full
+                     transition-colors whitespace-nowrap
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            {{ cat }}
+          </button>
+          }
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          @for (service of filteredServices; track service.id) {
+          <button (click)="selectService(service)" [class]="isInCart(service)
+                ? 'bg-[#EFF4FA] border-[#1E3A5F]'
+                : 'bg-white border-gray-200 hover:border-gray-300'" class="relative text-left border rounded-lg px-3.5 py-3 transition-all
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            @if (cartQty(service) > 0) {
+            <span class="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#1E3A5F] text-white
+                             text-[10px] font-bold flex items-center justify-center leading-none">
+              {{ cartQty(service) }}
+            </span>
+            }
+            <p class="text-xs text-gray-400 mb-0.5 leading-tight">{{ service.category }}</p>
+            <p class="text-sm font-medium text-[#1A1A1A] leading-snug">{{ service.label }}</p>
+            <p class="text-sm font-semibold text-[#1E3A5F] mt-1 tabular-nums">
+              {{ service.price | number:'1.0-0' }} Ar
+            </p>
+          </button>
+          }
+        </div>
+      </div>
+
+      <div class="w-full lg:w-80 flex-shrink-0 sticky top-20">
+        <div class="sticky top-20">
+          <div class="bg-white border border-gray-200 rounded-xl p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-sm font-semibold text-gray-700">Récapitulatif</h2>
+              @if (cart.length > 0) {
+              <span class="text-xs bg-[#1E3A5F] text-white font-semibold px-2 py-0.5 rounded-full">
+                {{ totalCartItems }} article{{ totalCartItems > 1 ? 's' : '' }}
+              </span>
+              }
+            </div>
+
+            @if (cart.length === 0) {
+            <div class="text-center py-8 text-gray-400">
+              <svg class="w-7 h-7 mx-auto mb-2 opacity-40" fill="none" stroke="currentColor" stroke-width="1.5"
+                viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              <p class="text-sm">Sélectionnez un service ou produit</p>
+            </div>
+            }
+
+            @if (cart.length > 0) {
+            <div class="space-y-2 mb-4 max-h-64 overflow-y-auto pr-0.5">
+              @for (item of cart; track item.service.id) {
+              <div class="flex items-start gap-2 p-2.5 bg-[#F7F9FC] rounded-lg border border-gray-100">
+
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs text-gray-400 leading-tight truncate">{{ item.service.category }}</p>
+                  <p class="text-sm font-medium text-[#1A1A1A] leading-snug truncate">{{ item.service.label }}</p>
+                  <div class="flex items-center gap-1 mt-1.5">
+                    <input type="number" [(ngModel)]="item.unitPrice" min="0" class="w-24 border border-gray-200 rounded px-1.5 py-0.5 text-xs font-medium
+                               text-[#1A1A1A] focus:outline-none focus:border-[#1E3A5F] transition-colors
+                               tabular-nums" />
+                    <span class="text-xs text-gray-400">Ar</span>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-1 flex-shrink-0 mt-4">
+                  <button (click)="decrementItem(item)" class="w-6 h-6 rounded border border-gray-200 flex items-center justify-center
+                                   text-gray-500 hover:bg-gray-100 transition-colors leading-none text-base
+                                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                    −
+                  </button>
+                  <span class="w-5 text-center text-sm font-semibold text-[#1A1A1A] tabular-nums">
+                    {{ item.qty }}
+                  </span>
+                  <button (click)="incrementItem(item)" class="w-6 h-6 rounded border border-gray-200 flex items-center justify-center
+                                   text-gray-500 hover:bg-gray-100 transition-colors leading-none text-base
+                                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                    +
+                  </button>
+                </div>
+
+                <button (click)="removeItem(item)"
+                  class="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0 mt-1
+                                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+
+              </div>
+              }
+            </div>
+
+            <div class="flex items-center justify-between py-3 border-t border-gray-100 mb-4">
+              <span class="text-sm text-gray-500">Total</span>
+              <span class="text-xl font-bold text-[#1A1A1A] tabular-nums">
+                {{ grandTotal | number:'1.0-0' }} Ar
+              </span>
+            </div>
+
+            <button (click)="envoyerCommande()" class="w-full bg-[#1E3A5F] text-white text-sm font-semibold py-3 rounded-lg
+                     hover:bg-[#16304f] active:scale-95 transition-all
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
+                     focus-visible:outline-[#1E3A5F]">
+              Envoyer à la caisse
+            </button>
+            }
+          </div>
+          @if (orderGroups.length > 0) {
+          <div class="mt-4 bg-white border border-gray-200 rounded-xl p-5">
+            <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">
+              Envoyées aujourd'hui
+            </h3>
+            <div class="space-y-2 max-h-52 overflow-y-auto">
+              @for (g of orderGroups; track g.groupId) {
+              <div class="flex items-start justify-between gap-2 text-sm">
+                <div class="flex items-start gap-2 min-w-0">
+                  <span class="font-mono text-gray-500 font-semibold flex-shrink-0 mt-0.5">
+                    {{ groupLabel(g.groupId) }}
+                  </span>
+                  <span class="text-gray-600 text-xs leading-snug truncate">
+                    {{ groupSummary(g) }}
+                  </span>
+                </div>
+                <span class="flex-shrink-0 text-xs px-2 py-0.5 rounded-full font-medium" [class]="groupStatusClass(g)">
+                  {{ groupStatusLabel(g) }}
+                </span>
+              </div>
+              }
+            </div>
+          </div>
+          }
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="px-6 py-3 border-t border-gray-100 text-center mt-4">
+    <p class="text-xs text-gray-400">APP v1.0</p>
+  </footer>
+
+</div>
