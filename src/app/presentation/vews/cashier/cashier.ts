@@ -1,76 +1,106 @@
-// src/app/presentation/vews/caisse/caisse.ts
+// src/app/presentation/vews/cashier/cashier.ts
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { invoke } from '@tauri-apps/api/core';
 
-import { OrderService }    from '../../../core/service/order.service';
-import { Order }           from '../../../domain/order/order.model';
-import { PriceCalculator } from '../../../domain/order/price-calculator';
+// Define Rust-mirrored types locally for UI compilation
+export interface Order {
+  id: number;
+  group_id: number;
+  service_type: string;
+  unit_price: number;
+  quantity: number;
+  status: 'EN_ATTENTE' | 'PAYE';
+  time: string;
+  created_at: string;
+  paid_at: string | null;
+}
 
 export interface OrderGroup {
-  groupId:     number;
-  lines:       Order[];
+  groupId: number;
+  lines: Order[];
   totalAmount: number;
-  time:        string;
-  paidAt?:     string | null;
+  time: string;
+  paidAt?: string | null;
+}
+
+interface RapportLine {
+  label: string;
+  unitPrice: number;
+  qty: number;
+  total: number;
+}
+
+interface RapportCategoryGroup {
+  category: string;
+  lines: RapportLine[];
 }
 
 @Component({
-  selector: 'app-caissier',
-  standalone:  true,
-  imports:     [CommonModule],
+  selector: 'app-cashier', // was 'app-caissier' — kept the class/selector language consistent with `Counter`
+  standalone: true,
+  imports: [CommonModule],
   templateUrl: './cashier.html',
 })
 export class Cashier implements OnInit, OnDestroy {
-
-  currentTime  = '';
+  currentTime = '';
   private clockId!: ReturnType<typeof setInterval>;
+
   pendingGroups: OrderGroup[] = [];
-  paidGroups:    OrderGroup[] = [];
-  totalRevenue                = 0;
+  paidGroups: OrderGroup[] = [];
+  totalRevenue = 0;
   volumeByService: Record<string, number> = {};
-  showRapport     = false;
+  showRapport = false;
 
-  private sub!: Subscription;
+  // Local storage for processing UI computations without domain imports
+  private _rawPaidOrders: Order[] = [];
 
-  constructor(
-    private orderService: OrderService,
-    private router:       Router,
-  ) {}
+  constructor(private router: Router) {}
 
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
     this.updateClock();
     this.clockId = setInterval(() => this.updateClock(), 60_000);
-    this.sub = this.orderService.orders$.subscribe(() => this.refresh());
-    this.refresh();
+    await this.refresh();
   }
 
   ngOnDestroy(): void {
-    this.sub.unsubscribe();
     clearInterval(this.clockId);
   }
 
-  // ── Domain delegation ────────────────────────────────────────────────────────
+  // ── Rust Bridge Integration ──────────────────────────────────────────────────
 
-  private refresh(): void {
-    this.totalRevenue    = PriceCalculator.calculateRevenue(this.orderService.paid);
-    this.volumeByService = PriceCalculator.aggregateVolumeByService(this.orderService.paid);
-    this.pendingGroups   = this.buildGroups(this.orderService.pending);
-    this.paidGroups      = this.buildGroups(this.orderService.paid);
+  private async refresh(): Promise<void> {
+    // Fetch state directly from your registered Tauri commands
+    const pendingOrders = await invoke<Order[]>('get_pending_orders');
+    this._rawPaidOrders = await invoke<Order[]>('get_paid_orders');
+
+    // Perform layout groupings natively for the view
+    this.pendingGroups = this.buildGroups(pendingOrders);
+    this.paidGroups = this.buildGroups(this._rawPaidOrders);
+
+    // Calculate metrics locally using the raw data to replace PriceCalculator logic
+    this.totalRevenue = this._rawPaidOrders.reduce(
+      (sum, o) => sum + o.quantity * o.unit_price,
+      0
+    );
+
+    this.volumeByService = this._rawPaidOrders.reduce((acc, o) => {
+      acc[o.service_type] = (acc[o.service_type] ?? 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
   }
 
-  // ── Commands ─────────────────────────────────────────────────────────────────
-
-  markGroupAsPaid(groupId: number): void {
-    this.orderService.markGroupAsPaid(groupId);
+  async markGroupAsPaid(groupId: number): Promise<void> {
+    await invoke('mark_group_as_paid', { groupId });
+    await this.refresh();
   }
 
   goBack(): void {
     this.router.navigate(['/']);
   }
 
-  // ── Template helpers ─────────────────────────────────────────────────────────
+  // ── Template UI Helpers ──────────────────────────────────────────────────────
 
   formatGroupId(groupId: number): string {
     return '#' + String(groupId).padStart(4, '0');
@@ -78,7 +108,7 @@ export class Cashier implements OnInit, OnDestroy {
 
   getGroupItemsSummary(group: OrderGroup): string {
     return group.lines
-      .map(l => {
+      .map((l) => {
         const parts = l.service_type.split(' — ');
         return `${l.quantity}× ${parts[1] ?? l.service_type}`;
       })
@@ -86,33 +116,41 @@ export class Cashier implements OnInit, OnDestroy {
   }
 
   volumeEntries(): { key: string; value: number }[] {
-    return Object.entries(this.volumeByService)
-      .map(([key, value]) => ({ key, value })); 
+    return Object.entries(this.volumeByService).map(([key, value]) => ({
+      key,
+      value,
+    }));
   }
 
-  rapportGroups(): { category: string; lines: { label: string; unitPrice: number; qty: number; total: number }[] }[] {
-  const map = new Map<string, Map<string, { unitPrice: number; qty: number; total: number }>>();
+  rapportGroups(): RapportCategoryGroup[] {
+    const map = new Map<string, Map<string, RapportLine>>();
 
-  for (const order of this.orderService.paid) {
-    const [category, label] = order.service_type.split(' — ');
-    const key = label ?? order.service_type;
+    for (const order of this._rawPaidOrders) {
+      const [category, label] = order.service_type.split(' — ');
+      const key = label ?? order.service_type;
 
-    if (!map.has(category)) map.set(category, new Map());
-    const cat = map.get(category)!;
+      if (!map.has(category)) map.set(category, new Map());
+      const cat = map.get(category)!;
 
-    if (!cat.has(key)) cat.set(key, { unitPrice: order.unit_price, qty: 0, total: 0 });
-    const entry = cat.get(key)!;
-    entry.qty   += order.quantity;
-    entry.total += order.quantity * order.unit_price;
+      if (!cat.has(key)) {
+        cat.set(key, {
+          label: key,
+          unitPrice: order.unit_price,
+          qty: 0,
+          total: 0,
+        });
+      }
+
+      const entry = cat.get(key)!;
+      entry.qty += order.quantity;
+      entry.total += order.quantity * order.unit_price;
+    }
+
+    return Array.from(map.entries()).map(([category, lines]) => ({
+      category,
+      lines: Array.from(lines.values()),
+    }));
   }
-
-  return Array.from(map.entries()).map(([category, lines]) => ({
-    category,
-    lines: Array.from(lines.entries()).map(([label, v]) => ({ label, ...v })),
-  }));
-}
-
-  // ── Private helpers ──────────────────────────────────────────────────────────
 
   private buildGroups(orders: Order[]): OrderGroup[] {
     const map = new Map<number, Order[]>();
@@ -123,22 +161,20 @@ export class Cashier implements OnInit, OnDestroy {
 
     const groups: OrderGroup[] = [];
     for (const [groupId, lines] of map.entries()) {
-      const totalAmount = lines.reduce((sum, l) => sum + l.quantity * l.unit_price, 0);
       groups.push({
         groupId,
         lines,
-        totalAmount,
-        time:   lines[0].time,
+        totalAmount: lines.reduce((sum, l) => sum + l.quantity * l.unit_price, 0),
+        time: lines[0].time,
         paidAt: lines[0].paid_at,
       });
     }
-    // Most-recent group first
     return groups.sort((a, b) => b.groupId - a.groupId);
   }
 
   private updateClock(): void {
     this.currentTime = new Date().toLocaleTimeString('fr-FR', {
-      hour:   '2-digit',
+      hour: '2-digit',
       minute: '2-digit',
     });
   }

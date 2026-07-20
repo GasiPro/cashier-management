@@ -1,81 +1,127 @@
-// src/app/presentation/vews/comptoir/comptoir.ts
+// src/app/presentation/vews/counter/counter.ts
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule }  from '@angular/forms';
-import { Router }       from '@angular/router';
-import { Subscription } from 'rxjs';
+import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { invoke } from '@tauri-apps/api/core'; // Adjust to '@tauri-apps/api/tauri' if on Tauri v1
 
-import { OrderService }                        from '../../../core/service/order.service';
-import { Order }                               from '../../../domain/order/order.model';
-import { ServiceItem, CartItem, PriceCalculator } from '../../../domain/order/price-calculator';
-import { PRICING_MATRIX }                      from '../../../core/config/pricing.matrix';
+// Inline types to represent our Rust domain structures.
+// NOTE: these fields must mirror the serde output of
+// src-tauri/src/domain/order/price_calculator.rs::ServiceItem exactly.
+export interface ServiceItem {
+  id: string;               // Rust sends a string id (e.g. "pca3nb"), not a number
+  label: string;             // Rust field is "label", not "name" — rename template refs from .name to .label
+  price: number;
+  category: string;
+  type: 'service' | 'product'; // Rust ServiceItemType serializes as "service" | "product" (English, lowercase)
+}
+
+export interface CartItem {
+  service: ServiceItem;
+  qty: number;
+  unitPrice: number;
+}
+
+export interface Order {
+  id: number;
+  group_id: number;
+  service_type: string;
+  unit_price: number;
+  quantity: number;
+  status: 'EN_ATTENTE' | 'PAYE';
+  time: string;
+  created_at: string;
+  paid_at: string | null;
+}
 
 interface OrderGroup {
   groupId: number;
-  lines:   Order[];
-  status:  'EN_ATTENTE' | 'PAYE' | 'MIXTE';
-  time:    string;
+  lines: Order[];
+  status: 'EN_ATTENTE' | 'PAYE' | 'MIXTE';
+  time: string;
 }
 
 @Component({
   selector: 'app-counter',
-  standalone:  true,
-  imports:     [CommonModule, FormsModule],
+  standalone: true,
+  imports: [CommonModule, FormsModule],
   templateUrl: './counter.html',
 })
 export class Counter implements OnInit, OnDestroy {
-
   // ── Catalogue ──────────────────────────────────────────────────────────────
-  readonly allServices: ServiceItem[] = PRICING_MATRIX;
+  allServices: ServiceItem[] = [];
 
   // ── Type filters ───────────────────────────────────────────────────────────
+  // Display labels stay in French; the `value` must match the wire format
+  // coming from Rust ('service' | 'product'), not a French word.
   readonly typeFilters = [
     { label: 'Tous',     value: 'tous'    },
     { label: 'Services', value: 'service' },
-    { label: 'Produits', value: 'produit' },
+    { label: 'Produits', value: 'product' },
   ] as const;
-  activeTypeFilter: 'tous' | 'service' | 'produit' = 'tous';
+  activeTypeFilter: 'tous' | 'service' | 'product' = 'tous';
 
   // ── Category filters ───────────────────────────────────────────────────────
-  categories:     string[] = [];
-  activeCategory           = 'Tous';
+  categories: string[] = [];
+  activeCategory = 'Tous';
 
   // ── Cart ───────────────────────────────────────────────────────────────────
   cart: CartItem[] = [];
 
-  // ── Today's order history (reactive) ──────────────────────────────────────
+  // ── Today's order history ──────────────────────────────────────────────────
   orderGroups: OrderGroup[] = [];
 
   // ── UI ─────────────────────────────────────────────────────────────────────
-  currentTime  = '';
+  currentTime = '';
   toastVisible = false;
   toastMessage = '';
 
-  private sub!: Subscription;
   private clockId!: ReturnType<typeof setInterval>;
 
-  constructor(
-    private orderService: OrderService,
-    private router:       Router,
-  ) {}
+  constructor(private router: Router) {}
 
-  ngOnInit(): void {
-    this.extractCategories();
-
-    this.sub = this.orderService.orders$.subscribe(orders => {
-      this.orderGroups = this.buildGroups(orders);
-    });
-
+  async ngOnInit(): Promise<void> {
     this.updateClock();
     this.clockId = setInterval(() => this.updateClock(), 60_000);
+
+    // Fetch state directly via Tauri commands upon component initialization
+    await this.loadCatalogue();
+    await this.refreshHistory();
   }
 
   ngOnDestroy(): void {
-    this.sub.unsubscribe();
     clearInterval(this.clockId);
   }
 
-  // ── Derived state ──────────────────────────────────────────────────────────
+  // ── Tauri Interactivity Bridge ─────────────────────────────────────────────
+
+  private async loadCatalogue(): Promise<void> {
+    // Queries your Rust backend for the matrix instead of using a hardcoded TS file
+    this.allServices = await invoke<ServiceItem[]>('get_pricing_matrix');
+    this.extractCategories();
+  }
+
+  private async refreshHistory(): Promise<void> {
+    // Fetch current orders snapshot directly
+    const orders = await invoke<Order[]>('get_orders');
+    this.orderGroups = this.buildGroups(orders);
+  }
+
+  async envoyerCommande(): Promise<void> {
+    if (this.cart.length === 0) return;
+
+    try {
+      await invoke('create_order', { cart: this.cart });
+
+      this.cart = [];
+      this.showToast('Commande envoyée à la caisse !');
+      await this.refreshHistory();
+    } catch (error) {
+      this.showToast('Erreur lors de l\'envoi de la commande');
+    }
+  }
+
+  // ── Derived View State ─────────────────────────────────────────────────────
 
   get filteredServices(): ServiceItem[] {
     return this.allServices.filter(s => {
@@ -94,15 +140,13 @@ export class Counter implements OnInit, OnDestroy {
   }
 
   get grandTotal(): number {
-    return this.cart.reduce(
-      (sum, item) => sum + PriceCalculator.calculateLineTotal(item.qty, item.unitPrice),
-      0,
-    );
+    // Pure calculation localized to the UI line layer
+    return this.cart.reduce((sum, item) => sum + (item.qty * item.unitPrice), 0);
   }
 
-  // ── Filter actions ─────────────────────────────────────────────────────────
+  // ── Filter Actions ─────────────────────────────────────────────────────────
 
-  setTypeFilter(type: 'tous' | 'service' | 'produit'): void {
+  setTypeFilter(type: 'tous' | 'service' | 'product'): void {
     this.activeTypeFilter = type;
     this.extractCategories();
     this.activeCategory = 'Tous';
@@ -119,7 +163,7 @@ export class Counter implements OnInit, OnDestroy {
     this.categories = Array.from(new Set(raw));
   }
 
-  // ── Cart mutations ─────────────────────────────────────────────────────────
+  // ── Cart Mutations ─────────────────────────────────────────────────────────
 
   selectService(service: ServiceItem): void {
     const found = this.cart.find(item => item.service.id === service.id);
@@ -154,16 +198,7 @@ export class Counter implements OnInit, OnDestroy {
     this.cart = this.cart.filter(i => i.service.id !== item.service.id);
   }
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
-
-  envoyerCommande(): void {
-    if (this.cart.length === 0) return;
-    this.orderService.createOrder(this.cart);
-    this.cart = [];
-    this.showToast('Commande envoyée à la caisse !');
-  }
-
-  // ── Template helpers ───────────────────────────────────────────────────────
+  // ── Template Helpers ───────────────────────────────────────────────────────
 
   groupLabel(groupId: number): string {
     return '#' + String(groupId).padStart(4, '0');
@@ -192,7 +227,7 @@ export class Counter implements OnInit, OnDestroy {
     this.router.navigate(['/']);
   }
 
-  // ── Internals ──────────────────────────────────────────────────────────────
+  // ── Layout Formatters ──────────────────────────────────────────────────────
 
   private buildGroups(orders: Order[]): OrderGroup[] {
     const map = new Map<number, Order[]>();
@@ -208,7 +243,7 @@ export class Counter implements OnInit, OnDestroy {
         groupId,
         lines,
         status: allPaid ? 'PAYE' : allWaiting ? 'EN_ATTENTE' : 'MIXTE',
-        time:   lines[0].time,
+        time:    lines[0].time,
       });
     }
     return groups.sort((a, b) => b.groupId - a.groupId);
