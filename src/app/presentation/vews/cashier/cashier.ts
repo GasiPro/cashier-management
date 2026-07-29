@@ -1,8 +1,10 @@
 // src/app/presentation/vews/cashier/cashier.ts
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { invoke } from '@tauri-apps/api/core';
+import { WebsocketService, WsMessage } from '../../../core/service/websocket.service';
+import { Subscription } from 'rxjs';
 
 // Define Rust-mirrored types locally for UI compilation
 export interface Order {
@@ -37,63 +39,75 @@ interface RapportCategoryGroup {
   lines: RapportLine[];
 }
 
+// The Cashier is always the WS host, so it talks to its own local server —
+// no LAN address to configure here (unlike Counter, which connects out to
+// the Cashier's IP).
+const CASHIER_LOCAL_WS_URL = 'ws://127.0.0.1:8080';
+
 @Component({
-  selector: 'app-cashier', // was 'app-caissier' — kept the class/selector language consistent with `Counter`
+  selector: 'app-cashier',
   standalone: true,
   imports: [CommonModule],
   templateUrl: './cashier.html',
 })
 export class Cashier implements OnInit, OnDestroy {
-  currentTime = '';
-  private clockId!: ReturnType<typeof setInterval>;
+  // This app runs zoneless (no zone.js — see package.json / angular.json).
+  // Anything written from an async callback that Angular doesn't already
+  // track (WebSocket messages, setTimeout, promise continuations, etc.)
+  // has to live in a signal, or the view silently stops updating until
+  // some unrelated click forces a re-render. Everything below is written
+  // from the WS subscription, so it's a signal.
+  currentTime = signal('');
+  pendingGroups = signal<OrderGroup[]>([]);
+  paidGroups = signal<OrderGroup[]>([]);
+  totalRevenue = signal(0);
+  volumeByService = signal<Record<string, number>>({});
+  wsConnected = signal(false);
 
-  pendingGroups: OrderGroup[] = [];
-  paidGroups: OrderGroup[] = [];
-  totalRevenue = 0;
-  volumeByService: Record<string, number> = {};
+  // showRapport is only ever toggled from a (click) handler in the template,
+  // which Angular's zoneless scheduler already picks up on its own — no
+  // signal needed here.
   showRapport = false;
 
   // Local storage for processing UI computations without domain imports
+  private _rawOrders: Order[] = [];
   private _rawPaidOrders: Order[] = [];
+  private wsSubscription?: Subscription;
 
-  constructor(private router: Router) {}
+  constructor(
+    private router: Router,
+    private ws: WebsocketService,
+  ) {}
 
-  async ngOnInit(): Promise<void> {
-    this.updateClock();
-    this.clockId = setInterval(() => this.updateClock(), 60_000);
-    await this.refresh();
+  ngOnInit(): void {
+    // Every field below is now derived purely from the "orders" / "time" WS
+    // broadcasts pushed by this same machine's Rust backend — there's no
+    // more separate invoke('get_pending_orders') / invoke('get_paid_orders')
+    // polling step, so there's exactly one source of truth for order state.
+    this.ws.connect(CASHIER_LOCAL_WS_URL);
+    this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
+      this.wsConnected.set(true);
+      if (msg.type === 'orders') {
+        this.applyOrders(msg.data as Order[]);
+      } else if (msg.type === 'time') {
+        this.currentTime.set(msg.data as string);
+      }
+    });
   }
 
   ngOnDestroy(): void {
-    clearInterval(this.clockId);
+    this.wsSubscription?.unsubscribe();
+    this.ws.disconnect();
   }
 
   // ── Rust Bridge Integration ──────────────────────────────────────────────────
 
-  private async refresh(): Promise<void> {
-    // Fetch state directly from your registered Tauri commands
-    const pendingOrders = await invoke<Order[]>('get_pending_orders');
-    this._rawPaidOrders = await invoke<Order[]>('get_paid_orders');
-
-    // Perform layout groupings natively for the view
-    this.pendingGroups = this.buildGroups(pendingOrders);
-    this.paidGroups = this.buildGroups(this._rawPaidOrders);
-
-    // Calculate metrics locally using the raw data to replace PriceCalculator logic
-    this.totalRevenue = this._rawPaidOrders.reduce(
-      (sum, o) => sum + o.quantity * o.unit_price,
-      0
-    );
-
-    this.volumeByService = this._rawPaidOrders.reduce((acc, o) => {
-      acc[o.service_type] = (acc[o.service_type] ?? 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-  }
-
   async markGroupAsPaid(groupId: number): Promise<void> {
+    // Mutates local state directly since the Cashier IS the WS host. The
+    // Rust command broadcasts the refreshed "orders" snapshot afterwards,
+    // which flows back through the subscription above — no manual refresh
+    // needed, and every connected Counter sees the same update instantly.
     await invoke('mark_group_as_paid', { groupId });
-    await this.refresh();
   }
 
   goBack(): void {
@@ -116,7 +130,7 @@ export class Cashier implements OnInit, OnDestroy {
   }
 
   volumeEntries(): { key: string; value: number }[] {
-    return Object.entries(this.volumeByService).map(([key, value]) => ({
+    return Object.entries(this.volumeByService()).map(([key, value]) => ({
       key,
       value,
     }));
@@ -152,6 +166,28 @@ export class Cashier implements OnInit, OnDestroy {
     }));
   }
 
+  // ── Derivation from the latest "orders" broadcast ─────────────────────────────
+
+  private applyOrders(orders: Order[]): void {
+    this._rawOrders = orders;
+    this._rawPaidOrders = orders.filter(o => o.status === 'PAYE');
+    const pendingOrders = orders.filter(o => o.status === 'EN_ATTENTE');
+
+    this.pendingGroups.set(this.buildGroups(pendingOrders));
+    this.paidGroups.set(this.buildGroups(this._rawPaidOrders));
+
+    this.totalRevenue.set(
+      this._rawPaidOrders.reduce((sum, o) => sum + o.quantity * o.unit_price, 0)
+    );
+
+    this.volumeByService.set(
+      this._rawPaidOrders.reduce((acc, o) => {
+        acc[o.service_type] = (acc[o.service_type] ?? 0) + 1;
+        return acc;
+      }, {} as Record<string, number>)
+    );
+  }
+
   private buildGroups(orders: Order[]): OrderGroup[] {
     const map = new Map<number, Order[]>();
     for (const o of orders) {
@@ -170,12 +206,5 @@ export class Cashier implements OnInit, OnDestroy {
       });
     }
     return groups.sort((a, b) => b.groupId - a.groupId);
-  }
-
-  private updateClock(): void {
-    this.currentTime = new Date().toLocaleTimeString('fr-FR', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
   }
 }

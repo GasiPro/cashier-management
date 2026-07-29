@@ -43,5 +43,6 @@ __screenshots__/
 .DS_Store
 Thumbs.db
 
-# 
+#
 .ignore/
+repomix-*

@@ -24,3 +24,6 @@ tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
 serde_json = "1.0.150"
 chrono = { version = "0.4", features = ["serde"] }
+tokio = { version = "1", features = ["net", "rt-multi-thread", "sync", "time", "macros"] }
+tokio-tungstenite = "0.24"
+futures-util = "0.3"

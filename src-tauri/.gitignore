@@ -2,3 +2,8 @@
 # will have compiled files and executables
 /target/
 /gen/schemas
+
+#
+gasipro_nextGroupId.txt
+gasipro_nextId.txt
+gasipro_orders.json

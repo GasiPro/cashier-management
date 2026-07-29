@@ -25,13 +25,13 @@
           <div class="text-right">
             <p class="text-xs text-gray-400">Encaissé</p>
             <p class="font-semibold text-[#1A1A1A] tabular-nums">
-              {{ totalRevenue | number:'1.0-0' }} Ar
+              {{ totalRevenue() | number:'1.0-0' }} Ar
             </p>
           </div>
           <div class="w-px h-8 bg-gray-200"></div>
           <div class="text-right">
             <p class="text-xs text-gray-400">Transactions</p>
-            <p class="font-semibold text-[#1A1A1A]">{{ paidGroups.length }}</p>
+            <p class="font-semibold text-[#1A1A1A]">{{ paidGroups().length }}</p>
           </div>
         </div>
 
@@ -41,7 +41,7 @@
           Rapport du jour
         </button>
       </div>
-      <span class="text-xs text-gray-400">{{ currentTime }}</span>
+      <span class="text-xs text-gray-400">{{ currentTime() }}</span>
     </div>
   </header>
 
@@ -69,16 +69,16 @@
           <div class="flex justify-between items-center py-3 border-b border-gray-100">
             <span class="text-sm text-gray-600">Chiffre d'affaires</span>
             <span class="font-bold text-lg text-[#1E3A5F] tabular-nums">
-              {{ totalRevenue | number:'1.0-0' }} Ar
+              {{ totalRevenue() | number:'1.0-0' }} Ar
             </span>
           </div>
           <div class="flex justify-between items-center py-3 border-b border-gray-100">
             <span class="text-sm text-gray-600">Clients servis</span>
-            <span class="font-semibold">{{ paidGroups.length }}</span>
+            <span class="font-semibold">{{ paidGroups().length }}</span>
           </div>
           <div class="flex justify-between items-center py-3 border-b border-gray-100">
             <span class="text-sm text-gray-600">Files en attente</span>
-            <span class="font-semibold">{{ pendingGroups.length }}</span>
+            <span class="font-semibold">{{ pendingGroups().length }}</span>
           </div>
 
           <div class="pt-4">
@@ -130,10 +130,10 @@
           <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block"></span>
           En attente
         </span>
-        <span class="text-sm text-gray-400">({{ pendingGroups.length }})</span>
+        <span class="text-sm text-gray-400">({{ pendingGroups().length }})</span>
       </div>
 
-      @if (pendingGroups.length === 0) {
+      @if (pendingGroups().length === 0) {
       <div class="text-center py-16 text-gray-400">
         <svg class="w-8 h-8 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" stroke-width="1.5"
           viewBox="0 0 24 24">
@@ -145,7 +145,7 @@
       }
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        @for (group of pendingGroups; track group.groupId) {
+        @for (group of pendingGroups(); track group.groupId) {
         <div
           class="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors flex flex-col justify-between">
 
@@ -196,10 +196,10 @@
                  px-2.5 py-1 rounded-full uppercase tracking-wide">
           Encaissées (Aujourd'hui)
         </span>
-        <span class="text-sm text-gray-400">({{ paidGroups.length }})</span>
+        <span class="text-sm text-gray-400">({{ paidGroups().length }})</span>
       </div>
 
-      @if (paidGroups.length === 0) {
+      @if (paidGroups().length === 0) {
       <p class="text-sm text-gray-400 italic py-4">Aucun encaissement réalisé pour le moment.</p>
       } @else {
       <div class="bg-white border border-gray-200 rounded-lg overflow-x-auto [-webkit-overflow-scrolling:touch]">
@@ -219,7 +219,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (group of paidGroups; track group.groupId) {
+            @for (group of paidGroups(); track group.groupId) {
             <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
               <td class="px-3 sm:px-4 py-3 font-mono font-semibold text-gray-700 whitespace-nowrap">{{
                 formatGroupId(group.groupId) }}</td>
