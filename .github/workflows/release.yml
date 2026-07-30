@@ -22,13 +22,19 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-size: 20
+          node-version: 20
+          cache: 'npm'
 
       - name: Install Frontend Dependencies
         run: npm ci
 
       - name: Install Rust Stable
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'src-tauri -> target'
 
       - name: Install Linux App Dependencies (Ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
