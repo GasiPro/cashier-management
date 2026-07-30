@@ -3,19 +3,16 @@ import { Component, OnInit, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { invoke } from '@tauri-apps/api/core'; // Adjust to '@tauri-apps/api/tauri' if on Tauri v1
+import { invoke } from '@tauri-apps/api/core';
 import { WebsocketService, WsMessage } from '../../../core/service/websocket.service';
 import { Subscription } from 'rxjs';
 
-// Inline types to represent our Rust domain structures.
-// NOTE: these fields must mirror the serde output of
-// src-tauri/src/domain/order/price_calculator.rs::ServiceItem exactly.
 export interface ServiceItem {
-  id: string;               // Rust sends a string id (e.g. "pca3nb"), not a number
-  label: string;             // Rust field is "label", not "name" — rename template refs from .name to .label
+  id: string;
+  label: string;
   price: number;
   category: string;
-  type: 'service' | 'product'; // Rust ServiceItemType serializes as "service" | "product" (English, lowercase)
+  type: 'service' | 'product';
 }
 
 export interface CartItem {
@@ -43,8 +40,9 @@ interface OrderGroup {
   time: string;
 }
 
-const CASHIER_WS_URL_KEY = 'gasipro:cashierWsUrl';
-const DEFAULT_WS_URL = 'ws://127.0.0.1:8080';
+const LS_USERNAME = 'gasipro:username';
+const LS_CASHIER_URL = 'gasipro:cashierWsUrl';
+const DEFAULT_WS_HOST = '127.0.0.1:8080';
 
 @Component({
   selector: 'app-counter',
@@ -53,47 +51,46 @@ const DEFAULT_WS_URL = 'ws://127.0.0.1:8080';
   templateUrl: './counter.html',
 })
 export class Counter implements OnInit, OnDestroy {
-  // This app runs zoneless (no zone.js — see package.json / angular.json).
-  // Anything written from a callback Angular doesn't already track — WS
-  // messages, setInterval, setTimeout, a resolved invoke() promise — has to
-  // live in a signal, or the view silently stops updating until some
-  // unrelated click forces a re-render.
+  // ── Identity ────────────────────────────────────────────────────────────────
+  username = localStorage.getItem(LS_USERNAME) ?? 'Comptoir';
+  cashierHost = localStorage.getItem(LS_CASHIER_URL) ?? DEFAULT_WS_HOST;
 
-  // ── Catalogue (loaded via invoke(), an async promise resolution) ────────────
+  // ── Catalogue ───────────────────────────────────────────────────────────────
   allServices = signal<ServiceItem[]>([]);
   categories = signal<string[]>([]);
 
-  // ── Type filters ───────────────────────────────────────────────────────────
-  // Display labels stay in French; the `value` must match the wire format
-  // coming from Rust ('service' | 'product'), not a French word.
   readonly typeFilters = [
     { label: 'Tous',     value: 'tous'    },
     { label: 'Services', value: 'service' },
     { label: 'Produits', value: 'product' },
   ] as const;
-  // Set only from (click) handlers, which Angular's zoneless scheduler
-  // already tracks — no signal needed.
   activeTypeFilter: 'tous' | 'service' | 'product' = 'tous';
   activeCategory = 'Tous';
 
-  // ── Cart ───────────────────────────────────────────────────────────────────
-  // Also only mutated from (click)/(ngModelChange) handlers — plain field.
+  // ── Cart ─────────────────────────────────────────────────────────────────────
   cart: CartItem[] = [];
 
-  // ── Today's order history (driven entirely by the "orders" WS broadcast) ───
+  // ── Order history ─────────────────────────────────────────────────────────────
   orderGroups = signal<OrderGroup[]>([]);
 
-  // ── Cashier connection (LAN) ─────────────────────────────────────────────────
-  cashierAddress = '';
+  // ── Connection state ──────────────────────────────────────────────────────────
   wsConnected = signal(false);
+  /** True while waiting for cashier to re-approve (e.g. after a reconnect). */
+  waitingApproval = signal(false);
 
-  // ── UI ─────────────────────────────────────────────────────────────────────
+  // ── Server management panel ───────────────────────────────────────────────────
+  showServerPanel = false;
+  newCashierHost = '';
+
+  // ── UI ────────────────────────────────────────────────────────────────────────
   currentTime = signal('');
   toastVisible = signal(false);
   toastMessage = signal('');
 
   private clockId!: ReturnType<typeof setInterval>;
   private wsSubscription?: Subscription;
+  private openSubscription?: Subscription;
+  private closeSubscription?: Subscription;
 
   constructor(
     private router: Router,
@@ -102,39 +99,58 @@ export class Counter implements OnInit, OnDestroy {
 
   async ngOnInit(): Promise<void> {
     this.updateClock();
-    // Local fallback clock ticks every minute in case the WS clock hasn't
-    // connected yet; once connected, the "time" broadcast overwrites this.
     this.clockId = setInterval(() => this.updateClock(), 60_000);
-
-    // Catalogue is static reference data baked into every build, so it's
-    // fine to keep this as a plain local Tauri call — it doesn't need to be
-    // shared over the LAN.
     await this.loadCatalogue();
 
-    this.cashierAddress = localStorage.getItem(CASHIER_WS_URL_KEY) ?? DEFAULT_WS_URL.replace('ws://', '');
-    this.connectToCashier(this.cashierAddress);
+    this.newCashierHost = this.cashierHost;
+
+    this.setupWsListeners();
+
+    const fullUrl = `ws://${this.cashierHost}`;
+    this.ws.connect(fullUrl);
+
+    // If the socket is already open (handed off from login), don't wait for onopen.
+    if (this.ws.isOpen()) {
+      // Connection is live and already approved (login handled approval before navigating).
+      this.wsConnected.set(true);
+      this.waitingApproval.set(false);
+    }
   }
 
   ngOnDestroy(): void {
     clearInterval(this.clockId);
     this.wsSubscription?.unsubscribe();
+    this.openSubscription?.unsubscribe();
+    this.closeSubscription?.unsubscribe();
     this.ws.disconnect();
   }
 
-  // ── Cashier WS Connection ────────────────────────────────────────────────────
+  // ── WS lifecycle ──────────────────────────────────────────────────────────────
 
-  /** Point this Counter at a Cashier's "host:port" (e.g. "192.168.1.42:8080") and (re)connect. */
-  connectToCashier(hostAndPort: string): void {
-    const address = hostAndPort.trim() || DEFAULT_WS_URL.replace('ws://', '');
-    this.cashierAddress = address;
-    localStorage.setItem(CASHIER_WS_URL_KEY, address);
+  private setupWsListeners(): void {
+    // Handle reconnect: re-send request_connection, show waiting overlay.
+    this.openSubscription = this.ws.onOpened().subscribe(() => {
+      this.wsConnected.set(false);
+      this.waitingApproval.set(true);
+      this.ws.send({ type: 'request_connection', username: this.username });
+    });
 
-    this.wsSubscription?.unsubscribe();
-    this.ws.connect(`ws://${address}`);
+    // Handle drop: show "disconnected" state.
+    this.closeSubscription = this.ws.onClosed().subscribe(() => {
+      this.wsConnected.set(false);
+      this.waitingApproval.set(false);
+    });
 
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
-      this.wsConnected.set(true);
-      if (msg.type === 'orders') {
+      if (msg.type === 'connection_approved') {
+        this.wsConnected.set(true);
+        this.waitingApproval.set(false);
+      } else if (msg.type === 'connection_rejected') {
+        this.wsConnected.set(false);
+        this.waitingApproval.set(false);
+        this.ws.disconnect();
+        this.showToast('Connexion refusée par la caisse.');
+      } else if (msg.type === 'orders') {
         this.orderGroups.set(this.buildGroups(msg.data as Order[]));
       } else if (msg.type === 'time') {
         this.currentTime.set(msg.data as string);
@@ -142,40 +158,57 @@ export class Counter implements OnInit, OnDestroy {
     });
   }
 
-  // ── Tauri Interactivity Bridge ─────────────────────────────────────────────
+  // ── Server management ─────────────────────────────────────────────────────────
+
+  disconnectFromCashier(): void {
+    this.ws.disconnect();
+    this.router.navigate(['/login']);
+  }
+
+  connectToNewCashier(): void {
+    const host = this.newCashierHost.trim();
+    if (!host) return;
+
+    this.showServerPanel = false;
+    this.cashierHost = host;
+    localStorage.setItem(LS_CASHIER_URL, host);
+
+    // Tear down current connection and set up fresh.
+    this.ws.disconnect();
+
+    // Give the socket a tick to close before reconnecting.
+    setTimeout(() => {
+      const fullUrl = `ws://${host}`;
+      this.ws.connect(fullUrl);
+      this.waitingApproval.set(true);
+    }, 100);
+  }
+
+  // ── Catalogue ─────────────────────────────────────────────────────────────────
 
   private async loadCatalogue(): Promise<void> {
-    // Queries your Rust backend for the matrix instead of using a hardcoded TS file.
     const services = await invoke<ServiceItem[]>('get_pricing_matrix');
     this.allServices.set(services);
     this.extractCategories();
   }
 
-  /**
-   * Send the cart to the Cashier over the WebSocket connection instead of
-   * invoke('create_order', ...). A local invoke() would only write to this
-   * machine's own isolated order file — the Cashier is the single source of
-   * truth, so the order has to actually reach it over the LAN. The Cashier's
-   * Rust backend creates the order and rebroadcasts the updated snapshot,
-   * which lands back here via the "orders" subscription above.
-   */
+  // ── Order submission ──────────────────────────────────────────────────────────
+
   envoyerCommande(): void {
     if (this.cart.length === 0) return;
-
     if (!this.wsConnected()) {
       this.showToast('Non connecté à la caisse — vérifiez la connexion réseau');
       return;
     }
-
     this.ws.send({ type: 'create_order', cart: this.cart });
     this.cart = [];
     this.showToast('Commande envoyée à la caisse !');
   }
 
-  // ── Derived View State ─────────────────────────────────────────────────────
+  // ── Derived view state ────────────────────────────────────────────────────────
 
   get filteredServices(): ServiceItem[] {
-    return this.allServices().filter(s => {
+    return this.allServices().filter((s) => {
       const matchType = this.activeTypeFilter === 'tous' || s.type === this.activeTypeFilter;
       const matchCat  = this.activeCategory   === 'Tous' || s.category === this.activeCategory;
       return matchType && matchCat;
@@ -191,11 +224,10 @@ export class Counter implements OnInit, OnDestroy {
   }
 
   get grandTotal(): number {
-    // Pure calculation localized to the UI line layer
-    return this.cart.reduce((sum, item) => sum + (item.qty * item.unitPrice), 0);
+    return this.cart.reduce((sum, item) => sum + item.qty * item.unitPrice, 0);
   }
 
-  // ── Filter Actions ─────────────────────────────────────────────────────────
+  // ── Filter actions ────────────────────────────────────────────────────────────
 
   setTypeFilter(type: 'tous' | 'service' | 'product'): void {
     this.activeTypeFilter = type;
@@ -209,15 +241,15 @@ export class Counter implements OnInit, OnDestroy {
 
   private extractCategories(): void {
     const raw = this.allServices()
-      .filter(s => this.activeTypeFilter === 'tous' || s.type === this.activeTypeFilter)
-      .map(s => s.category);
+      .filter((s) => this.activeTypeFilter === 'tous' || s.type === this.activeTypeFilter)
+      .map((s) => s.category);
     this.categories.set(Array.from(new Set(raw)));
   }
 
-  // ── Cart Mutations ─────────────────────────────────────────────────────────
+  // ── Cart mutations ────────────────────────────────────────────────────────────
 
   selectService(service: ServiceItem): void {
-    const found = this.cart.find(item => item.service.id === service.id);
+    const found = this.cart.find((item) => item.service.id === service.id);
     if (found) {
       found.qty++;
     } else {
@@ -226,11 +258,11 @@ export class Counter implements OnInit, OnDestroy {
   }
 
   isInCart(service: ServiceItem): boolean {
-    return this.cart.some(item => item.service.id === service.id);
+    return this.cart.some((item) => item.service.id === service.id);
   }
 
   cartQty(service: ServiceItem): number {
-    return this.cart.find(item => item.service.id === service.id)?.qty ?? 0;
+    return this.cart.find((item) => item.service.id === service.id)?.qty ?? 0;
   }
 
   incrementItem(item: CartItem): void {
@@ -246,17 +278,17 @@ export class Counter implements OnInit, OnDestroy {
   }
 
   removeItem(item: CartItem): void {
-    this.cart = this.cart.filter(i => i.service.id !== item.service.id);
+    this.cart = this.cart.filter((i) => i.service.id !== item.service.id);
   }
 
-  // ── Template Helpers ───────────────────────────────────────────────────────
+  // ── Template helpers ──────────────────────────────────────────────────────────
 
   groupLabel(groupId: number): string {
     return '#' + String(groupId).padStart(4, '0');
   }
 
   groupSummary(g: OrderGroup): string {
-    return g.lines.map(l => {
+    return g.lines.map((l) => {
       const parts = l.service_type.split(' — ');
       return parts.length > 1 ? parts[1] : l.service_type;
     }).join(', ');
@@ -278,7 +310,7 @@ export class Counter implements OnInit, OnDestroy {
     this.router.navigate(['/']);
   }
 
-  // ── Layout Formatters ──────────────────────────────────────────────────────
+  // ── Layout formatters ──────────────────────────────────────────────────────────
 
   private buildGroups(orders: Order[]): OrderGroup[] {
     const map = new Map<number, Order[]>();
@@ -288,8 +320,8 @@ export class Counter implements OnInit, OnDestroy {
     }
     const groups: OrderGroup[] = [];
     for (const [groupId, lines] of map.entries()) {
-      const allPaid    = lines.every(l => l.status === 'PAYE');
-      const allWaiting = lines.every(l => l.status === 'EN_ATTENTE');
+      const allPaid    = lines.every((l) => l.status === 'PAYE');
+      const allWaiting = lines.every((l) => l.status === 'EN_ATTENTE');
       groups.push({
         groupId,
         lines,
@@ -308,10 +340,7 @@ export class Counter implements OnInit, OnDestroy {
 
   private updateClock(): void {
     this.currentTime.set(
-      new Date().toLocaleTimeString('fr-FR', {
-        hour:   '2-digit',
-        minute: '2-digit',
-      })
+      new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
     );
   }
 }

@@ -16,17 +16,15 @@
           </div>
           <span class="text-sm font-semibold text-gray-800 hidden sm:block">GasiPro</span>
           <span class="text-gray-300 hidden sm:block">/</span>
-          <span class="text-sm text-gray-500 hidden sm:block">Caisse</span>
+          <span class="text-sm text-gray-500 hidden sm:block">Caisse · {{ username }}</span>
         </div>
       </div>
 
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2 sm:gap-3">
         <div class="hidden sm:flex items-center gap-4 text-sm">
           <div class="text-right">
             <p class="text-xs text-gray-400">Encaissé</p>
-            <p class="font-semibold text-[#1A1A1A] tabular-nums">
-              {{ totalRevenue() | number:'1.0-0' }} Ar
-            </p>
+            <p class="font-semibold text-[#1A1A1A] tabular-nums">{{ totalRevenue() | number:'1.0-0' }} Ar</p>
           </div>
           <div class="w-px h-8 bg-gray-200"></div>
           <div class="text-right">
@@ -35,24 +33,171 @@
           </div>
         </div>
 
+        <!-- Devices button with badge -->
+        <button (click)="showDevicesPanel = !showDevicesPanel"
+          class="relative flex items-center gap-1.5 text-xs font-medium border border-gray-200 px-3 py-1.5 rounded-md
+                 text-gray-600 hover:bg-gray-50 transition-colors
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 21h8M12 17v4"/>
+          </svg>
+          <span class="hidden sm:inline">Appareils</span>
+          @if (totalPendingRequests > 0) {
+          <span class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold
+                       rounded-full flex items-center justify-center leading-none">
+            {{ totalPendingRequests }}
+          </span>
+          }
+        </button>
+
         <button (click)="showRapport = !showRapport" class="text-xs font-medium border border-gray-200 px-3 py-1.5 rounded-md
-                       text-gray-600 hover:bg-gray-50 transition-colors
+                       text-gray-600 hover:bg-gray-50 transition-colors hidden sm:block
                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-          Rapport du jour
+          Rapport
         </button>
       </div>
       <span class="text-xs text-gray-400">{{ currentTime() }}</span>
     </div>
   </header>
 
+  <!-- ── Devices panel ───────────────────────────────────────────────────────── -->
+  @if (showDevicesPanel) {
+  <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showDevicesPanel = false">
+    <div class="absolute inset-0 bg-black/20"></div>
+    <div class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-y-auto
+                flex flex-col"
+         (click)="$event.stopPropagation()">
+
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+        <div>
+          <h2 class="text-base font-semibold text-[#1A1A1A]">Appareils connectés</h2>
+          <p class="text-xs text-gray-400 mt-0.5">{{ wsAddress() }}</p>
+        </div>
+        <button (click)="showDevicesPanel = false"
+          class="text-gray-400 hover:text-gray-600 p-1
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="flex-1 px-6 py-4 space-y-6">
+
+        <!-- WS address card -->
+        <div class="bg-[#EFF4FA] border border-[#1E3A5F]/20 rounded-lg p-4">
+          <p class="text-xs font-medium text-[#1E3A5F] uppercase tracking-wide mb-2">Adresse à partager</p>
+          <div class="flex items-center gap-2">
+            <p class="flex-1 font-mono text-sm text-[#1E3A5F] break-all">{{ wsAddress() }}</p>
+            <button (click)="copyWsAddress()" title="Copier"
+              class="flex-shrink-0 p-1.5 rounded bg-white/60 hover:bg-white transition-colors">
+              <svg class="w-3.5 h-3.5 text-[#1E3A5F]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Pending requests -->
+        <div>
+          <div class="flex items-center gap-2 mb-3">
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">En attente d'approbation</p>
+            @if (pendingRequests().length > 0) {
+            <span class="text-xs bg-red-100 text-red-700 font-semibold px-1.5 py-0.5 rounded-full">
+              {{ pendingRequests().length }}
+            </span>
+            }
+          </div>
+
+          @if (pendingRequests().length === 0) {
+          <p class="text-sm text-gray-400 italic py-2">Aucune demande en attente.</p>
+          }
+
+          <div class="space-y-2">
+            @for (req of pendingRequests(); track req.addr) {
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <div class="flex items-center justify-between mb-2">
+                <div>
+                  <p class="text-sm font-semibold text-[#1A1A1A]">{{ req.username }}</p>
+                  <p class="text-xs text-gray-400 font-mono mt-0.5">{{ req.addr }}</p>
+                </div>
+                <span class="text-[10px] bg-amber-100 text-amber-700 font-medium px-2 py-0.5 rounded-full uppercase tracking-wide">
+                  Attente
+                </span>
+              </div>
+              <div class="flex gap-2">
+                <button (click)="approveDevice(req.addr)"
+                  class="flex-1 bg-[#1E3A5F] text-white text-xs font-semibold py-2 rounded-md
+                         hover:bg-[#16304f] active:scale-95 transition-all
+                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                  Approuver
+                </button>
+                <button (click)="rejectDevice(req.addr)"
+                  class="flex-1 bg-white border border-red-200 text-red-600 text-xs font-semibold py-2 rounded-md
+                         hover:bg-red-50 active:scale-95 transition-all
+                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
+                  Refuser
+                </button>
+              </div>
+            </div>
+            }
+          </div>
+        </div>
+
+        <!-- Connected devices -->
+        <div>
+          <div class="flex items-center gap-2 mb-3">
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Comptoirs connectés</p>
+            @if (connectedDevices().length > 0) {
+            <span class="text-xs bg-emerald-100 text-emerald-700 font-semibold px-1.5 py-0.5 rounded-full">
+              {{ connectedDevices().length }}
+            </span>
+            }
+          </div>
+
+          @if (connectedDevices().length === 0) {
+          <p class="text-sm text-gray-400 italic py-2">Aucun comptoir connecté.</p>
+          }
+
+          <div class="space-y-2">
+            @for (device of connectedDevices(); track device.addr) {
+            <div class="bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between">
+              <div>
+                <p class="text-sm font-semibold text-[#1A1A1A]">{{ device.username }}</p>
+                <p class="text-xs text-gray-400 font-mono mt-0.5">{{ device.addr }}</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
+                  Connecté
+                </span>
+                <button (click)="disconnectDevice(device.addr)"
+                  title="Déconnecter"
+                  class="p-1.5 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors
+                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            }
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- ── Rapport modal ───────────────────────────────────────────────────────── -->
   @if (showRapport) {
   <div class="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
     <div class="absolute inset-0 bg-black/40" (click)="showRapport = false"></div>
-    
-    <!-- MODAL CARD: Changed to flex flex-col and set maximum height constraints -->
     <div class="relative bg-white rounded-xl border border-gray-200 shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden">
-
-      <!-- MODAL HEADER: Remains fixed at the top with clear padding and a subtle divider -->
       <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
         <h2 class="text-base font-semibold text-[#1A1A1A]">Rapport du jour</h2>
         <button (click)="showRapport = false" class="text-gray-400 hover:text-gray-600 p-1
@@ -62,15 +207,11 @@
           </svg>
         </button>
       </div>
-
-      <!-- MODAL CONTENT: Made scrollable with touch optimization and custom inset padding -->
-      <div class="flex-1 overflow-y-auto px-6 pb-6 pt-2 [-webkit-overflow-scrolling:touch]">
+      <div class="flex-1 overflow-y-auto px-6 pb-6 pt-2">
         <div class="space-y-0">
           <div class="flex justify-between items-center py-3 border-b border-gray-100">
             <span class="text-sm text-gray-600">Chiffre d'affaires</span>
-            <span class="font-bold text-lg text-[#1E3A5F] tabular-nums">
-              {{ totalRevenue() | number:'1.0-0' }} Ar
-            </span>
+            <span class="font-bold text-lg text-[#1E3A5F] tabular-nums">{{ totalRevenue() | number:'1.0-0' }} Ar</span>
           </div>
           <div class="flex justify-between items-center py-3 border-b border-gray-100">
             <span class="text-sm text-gray-600">Clients servis</span>
@@ -80,42 +221,27 @@
             <span class="text-sm text-gray-600">Files en attente</span>
             <span class="font-semibold">{{ pendingGroups().length }}</span>
           </div>
-
           <div class="pt-4">
-            <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">
-              Détail par service
-            </p>
-
+            <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">Détail par service</p>
             @if (rapportGroups().length === 0) {
             <p class="text-sm text-gray-400 italic">Aucune commande payée.</p>
             }
-
             @for (group of rapportGroups(); track group.category) {
-            <!-- Category header -->
-            <p class="text-xs font-semibold text-[#1E3A5F] uppercase tracking-wide
-                  mt-4 mb-1 first:mt-0">
+            <p class="text-xs font-semibold text-[#1E3A5F] uppercase tracking-wide mt-4 mb-1 first:mt-0">
               {{ '- ' + group.category }}
             </p>
             @for (line of group.lines; track line.label) {
-            <div class="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 items-baseline
-                                text-sm px-1 py-1 border-b border-gray-50 last:border-0">
+            <div class="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 items-baseline text-sm px-1 py-1 border-b border-gray-50 last:border-0">
               <span class="text-gray-700">{{ line.label }}</span>
-              <span class="text-gray-400 tabular-nums text-right whitespace-nowrap">
-                {{ line.unitPrice | number:'1.0-0' }} Ar
-              </span>
-              <span class="font-medium text-gray-400 tabular-nums text-right">
-                ×{{ line.qty }}
-              </span>
-              <span class="font-semibold text-gray-400 tabular-nums text-right whitespace-nowrap">
-                {{ line.total | number:'1.0-0' }} Ar
-              </span>
+              <span class="text-gray-400 tabular-nums text-right whitespace-nowrap">{{ line.unitPrice | number:'1.0-0' }} Ar</span>
+              <span class="font-medium text-gray-400 tabular-nums text-right">×{{ line.qty }}</span>
+              <span class="font-semibold text-gray-400 tabular-nums text-right whitespace-nowrap">{{ line.total | number:'1.0-0' }} Ar</span>
             </div>
             }
             }
           </div>
         </div>
       </div>
-
     </div>
   </div>
   }
@@ -135,8 +261,7 @@
 
       @if (pendingGroups().length === 0) {
       <div class="text-center py-16 text-gray-400">
-        <svg class="w-8 h-8 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" stroke-width="1.5"
-          viewBox="0 0 24 24">
+        <svg class="w-8 h-8 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2
                      M9 5a2 2 0 002 2h2a2 2 0 002-2" />
         </svg>
@@ -146,20 +271,15 @@
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         @for (group of pendingGroups(); track group.groupId) {
-        <div
-          class="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors flex flex-col justify-between">
-
+        <div class="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors flex flex-col justify-between">
           <div>
             <div class="flex items-start justify-between mb-3">
               <div>
                 <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Commande</p>
-                <p class="text-2xl font-bold text-[#1E3A5F] tabular-nums leading-tight">
-                  {{ formatGroupId(group.groupId) }}
-                </p>
+                <p class="text-2xl font-bold text-[#1E3A5F] tabular-nums leading-tight">{{ formatGroupId(group.groupId) }}</p>
               </div>
               <span class="text-xs text-gray-400 mt-1">{{ group.time }}</span>
             </div>
-
             <div class="mb-4 space-y-1">
               @for (line of group.lines; track line.id) {
               <div class="text-sm text-gray-700 flex justify-between">
@@ -169,13 +289,10 @@
               }
             </div>
           </div>
-
           <div class="flex items-center justify-between pt-3 border-t border-gray-50">
             <div>
               <p class="text-xs text-gray-400">Total à payer</p>
-              <p class="text-lg font-bold text-[#1A1A1A] tabular-nums">
-                {{ group.totalAmount | number:'1.0-0' }} Ar
-              </p>
+              <p class="text-lg font-bold text-[#1A1A1A] tabular-nums">{{ group.totalAmount | number:'1.0-0' }} Ar</p>
             </div>
             <button (click)="markGroupAsPaid(group.groupId)"
               class="bg-[#1E3A5F] text-white text-sm font-medium px-4 py-2 rounded-md
@@ -184,7 +301,6 @@
               Encaisser
             </button>
           </div>
-
         </div>
         }
       </div>
@@ -202,33 +318,22 @@
       @if (paidGroups().length === 0) {
       <p class="text-sm text-gray-400 italic py-4">Aucun encaissement réalisé pour le moment.</p>
       } @else {
-      <div class="bg-white border border-gray-200 rounded-lg overflow-x-auto [-webkit-overflow-scrolling:touch]">
+      <div class="bg-white border border-gray-200 rounded-lg overflow-x-auto">
         <table class="w-full text-sm min-w-[340px] table-auto">
           <thead>
             <tr class="border-b border-gray-100 bg-gray-50">
-              <th class="text-left px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide w-12">
-                N°</th>
-              <th class="text-left px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide">
-                Détails de la commande</th>
-              <th
-                class="text-right px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide whitespace-nowrap">
-                Montant Total</th>
-              <th
-                class="text-right px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide hidden sm:table-cell">
-                Payé à</th>
+              <th class="text-left px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide w-12">N°</th>
+              <th class="text-left px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide">Détails</th>
+              <th class="text-right px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide whitespace-nowrap">Montant</th>
+              <th class="text-right px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide hidden sm:table-cell">Payé à</th>
             </tr>
           </thead>
           <tbody>
             @for (group of paidGroups(); track group.groupId) {
             <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-              <td class="px-3 sm:px-4 py-3 font-mono font-semibold text-gray-700 whitespace-nowrap">{{
-                formatGroupId(group.groupId) }}</td>
-              <td class="px-3 sm:px-4 py-3 text-gray-600 max-w-[140px] xs:max-w-xs md:max-w-md truncate">
-                {{ getGroupItemsSummary(group) }}
-              </td>
-              <td class="px-3 sm:px-4 py-3 text-right font-semibold text-[#1A1A1A] tabular-nums whitespace-nowrap">
-                {{ group.totalAmount | number:'1.0-0' }} Ar
-              </td>
+              <td class="px-3 sm:px-4 py-3 font-mono font-semibold text-gray-700 whitespace-nowrap">{{ formatGroupId(group.groupId) }}</td>
+              <td class="px-3 sm:px-4 py-3 text-gray-600 max-w-[140px] xs:max-w-xs md:max-w-md truncate">{{ getGroupItemsSummary(group) }}</td>
+              <td class="px-3 sm:px-4 py-3 text-right font-semibold text-[#1A1A1A] tabular-nums whitespace-nowrap">{{ group.totalAmount | number:'1.0-0' }} Ar</td>
               <td class="px-3 sm:px-4 py-3 text-right text-gray-400 hidden sm:table-cell">{{ group.paidAt }}</td>
             </tr>
             }

@@ -15,17 +15,169 @@
           </div>
           <span class="text-sm font-semibold text-gray-800 hidden sm:block">GasiPro</span>
           <span class="text-gray-300 hidden sm:block">/</span>
-          <span class="text-sm text-gray-500 hidden sm:block">Comptoir</span>
+          <span class="text-sm text-gray-500 hidden sm:block">Comptoir · {{ username }}</span>
         </div>
       </div>
+
+      <div class="flex items-center gap-2">
+        <!-- Connection indicator + server button -->
+        <button (click)="showServerPanel = !showServerPanel"
+          class="flex items-center gap-1.5 text-xs font-medium border rounded-md px-3 py-1.5 transition-colors
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
+          [class]="wsConnected()
+            ? 'border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+            : waitingApproval()
+              ? 'border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100'
+              : 'border-red-200 text-red-600 bg-red-50 hover:bg-red-100'">
+          <span class="w-1.5 h-1.5 rounded-full inline-block"
+            [class]="wsConnected()
+              ? 'bg-emerald-400 animate-pulse'
+              : waitingApproval()
+                ? 'bg-amber-400 animate-pulse'
+                : 'bg-red-400'">
+          </span>
+          <span class="hidden sm:inline">
+            @if (wsConnected()) { Connecté }
+            @else if (waitingApproval()) { Approbation… }
+            @else { Déconnecté }
+          </span>
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
+
       <span class="text-xs text-gray-400">{{ currentTime() }}</span>
     </div>
   </header>
 
+  <!-- ── Server management panel ──────────────────────────────────────────── -->
+  @if (showServerPanel) {
+  <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showServerPanel = false">
+    <div class="absolute inset-0 bg-black/20"></div>
+    <div class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-y-auto flex flex-col"
+         (click)="$event.stopPropagation()">
+
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+        <h2 class="text-base font-semibold text-[#1A1A1A]">Connexion serveur</h2>
+        <button (click)="showServerPanel = false"
+          class="text-gray-400 hover:text-gray-600 p-1
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="flex-1 px-6 py-5 space-y-6">
+
+        <!-- Current connection status -->
+        <div>
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Connexion actuelle</p>
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-gray-500">Identifiant</span>
+              <span class="text-sm font-semibold text-[#1A1A1A]">{{ username }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-gray-500">Serveur caisse</span>
+              <span class="text-sm font-mono text-[#1E3A5F]">{{ cashierHost }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-gray-500">Statut</span>
+              <span class="flex items-center gap-1 text-xs font-medium"
+                [class]="wsConnected() ? 'text-emerald-600' : waitingApproval() ? 'text-amber-600' : 'text-red-500'">
+                <span class="w-1.5 h-1.5 rounded-full inline-block"
+                  [class]="wsConnected() ? 'bg-emerald-400' : waitingApproval() ? 'bg-amber-400 animate-pulse' : 'bg-red-400'">
+                </span>
+                @if (wsConnected()) { Connecté et approuvé }
+                @else if (waitingApproval()) { En attente d'approbation }
+                @else { Déconnecté }
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connect to another server -->
+        <div>
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Se connecter à un autre serveur</p>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1.5">Adresse de la caisse (WS)</label>
+              <input
+                type="text"
+                [(ngModel)]="newCashierHost"
+                (keydown.enter)="connectToNewCashier()"
+                placeholder="ex : 192.168.1.5:8080"
+                class="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm font-mono text-[#1A1A1A]
+                       focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+            </div>
+            <button (click)="connectToNewCashier()"
+              [disabled]="!newCashierHost.trim()"
+              class="w-full bg-[#1E3A5F] text-white text-sm font-semibold py-2.5 rounded-lg
+                     hover:bg-[#16304f] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
+              Changer de serveur
+            </button>
+          </div>
+        </div>
+
+        <!-- Disconnect -->
+        <div class="pt-2 border-t border-gray-100">
+          <button (click)="disconnectFromCashier()"
+            class="w-full border border-red-200 text-red-600 text-sm font-medium py-2.5 rounded-lg
+                   hover:bg-red-50 active:scale-95 transition-all
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
+            Déconnecter ce poste
+          </button>
+          <p class="text-xs text-gray-400 text-center mt-2">
+            Retourne à l'écran de connexion.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- ── Waiting for approval overlay ─────────────────────────────────────── -->
+  @if (waitingApproval() && !wsConnected()) {
+  <div class="fixed inset-0 z-40 bg-white/90 backdrop-blur-sm flex items-center justify-center px-4">
+    <div class="text-center">
+      <div class="w-16 h-16 rounded-full bg-[#EFF4FA] flex items-center justify-center mx-auto mb-5">
+        <span class="w-7 h-7 rounded-full border-[3px] border-[#1E3A5F] border-t-transparent animate-spin inline-block"></span>
+      </div>
+      <h2 class="text-lg font-semibold text-[#1A1A1A] mb-1">En attente d'approbation</h2>
+      <p class="text-sm text-gray-500 mb-4">Reconnexion à <span class="font-mono text-[#1E3A5F]">{{ cashierHost }}</span></p>
+      <p class="text-xs text-gray-400">Le caissier doit approuver la reconnexion.</p>
+    </div>
+  </div>
+  }
+
+  <!-- ── Disconnected overlay ───────────────────────────────────────────────── -->
+  @if (!wsConnected() && !waitingApproval()) {
+  <div class="fixed inset-0 z-40 bg-white/90 backdrop-blur-sm flex items-center justify-center px-4">
+    <div class="text-center max-w-sm">
+      <div class="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-5">
+        <svg class="w-7 h-7 text-red-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+        </svg>
+      </div>
+      <h2 class="text-lg font-semibold text-[#1A1A1A] mb-1">Connexion perdue</h2>
+      <p class="text-sm text-gray-500 mb-6">La connexion avec la caisse a été interrompue. Reconnexion en cours…</p>
+      <button (click)="showServerPanel = true"
+        class="text-sm text-[#1E3A5F] font-medium border border-[#1E3A5F]/30 px-4 py-2 rounded-lg
+               hover:bg-[#EFF4FA] transition-colors">
+        Changer de serveur
+      </button>
+    </div>
+  </div>
+  }
+
   @if (toastVisible()) {
   <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50
-                bg-[#1E3A5F] text-white text-sm font-medium px-5 py-3 rounded-lg shadow-lg
-                animate-fade-in">
+                bg-[#1E3A5F] text-white text-sm font-medium px-5 py-3 rounded-lg shadow-lg">
     {{ toastMessage() }}
   </div>
   }
@@ -74,9 +226,7 @@
             }
             <p class="text-xs text-gray-400 mb-0.5 leading-tight">{{ service.category }}</p>
             <p class="text-sm font-medium text-[#1A1A1A] leading-snug">{{ service.label }}</p>
-            <p class="text-sm font-semibold text-[#1E3A5F] mt-1 tabular-nums">
-              {{ service.price | number:'1.0-0' }} Ar
-            </p>
+            <p class="text-sm font-semibold text-[#1E3A5F] mt-1 tabular-nums">{{ service.price | number:'1.0-0' }} Ar</p>
           </button>
           }
         </div>
@@ -96,8 +246,7 @@
 
             @if (cart.length === 0) {
             <div class="text-center py-8 text-gray-400">
-              <svg class="w-7 h-7 mx-auto mb-2 opacity-40" fill="none" stroke="currentColor" stroke-width="1.5"
-                viewBox="0 0 24 24">
+              <svg class="w-7 h-7 mx-auto mb-2 opacity-40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
               </svg>
               <p class="text-sm">Sélectionnez un service ou produit</p>
@@ -108,76 +257,57 @@
             <div class="space-y-2 mb-4 max-h-64 overflow-y-auto pr-0.5">
               @for (item of cart; track item.service.id) {
               <div class="flex items-start gap-2 p-2.5 bg-[#F7F9FC] rounded-lg border border-gray-100">
-
                 <div class="flex-1 min-w-0">
                   <p class="text-xs text-gray-400 leading-tight truncate">{{ item.service.category }}</p>
                   <p class="text-sm font-medium text-[#1A1A1A] leading-snug truncate">{{ item.service.label }}</p>
                   <div class="flex items-center gap-1 mt-1.5">
                     <input type="number" [(ngModel)]="item.unitPrice" min="0" class="w-24 border border-gray-200 rounded px-1.5 py-0.5 text-xs font-medium
-                               text-[#1A1A1A] focus:outline-none focus:border-[#1E3A5F] transition-colors
-                               tabular-nums" />
+                               text-[#1A1A1A] focus:outline-none focus:border-[#1E3A5F] transition-colors tabular-nums" />
                     <span class="text-xs text-gray-400">Ar</span>
                   </div>
                 </div>
-
                 <div class="flex items-center gap-1 flex-shrink-0 mt-4">
                   <button (click)="decrementItem(item)" class="w-6 h-6 rounded border border-gray-200 flex items-center justify-center
                                    text-gray-500 hover:bg-gray-100 transition-colors leading-none text-base
-                                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-                    −
-                  </button>
-                  <span class="w-5 text-center text-sm font-semibold text-[#1A1A1A] tabular-nums">
-                    {{ item.qty }}
-                  </span>
+                                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">−</button>
+                  <span class="w-5 text-center text-sm font-semibold text-[#1A1A1A] tabular-nums">{{ item.qty }}</span>
                   <button (click)="incrementItem(item)" class="w-6 h-6 rounded border border-gray-200 flex items-center justify-center
                                    text-gray-500 hover:bg-gray-100 transition-colors leading-none text-base
-                                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-                    +
-                  </button>
+                                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">+</button>
                 </div>
-
-                <button (click)="removeItem(item)"
-                  class="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0 mt-1
+                <button (click)="removeItem(item)" class="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0 mt-1
                                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
-
               </div>
               }
             </div>
 
             <div class="flex items-center justify-between py-3 border-t border-gray-100 mb-4">
               <span class="text-sm text-gray-500">Total</span>
-              <span class="text-xl font-bold text-[#1A1A1A] tabular-nums">
-                {{ grandTotal | number:'1.0-0' }} Ar
-              </span>
+              <span class="text-xl font-bold text-[#1A1A1A] tabular-nums">{{ grandTotal | number:'1.0-0' }} Ar</span>
             </div>
 
-            <button (click)="envoyerCommande()" class="w-full bg-[#1E3A5F] text-white text-sm font-semibold py-3 rounded-lg
-                     hover:bg-[#16304f] active:scale-95 transition-all
-                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
-                     focus-visible:outline-[#1E3A5F]">
+            <button (click)="envoyerCommande()" [disabled]="!wsConnected()"
+              class="w-full bg-[#1E3A5F] text-white text-sm font-semibold py-3 rounded-lg
+                     hover:bg-[#16304f] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
               Envoyer à la caisse
             </button>
             }
           </div>
+
           @if (orderGroups().length > 0) {
           <div class="mt-4 bg-white border border-gray-200 rounded-xl p-5">
-            <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">
-              Envoyées aujourd'hui
-            </h3>
+            <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">Envoyées aujourd'hui</h3>
             <div class="space-y-2 max-h-52 overflow-y-auto">
               @for (g of orderGroups(); track g.groupId) {
               <div class="flex items-start justify-between gap-2 text-sm">
                 <div class="flex items-start gap-2 min-w-0">
-                  <span class="font-mono text-gray-500 font-semibold flex-shrink-0 mt-0.5">
-                    {{ groupLabel(g.groupId) }}
-                  </span>
-                  <span class="text-gray-600 text-xs leading-snug truncate">
-                    {{ groupSummary(g) }}
-                  </span>
+                  <span class="font-mono text-gray-500 font-semibold flex-shrink-0 mt-0.5">{{ groupLabel(g.groupId) }}</span>
+                  <span class="text-gray-600 text-xs leading-snug truncate">{{ groupSummary(g) }}</span>
                 </div>
                 <span class="flex-shrink-0 text-xs px-2 py-0.5 rounded-full font-medium" [class]="groupStatusClass(g)">
                   {{ groupStatusLabel(g) }}

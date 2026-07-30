@@ -6,7 +6,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { WebsocketService, WsMessage } from '../../../core/service/websocket.service';
 import { Subscription } from 'rxjs';
 
-// Define Rust-mirrored types locally for UI compilation
 export interface Order {
   id: number;
   group_id: number;
@@ -39,10 +38,18 @@ interface RapportCategoryGroup {
   lines: RapportLine[];
 }
 
-// The Cashier is always the WS host, so it talks to its own local server —
-// no LAN address to configure here (unlike Counter, which connects out to
-// the Cashier's IP).
+export interface ConnectionRequest {
+  addr: string;
+  username: string;
+}
+
+export interface ConnectedDevice {
+  addr: string;
+  username: string;
+}
+
 const CASHIER_LOCAL_WS_URL = 'ws://127.0.0.1:8080';
+const LS_USERNAME = 'gasipro:username';
 
 @Component({
   selector: 'app-cashier',
@@ -51,12 +58,10 @@ const CASHIER_LOCAL_WS_URL = 'ws://127.0.0.1:8080';
   templateUrl: './cashier.html',
 })
 export class Cashier implements OnInit, OnDestroy {
-  // This app runs zoneless (no zone.js — see package.json / angular.json).
-  // Anything written from an async callback that Angular doesn't already
-  // track (WebSocket messages, setTimeout, promise continuations, etc.)
-  // has to live in a signal, or the view silently stops updating until
-  // some unrelated click forces a re-render. Everything below is written
-  // from the WS subscription, so it's a signal.
+  // ── Identity ────────────────────────────────────────────────────────────────
+  username = localStorage.getItem(LS_USERNAME) ?? 'Caisse';
+
+  // ── Order state (from WS broadcast) ─────────────────────────────────────────
   currentTime = signal('');
   pendingGroups = signal<OrderGroup[]>([]);
   paidGroups = signal<OrderGroup[]>([]);
@@ -64,15 +69,18 @@ export class Cashier implements OnInit, OnDestroy {
   volumeByService = signal<Record<string, number>>({});
   wsConnected = signal(false);
 
-  // showRapport is only ever toggled from a (click) handler in the template,
-  // which Angular's zoneless scheduler already picks up on its own — no
-  // signal needed here.
-  showRapport = false;
+  // ── Device management (from WS broadcast) ────────────────────────────────────
+  pendingRequests = signal<ConnectionRequest[]>([]);
+  connectedDevices = signal<ConnectedDevice[]>([]);
+  showDevicesPanel = false;
 
-  // Local storage for processing UI computations without domain imports
-  private _rawOrders: Order[] = [];
+  // ── UI ──────────────────────────────────────────────────────────────────────
+  showRapport = false;
+  wsAddress = signal('');
+
   private _rawPaidOrders: Order[] = [];
   private wsSubscription?: Subscription;
+  private openSubscription?: Subscription;
 
   constructor(
     private router: Router,
@@ -80,41 +88,89 @@ export class Cashier implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    // Every field below is now derived purely from the "orders" / "time" WS
-    // broadcasts pushed by this same machine's Rust backend — there's no
-    // more separate invoke('get_pending_orders') / invoke('get_paid_orders')
-    // polling step, so there's exactly one source of truth for order state.
-    this.ws.connect(CASHIER_LOCAL_WS_URL);
+    // Load WS address for display in header
+    invoke<string>('get_ws_address')
+      .then((addr) => this.wsAddress.set(addr))
+      .catch(() => this.wsAddress.set('ws://127.0.0.1:8080'));
+
+    // Subscribe to messages
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
       this.wsConnected.set(true);
       if (msg.type === 'orders') {
         this.applyOrders(msg.data as Order[]);
       } else if (msg.type === 'time') {
         this.currentTime.set(msg.data as string);
+      } else if (msg.type === 'connection_requests') {
+        this.pendingRequests.set(msg.data as ConnectionRequest[]);
+      } else if (msg.type === 'connected_devices') {
+        this.connectedDevices.set(msg.data as ConnectedDevice[]);
       }
     });
+
+    // Connect and register as cashier when the socket opens
+    this.openSubscription = this.ws.onOpened().subscribe(() => {
+      this.ws.send({ type: 'cashier_register', username: this.username });
+    });
+
+    this.ws.connect(CASHIER_LOCAL_WS_URL);
+
+    // If socket is already open (e.g. navigated back from elsewhere), register immediately
+    if (this.ws.isOpen()) {
+      this.ws.send({ type: 'cashier_register', username: this.username });
+    }
   }
 
   ngOnDestroy(): void {
     this.wsSubscription?.unsubscribe();
+    this.openSubscription?.unsubscribe();
     this.ws.disconnect();
   }
 
-  // ── Rust Bridge Integration ──────────────────────────────────────────────────
+  // ── Device management ────────────────────────────────────────────────────────
+
+  get totalPendingRequests(): number {
+    return this.pendingRequests().length;
+  }
+
+  async approveDevice(addr: string): Promise<void> {
+    try {
+      await invoke('approve_connection', { addr });
+    } catch (e) {
+      console.error('approve_connection failed', e);
+    }
+  }
+
+  async rejectDevice(addr: string): Promise<void> {
+    try {
+      await invoke('reject_connection', { addr });
+    } catch (e) {
+      console.error('reject_connection failed', e);
+    }
+  }
+
+  async disconnectDevice(addr: string): Promise<void> {
+    try {
+      await invoke('disconnect_device', { addr });
+    } catch (e) {
+      console.error('disconnect_device failed', e);
+    }
+  }
+
+  // ── Rust bridge ───────────────────────────────────────────────────────────────
 
   async markGroupAsPaid(groupId: number): Promise<void> {
-    // Mutates local state directly since the Cashier IS the WS host. The
-    // Rust command broadcasts the refreshed "orders" snapshot afterwards,
-    // which flows back through the subscription above — no manual refresh
-    // needed, and every connected Counter sees the same update instantly.
     await invoke('mark_group_as_paid', { groupId });
+  }
+
+  copyWsAddress(): void {
+    navigator.clipboard.writeText(this.wsAddress()).catch(() => {});
   }
 
   goBack(): void {
     this.router.navigate(['/']);
   }
 
-  // ── Template UI Helpers ──────────────────────────────────────────────────────
+  // ── Template helpers ─────────────────────────────────────────────────────────
 
   formatGroupId(groupId: number): string {
     return '#' + String(groupId).padStart(4, '0');
@@ -129,62 +185,41 @@ export class Cashier implements OnInit, OnDestroy {
       .join(', ');
   }
 
-  volumeEntries(): { key: string; value: number }[] {
-    return Object.entries(this.volumeByService()).map(([key, value]) => ({
-      key,
-      value,
-    }));
-  }
-
   rapportGroups(): RapportCategoryGroup[] {
     const map = new Map<string, Map<string, RapportLine>>();
-
     for (const order of this._rawPaidOrders) {
       const [category, label] = order.service_type.split(' — ');
       const key = label ?? order.service_type;
-
       if (!map.has(category)) map.set(category, new Map());
       const cat = map.get(category)!;
-
       if (!cat.has(key)) {
-        cat.set(key, {
-          label: key,
-          unitPrice: order.unit_price,
-          qty: 0,
-          total: 0,
-        });
+        cat.set(key, { label: key, unitPrice: order.unit_price, qty: 0, total: 0 });
       }
-
       const entry = cat.get(key)!;
       entry.qty += order.quantity;
       entry.total += order.quantity * order.unit_price;
     }
-
     return Array.from(map.entries()).map(([category, lines]) => ({
       category,
       lines: Array.from(lines.values()),
     }));
   }
 
-  // ── Derivation from the latest "orders" broadcast ─────────────────────────────
+  // ── Derivation from "orders" broadcast ───────────────────────────────────────
 
   private applyOrders(orders: Order[]): void {
-    this._rawOrders = orders;
-    this._rawPaidOrders = orders.filter(o => o.status === 'PAYE');
-    const pendingOrders = orders.filter(o => o.status === 'EN_ATTENTE');
-
+    this._rawPaidOrders = orders.filter((o) => o.status === 'PAYE');
+    const pendingOrders = orders.filter((o) => o.status === 'EN_ATTENTE');
     this.pendingGroups.set(this.buildGroups(pendingOrders));
     this.paidGroups.set(this.buildGroups(this._rawPaidOrders));
-
     this.totalRevenue.set(
-      this._rawPaidOrders.reduce((sum, o) => sum + o.quantity * o.unit_price, 0)
+      this._rawPaidOrders.reduce((sum, o) => sum + o.quantity * o.unit_price, 0),
     );
-
     this.volumeByService.set(
       this._rawPaidOrders.reduce((acc, o) => {
         acc[o.service_type] = (acc[o.service_type] ?? 0) + 1;
         return acc;
-      }, {} as Record<string, number>)
+      }, {} as Record<string, number>),
     );
   }
 
@@ -194,7 +229,6 @@ export class Cashier implements OnInit, OnDestroy {
       if (!map.has(o.group_id)) map.set(o.group_id, []);
       map.get(o.group_id)!.push(o);
     }
-
     const groups: OrderGroup[] = [];
     for (const [groupId, lines] of map.entries()) {
       groups.push({

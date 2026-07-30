@@ -5,6 +5,7 @@ pub mod service;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tauri::State;
 use tokio::net::TcpListener;
@@ -18,42 +19,140 @@ use service::order_api_service::Order;
 use service::order_service::OrderService;
 
 type Tx = mpsc::UnboundedSender<Message>;
-type PeerMap = Arc<Mutex<HashMap<std::net::SocketAddr, Tx>>>;
+
+pub struct PeerState {
+    tx: Tx,
+    username: String,
+    approved: bool,
+    is_cashier: bool,
+}
+
+type PeerMap = Arc<Mutex<HashMap<SocketAddr, PeerState>>>;
 
 pub struct AppState {
     pub order_service: Arc<OrderService>,
     pub peers: PeerMap,
 }
 
-/// Messages a WS client can send to the server. Today only the Counter view
-/// sends these — it has no local order state of its own, so creating an
-/// order means asking the Cashier (the WS host) to create it and broadcast
-/// the result back out to everyone, including the Counter that asked.
+// Messages a WS client can send to the server.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ClientMessage {
+    /// Cashier registers itself — sent once on WS open from the cashier device.
+    CashierRegister { username: String },
+    /// Counter requests to join — must be approved by cashier.
+    RequestConnection { username: String },
+    /// Counter sends its cart to the cashier for processing.
     CreateOrder { cart: Vec<CartItem> },
 }
 
-/// Messages the WS server pushes to every connected peer (Counter and
-/// Cashier views alike). `Orders` is always the full current snapshot
-/// rather than a diff — simplest thing that can't drift out of sync.
+#[derive(Debug, Serialize, Clone)]
+struct ConnectionRequest {
+    addr: String,
+    username: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+struct ConnectedDevice {
+    addr: String,
+    username: String,
+}
+
+// Messages the WS server pushes to peers.
 #[derive(Debug, Serialize, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ServerMessage {
+    /// Full order snapshot — pushed to all approved peers.
     Orders { data: Vec<Order> },
+    /// Wall-clock tick — pushed to all approved peers.
     Time { data: String },
+    /// Pending connection requests — pushed to the cashier only.
+    ConnectionRequests { data: Vec<ConnectionRequest> },
+    /// Currently approved counters — pushed to the cashier only.
+    ConnectedDevices { data: Vec<ConnectedDevice> },
+    /// Sent to a counter when the cashier approves its connection.
+    ConnectionApproved,
+    /// Sent to a counter when the cashier rejects its connection.
+    ConnectionRejected,
 }
 
-async fn broadcast(peers: &PeerMap, msg: &ServerMessage) {
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+async fn send_to_addr(peers: &PeerMap, addr: SocketAddr, msg: &ServerMessage) {
+    if let Ok(json) = serde_json::to_string(msg) {
+        let guard = peers.lock().await;
+        if let Some(state) = guard.get(&addr) {
+            let _ = state.tx.send(Message::Text(json.into()));
+        }
+    }
+}
+
+/// Broadcast to all approved peers (cashier + approved counters).
+async fn broadcast_to_approved(peers: &PeerMap, msg: &ServerMessage) {
     let json = match serde_json::to_string(msg) {
         Ok(j) => j,
         Err(_) => return,
     };
     let guard = peers.lock().await;
-    for (_, tx) in guard.iter() {
-        let _ = tx.send(Message::Text(json.clone().into()));
+    for (_, state) in guard.iter() {
+        if state.approved {
+            let _ = state.tx.send(Message::Text(json.clone().into()));
+        }
     }
+}
+
+/// Push a message to the cashier peer only.
+async fn notify_cashier(peers: &PeerMap, msg: &ServerMessage) {
+    let json = match serde_json::to_string(msg) {
+        Ok(j) => j,
+        Err(_) => return,
+    };
+    let guard = peers.lock().await;
+    for (_, state) in guard.iter() {
+        if state.is_cashier {
+            let _ = state.tx.send(Message::Text(json.clone().into()));
+        }
+    }
+}
+
+async fn get_pending_requests_list(peers: &PeerMap) -> Vec<ConnectionRequest> {
+    let guard = peers.lock().await;
+    guard
+        .iter()
+        .filter(|(_, s)| !s.approved && !s.is_cashier && !s.username.is_empty())
+        .map(|(addr, s)| ConnectionRequest {
+            addr: addr.to_string(),
+            username: s.username.clone(),
+        })
+        .collect()
+}
+
+async fn get_connected_devices_list(peers: &PeerMap) -> Vec<ConnectedDevice> {
+    let guard = peers.lock().await;
+    guard
+        .iter()
+        .filter(|(_, s)| s.approved && !s.is_cashier)
+        .map(|(addr, s)| ConnectedDevice {
+            addr: addr.to_string(),
+            username: s.username.clone(),
+        })
+        .collect()
+}
+
+// ── Tauri Commands ────────────────────────────────────────────────────────────
+
+/// Returns the local LAN WebSocket address for this machine (e.g. ws://192.168.1.5:8080).
+#[tauri::command]
+fn get_ws_address() -> String {
+    use std::net::UdpSocket;
+    if let Ok(s) = UdpSocket::bind("0.0.0.0:0") {
+        if s.connect("8.8.8.8:80").is_ok() {
+            if let Ok(addr) = s.local_addr() {
+                return format!("ws://{}:8080", addr.ip());
+            }
+        }
+    }
+    "ws://127.0.0.1:8080".to_string()
 }
 
 #[tauri::command]
@@ -73,12 +172,6 @@ fn get_pricing_matrix() -> Vec<ServiceItem> {
         .collect()
 }
 
-// NOTE: get_orders / get_pending_orders / get_paid_orders are kept as plain
-// Tauri commands purely as a convenience for local debugging/tests. The
-// Cashier and Counter views themselves no longer poll these — they derive
-// their state entirely from the "orders" WS broadcast (see counter.ts /
-// cashier.ts), which is pushed immediately on connect and after every
-// mutation, so there's a single source of truth instead of two.
 #[tauri::command]
 fn get_orders(state: State<'_, AppState>) -> Vec<Order> {
     state.order_service.get_orders()
@@ -94,14 +187,10 @@ fn get_paid_orders(state: State<'_, AppState>) -> Vec<Order> {
     state.order_service.get_paid()
 }
 
-/// Still invoked locally by the Cashier UI when it's on the same machine as
-/// the WS host (or by anyone testing without a second device). After
-/// mutating state it broadcasts the fresh snapshot to every connected peer,
-/// including whichever Angular instance just called this command.
 #[tauri::command]
 async fn create_order(state: State<'_, AppState>, cart: Vec<CartItem>) -> Result<(), String> {
     state.order_service.create_order(&cart);
-    broadcast(
+    broadcast_to_approved(
         &state.peers,
         &ServerMessage::Orders { data: state.order_service.get_orders() },
     )
@@ -109,37 +198,94 @@ async fn create_order(state: State<'_, AppState>, cart: Vec<CartItem>) -> Result
     Ok(())
 }
 
-/// Cashier-only action: mark a group as paid, then broadcast the updated
-/// snapshot so every connected Counter sees the status flip in real time.
 #[tauri::command]
 async fn mark_group_as_paid(state: State<'_, AppState>, group_id: i64) -> Result<(), String> {
     state.order_service.mark_group_as_paid(group_id);
-    broadcast(
+    broadcast_to_approved(
         &state.peers,
         &ServerMessage::Orders { data: state.order_service.get_orders() },
     )
     .await;
     Ok(())
 }
+
+/// Approve a pending counter connection. Called from the cashier UI via invoke().
+#[tauri::command]
+async fn approve_connection(state: State<'_, AppState>, addr: String) -> Result<(), String> {
+    let socket_addr: SocketAddr = addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
+    let orders = state.order_service.get_orders();
+
+    {
+        let mut guard = state.peers.lock().await;
+        if let Some(peer) = guard.get_mut(&socket_addr) {
+            peer.approved = true;
+            let _ = peer.tx.send(Message::Text(
+                serde_json::to_string(&ServerMessage::ConnectionApproved)
+                    .unwrap_or_default()
+                    .into(),
+            ));
+            let _ = peer.tx.send(Message::Text(
+                serde_json::to_string(&ServerMessage::Orders { data: orders })
+                    .unwrap_or_default()
+                    .into(),
+            ));
+        }
+    }
+
+    let pending = get_pending_requests_list(&state.peers).await;
+    let connected = get_connected_devices_list(&state.peers).await;
+    notify_cashier(&state.peers, &ServerMessage::ConnectionRequests { data: pending }).await;
+    notify_cashier(&state.peers, &ServerMessage::ConnectedDevices { data: connected }).await;
+    Ok(())
+}
+
+/// Reject a pending counter connection. Called from the cashier UI via invoke().
+#[tauri::command]
+async fn reject_connection(state: State<'_, AppState>, addr: String) -> Result<(), String> {
+    let socket_addr: SocketAddr = addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
+
+    {
+        let mut guard = state.peers.lock().await;
+        if let Some(peer) = guard.get(&socket_addr) {
+            let _ = peer.tx.send(Message::Text(
+                serde_json::to_string(&ServerMessage::ConnectionRejected)
+                    .unwrap_or_default()
+                    .into(),
+            ));
+        }
+        guard.remove(&socket_addr);
+    }
+
+    let pending = get_pending_requests_list(&state.peers).await;
+    notify_cashier(&state.peers, &ServerMessage::ConnectionRequests { data: pending }).await;
+    Ok(())
+}
+
+/// Force-disconnect an approved counter. Called from the cashier UI via invoke().
+#[tauri::command]
+async fn disconnect_device(state: State<'_, AppState>, addr: String) -> Result<(), String> {
+    let socket_addr: SocketAddr = addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
+    state.peers.lock().await.remove(&socket_addr);
+
+    let connected = get_connected_devices_list(&state.peers).await;
+    notify_cashier(&state.peers, &ServerMessage::ConnectedDevices { data: connected }).await;
+    Ok(())
+}
+
+// ── Application Entry Point ───────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let order_service = Arc::new(OrderService::new());
     let peers: PeerMap = Arc::new(Mutex::new(HashMap::new()));
 
-    // ── WebSocket server ─────────────────────────────────────────────────
-    // Binding 0.0.0.0 (rather than 127.0.0.1) is what makes this reachable
-    // from other machines on the LAN — this is the "Cashier" side of the
-    // connection. A Counter running on another PC points its WebsocketService
-    // at ws://<cashier-lan-ip>:8080. If Cashier and Counter run on the same
-    // machine, ws://127.0.0.1:8080 works too.
+    // ── WebSocket server (0.0.0.0 → reachable on LAN) ────────────────────────
     let ws_order_service = order_service.clone();
     let ws_peers = peers.clone();
     tauri::async_runtime::spawn(async move {
         let listener = TcpListener::bind("0.0.0.0:8080")
             .await
             .expect("failed to bind WebSocket server to 0.0.0.0:8080");
-        println!("WebSocket server running on ws://0.0.0.0:8080");
 
         while let Ok((stream, addr)) = listener.accept().await {
             let peers_inner = ws_peers.clone();
@@ -151,17 +297,18 @@ pub fn run() {
                     Err(_) => return,
                 };
                 let (mut ws_sender, mut ws_receiver) = ws_stream.split();
-
                 let (tx, mut rx) = mpsc::unbounded_channel();
-                peers_inner.lock().await.insert(addr, tx);
 
-                // Give the newly connected peer an immediate snapshot so its
-                // view isn't blank while it waits for the next mutation.
-                if let Ok(json) = serde_json::to_string(&ServerMessage::Orders {
-                    data: order_service_inner.get_orders(),
-                }) {
-                    let _ = ws_sender.send(Message::Text(json.into())).await;
-                }
+                // Register peer as unapproved with no username until it self-identifies.
+                peers_inner.lock().await.insert(
+                    addr,
+                    PeerState {
+                        tx,
+                        username: String::new(),
+                        approved: false,
+                        is_cashier: false,
+                    },
+                );
 
                 let ws_writer = tauri::async_runtime::spawn(async move {
                     while let Some(message) = rx.recv().await {
@@ -173,35 +320,109 @@ pub fn run() {
 
                 while let Some(Ok(message)) = ws_receiver.next().await {
                     if let Message::Text(text) = message {
-                        if let Ok(ClientMessage::CreateOrder { cart }) =
-                            serde_json::from_str::<ClientMessage>(&text)
-                        {
-                            order_service_inner.create_order(&cart);
-                            broadcast(
-                                &peers_inner,
-                                &ServerMessage::Orders { data: order_service_inner.get_orders() },
-                            )
-                            .await;
+                        match serde_json::from_str::<ClientMessage>(&text) {
+                            Ok(ClientMessage::CashierRegister { username }) => {
+                                {
+                                    let mut guard = peers_inner.lock().await;
+                                    if let Some(state) = guard.get_mut(&addr) {
+                                        state.username = username;
+                                        state.approved = true;
+                                        state.is_cashier = true;
+                                    }
+                                }
+                                // Push initial snapshot to cashier.
+                                send_to_addr(
+                                    &peers_inner,
+                                    addr,
+                                    &ServerMessage::Orders { data: order_service_inner.get_orders() },
+                                )
+                                .await;
+                                let pending = get_pending_requests_list(&peers_inner).await;
+                                let connected = get_connected_devices_list(&peers_inner).await;
+                                send_to_addr(
+                                    &peers_inner,
+                                    addr,
+                                    &ServerMessage::ConnectionRequests { data: pending },
+                                )
+                                .await;
+                                send_to_addr(
+                                    &peers_inner,
+                                    addr,
+                                    &ServerMessage::ConnectedDevices { data: connected },
+                                )
+                                .await;
+                            }
+
+                            Ok(ClientMessage::RequestConnection { username }) => {
+                                {
+                                    let mut guard = peers_inner.lock().await;
+                                    if let Some(state) = guard.get_mut(&addr) {
+                                        state.username = username;
+                                    }
+                                }
+                                let pending = get_pending_requests_list(&peers_inner).await;
+                                notify_cashier(
+                                    &peers_inner,
+                                    &ServerMessage::ConnectionRequests { data: pending },
+                                )
+                                .await;
+                            }
+
+                            Ok(ClientMessage::CreateOrder { cart }) => {
+                                let is_approved = {
+                                    let guard = peers_inner.lock().await;
+                                    guard.get(&addr).map(|s| s.approved).unwrap_or(false)
+                                };
+                                if is_approved {
+                                    order_service_inner.create_order(&cart);
+                                    broadcast_to_approved(
+                                        &peers_inner,
+                                        &ServerMessage::Orders {
+                                            data: order_service_inner.get_orders(),
+                                        },
+                                    )
+                                    .await;
+                                }
+                            }
+
+                            Err(_) => {}
                         }
                     }
                 }
 
+                // Peer disconnected — clean up and update cashier.
+                let was_counter = {
+                    let guard = peers_inner.lock().await;
+                    guard.get(&addr).map(|s| !s.is_cashier).unwrap_or(false)
+                };
                 peers_inner.lock().await.remove(&addr);
                 ws_writer.abort();
+
+                if was_counter {
+                    let pending = get_pending_requests_list(&peers_inner).await;
+                    let connected = get_connected_devices_list(&peers_inner).await;
+                    notify_cashier(
+                        &peers_inner,
+                        &ServerMessage::ConnectionRequests { data: pending },
+                    )
+                    .await;
+                    notify_cashier(
+                        &peers_inner,
+                        &ServerMessage::ConnectedDevices { data: connected },
+                    )
+                    .await;
+                }
             });
         }
     });
 
-    // ── 1Hz shared clock tick ────────────────────────────────────────────
-    // Broadcasting time from the Cashier means every connected Counter
-    // shows the exact same clock as the till, instead of each device's own
-    // (possibly drifted) local time.
+    // ── 1 Hz clock tick (broadcast only to approved peers) ───────────────────
     let time_peers = peers.clone();
     tauri::async_runtime::spawn(async move {
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             let current_time = chrono::Local::now().format("%H:%M:%S").to_string();
-            broadcast(&time_peers, &ServerMessage::Time { data: current_time }).await;
+            broadcast_to_approved(&time_peers, &ServerMessage::Time { data: current_time }).await;
         }
     });
 
@@ -218,12 +439,16 @@ pub fn run() {
         })
         .manage(AppState { order_service, peers })
         .invoke_handler(tauri::generate_handler![
+            get_ws_address,
             get_pricing_matrix,
             get_orders,
             get_pending_orders,
             get_paid_orders,
             create_order,
-            mark_group_as_paid
+            mark_group_as_paid,
+            approve_connection,
+            reject_connection,
+            disconnect_device,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
