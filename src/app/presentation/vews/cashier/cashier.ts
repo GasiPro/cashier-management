@@ -23,6 +23,7 @@ export interface OrderGroup {
   lines: Order[];
   totalAmount: number;
   time: string;
+  createdAt: string;
   paidAt?: string | null;
 }
 
@@ -185,6 +186,33 @@ export class Cashier implements OnInit, OnDestroy {
       .join(', ');
   }
 
+  /** "aujourd'hui", "hier", or the localized date, based on the given ISO timestamp. */
+  private formatRelativeDay(iso: string): string {
+    const date = new Date(iso);
+    const now = new Date();
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const diffDays = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
+
+    if (diffDays === 0) return "aujourd'hui";
+    if (diffDays === 1) return 'hier';
+    return date.toLocaleDateString('fr-FR');
+  }
+
+  /** Human-readable "Encaissé aujourd'hui/hier/le JJ/MM/AAAA à HH:MM" label for the history table. */
+  formatPaidLabel(group: OrderGroup): string {
+    if (!group.paidAt) return '';
+    const date = new Date(group.paidAt);
+    const dayLabel = this.formatRelativeDay(group.paidAt);
+    const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    return `Encaissé ${dayLabel} à ${time}`;
+  }
+
+  /** Human-readable "aujourd'hui/hier/JJ/MM/AAAA à HH:MM" label for a pending order's creation time. */
+  formatCreatedLabel(group: OrderGroup): string {
+    const dayLabel = this.formatRelativeDay(group.createdAt);
+    return `${dayLabel} à ${group.time}`;
+  }
+
   rapportGroups(): RapportCategoryGroup[] {
     const map = new Map<string, Map<string, RapportLine>>();
     for (const order of this._rawPaidOrders) {
@@ -236,6 +264,7 @@ export class Cashier implements OnInit, OnDestroy {
         lines,
         totalAmount: lines.reduce((sum, l) => sum + l.quantity * l.unit_price, 0),
         time: lines[0].time,
+        createdAt: lines[0].created_at,
         paidAt: lines[0].paid_at,
       });
     }

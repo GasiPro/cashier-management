@@ -38,6 +38,8 @@ interface OrderGroup {
   lines: Order[];
   status: 'EN_ATTENTE' | 'PAYE' | 'MIXTE';
   time: string;
+  createdAt: string;
+  paidAt: string | null;
 }
 
 const LS_USERNAME = 'gasipro:username';
@@ -313,6 +315,34 @@ export class Counter implements OnInit, OnDestroy {
     return 'bg-gray-50 text-gray-700 border border-gray-100';
   }
 
+  /** "aujourd'hui", "hier", or the localized date, based on the given ISO timestamp. */
+  private formatRelativeDay(iso: string): string {
+    const date = new Date(iso);
+    const now = new Date();
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const diffDays = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
+
+    if (diffDays === 0) return "aujourd'hui";
+    if (diffDays === 1) return 'hier';
+    return date.toLocaleDateString('fr-FR');
+  }
+
+  /**
+   * Human-readable date/time label for a history entry: shows when it was paid if
+   * settled, otherwise when it was created — e.g. "Encaissé hier à 14:32" or
+   * "Envoyé aujourd'hui à 09:05".
+   */
+  groupTimeLabel(g: OrderGroup): string {
+    if (g.status === 'PAYE' && g.paidAt) {
+      const date = new Date(g.paidAt);
+      const dayLabel = this.formatRelativeDay(g.paidAt);
+      const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      return `Encaissé ${dayLabel} à ${time}`;
+    }
+    const dayLabel = this.formatRelativeDay(g.createdAt);
+    return `Envoyé ${dayLabel} à ${g.time}`;
+  }
+
   goBack(): void {
     this.router.navigate(['/']);
   }
@@ -334,6 +364,8 @@ export class Counter implements OnInit, OnDestroy {
         lines,
         status: allPaid ? 'PAYE' : allWaiting ? 'EN_ATTENTE' : 'MIXTE',
         time:    lines[0].time,
+        createdAt: lines[0].created_at,
+        paidAt: lines[0].paid_at,
       });
     }
     return groups.sort((a, b) => b.groupId - a.groupId);
