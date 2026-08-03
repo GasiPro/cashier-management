@@ -44,13 +44,13 @@ enum ClientMessage {
   CreateOrder { cart: Vec<CartItem> },
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct ConnectionRequest {
     addr: String,
     username: String,
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct ConnectedDevice {
     addr: String,
     username: String,
