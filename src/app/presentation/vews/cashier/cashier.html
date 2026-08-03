@@ -158,31 +158,23 @@
           </div>
 
           @if (connectedDevices().length === 0) {
-          <p class="text-sm text-gray-400 italic py-2">Aucun comptoir connecté.</p>
+          <p class="text-sm text-gray-400 italic py-2">Aucun appareil connecté.</p>
           }
 
           <div class="space-y-2">
-            @for (device of connectedDevices(); track device.addr) {
-            <div class="bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between">
+            @for (dev of connectedDevices(); track dev.addr) {
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-center justify-between">
               <div>
-                <p class="text-sm font-semibold text-[#1A1A1A]">{{ device.username }}</p>
-                <p class="text-xs text-gray-400 font-mono mt-0.5">{{ device.addr }}</p>
+                <p class="text-sm font-semibold text-[#1A1A1A]">{{ dev.username }}</p>
+                <p class="text-xs text-gray-400 font-mono mt-0.5">{{ dev.addr }}</p>
               </div>
-              <div class="flex items-center gap-2">
-                <span class="flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
-                  Connecté
-                </span>
-                <button (click)="disconnectDevice(device.addr)"
-                  title="Déconnecter"
-                  class="p-1.5 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors
-                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                          d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                  </svg>
-                </button>
-              </div>
+              <button (click)="disconnectDevice(dev.addr)" title="Déconnecter"
+                class="text-gray-400 hover:text-red-600 p-1.5 rounded-md hover:bg-red-50 transition-colors
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M18.36 6.64a9 9 0 11-12.73 0M12 2v10" />
+                </svg>
+              </button>
             </div>
             }
           </div>
@@ -193,15 +185,18 @@
   </div>
   }
 
-  <!-- ── Rapport modal ───────────────────────────────────────────────────────── -->
+  <!-- ── Rapport panel ───────────────────────────────────────────────────────── -->
   @if (showRapport) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
-    <div class="absolute inset-0 bg-black/40" (click)="showRapport = false"></div>
-    <div class="relative bg-white rounded-xl border border-gray-200 shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden">
+  <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showRapport = false">
+    <div class="absolute inset-0 bg-black/20"></div>
+    <div class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-y-auto
+                flex flex-col"
+         (click)="$event.stopPropagation()">
       <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-        <h2 class="text-base font-semibold text-[#1A1A1A]">Rapport du jour</h2>
-        <button (click)="showRapport = false" class="text-gray-400 hover:text-gray-600 p-1
-                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
+        <h2 class="text-base font-semibold text-[#1A1A1A]">Rapport</h2>
+        <button (click)="showRapport = false"
+          class="text-gray-400 hover:text-gray-600 p-1
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -278,7 +273,7 @@
                 <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Commande</p>
                 <p class="text-2xl font-bold text-[#1E3A5F] tabular-nums leading-tight">{{ formatGroupId(group.groupId) }}</p>
               </div>
-              <span class="text-xs text-gray-400 mt-1">{{ group.time }}</span>
+              <span class="text-xs text-gray-400 mt-1">{{ formatCreatedLabel(group) }}</span>
             </div>
             <div class="mb-4 space-y-1">
               @for (line of group.lines; track line.id) {
@@ -310,7 +305,7 @@
       <div class="flex items-center gap-2 mb-4">
         <span class="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200
                  px-2.5 py-1 rounded-full uppercase tracking-wide">
-          Encaissées (Aujourd'hui)
+          Encaissées
         </span>
         <span class="text-sm text-gray-400">({{ paidGroups().length }})</span>
       </div>
@@ -334,7 +329,7 @@
               <td class="px-3 sm:px-4 py-3 font-mono font-semibold text-gray-700 whitespace-nowrap">{{ formatGroupId(group.groupId) }}</td>
               <td class="px-3 sm:px-4 py-3 text-gray-600 max-w-[140px] xs:max-w-xs md:max-w-md truncate">{{ getGroupItemsSummary(group) }}</td>
               <td class="px-3 sm:px-4 py-3 text-right font-semibold text-[#1A1A1A] tabular-nums whitespace-nowrap">{{ group.totalAmount | number:'1.0-0' }} Ar</td>
-              <td class="px-3 sm:px-4 py-3 text-right text-gray-400 hidden sm:table-cell">{{ group.paidAt }}</td>
+              <td class="px-3 sm:px-4 py-3 text-right text-gray-400 hidden sm:table-cell whitespace-nowrap">{{ formatPaidLabel(group) }}</td>
             </tr>
             }
           </tbody>

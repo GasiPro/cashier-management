@@ -85,7 +85,7 @@ impl OrderService {
 
     pub fn mark_group_as_paid(&self, group_id: i64) {
         let mut guard = self.state.lock().unwrap();
-        let paid_at = Local::now().format("%H:%M").to_string();
+        let paid_at = Utc::now().to_rfc3339();
         let mut changed = false;
 
         for order in &mut guard.orders {
