@@ -4,8 +4,8 @@ pub mod service;
 
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::collections::{HashMap, HashSet};
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use tauri::State;
 use tokio::net::TcpListener;
@@ -32,18 +32,16 @@ type PeerMap = Arc<Mutex<HashMap<SocketAddr, PeerState>>>;
 pub struct AppState {
     pub order_service: Arc<OrderService>,
     pub peers: PeerMap,
+    pub blocked_ips: Arc<Mutex<HashSet<IpAddr>>>, // NEW: IPs blocked by the cashier
 }
 
 // Messages a WS client can send to the server.
-#[derive(Debug, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case", content = "payload")]
 enum ClientMessage {
-    /// Cashier registers itself — sent once on WS open from the cashier device.
-    CashierRegister { username: String },
-    /// Counter requests to join — must be approved by cashier.
-    RequestConnection { username: String },
-    /// Counter sends its cart to the cashier for processing.
-    CreateOrder { cart: Vec<CartItem> },
+  CashierRegister { username: String },
+  RequestConnection { username: String },
+  CreateOrder { cart: Vec<CartItem> },
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -59,21 +57,16 @@ struct ConnectedDevice {
 }
 
 // Messages the WS server pushes to peers.
-#[derive(Debug, Serialize, Clone)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case", content = "payload")]
 enum ServerMessage {
-    /// Full order snapshot — pushed to all approved peers.
-    Orders { data: Vec<Order> },
-    /// Wall-clock tick — pushed to all approved peers.
-    Time { data: String },
-    /// Pending connection requests — pushed to the cashier only.
-    ConnectionRequests { data: Vec<ConnectionRequest> },
-    /// Currently approved counters — pushed to the cashier only.
-    ConnectedDevices { data: Vec<ConnectedDevice> },
-    /// Sent to a counter when the cashier approves its connection.
-    ConnectionApproved,
-    /// Sent to a counter when the cashier rejects its connection.
-    ConnectionRejected,
+  ConnectionApproved,
+  ConnectionRejected,
+  ConnectionBlocked, // Sent when a blocked device (re)connects, or is blocked mid-session
+  ConnectionRequests { data: Vec<ConnectionRequest> },
+  ConnectedDevices { data: Vec<ConnectedDevice> },
+  Orders { data: Vec<Order> },
+  Time { data: String },
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -272,16 +265,61 @@ async fn disconnect_device(state: State<'_, AppState>, addr: String) -> Result<(
     Ok(())
 }
 
+/// Block a device: reject it now (pending or connected) and remember its IP so
+/// future connection attempts are refused before they even reach the pending list.
+/// Called from the cashier UI via invoke().
+#[tauri::command]
+async fn block_device(state: State<'_, AppState>, addr: String) -> Result<(), String> {
+    let socket_addr: SocketAddr = addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
+
+    state.blocked_ips.lock().await.insert(socket_addr.ip());
+
+    {
+        let mut guard = state.peers.lock().await;
+        if let Some(peer) = guard.get(&socket_addr) {
+            let _ = peer.tx.send(Message::Text(
+                serde_json::to_string(&ServerMessage::ConnectionBlocked)
+                    .unwrap_or_default()
+                    .into(),
+            ));
+        }
+        guard.remove(&socket_addr);
+    }
+
+    let pending = get_pending_requests_list(&state.peers).await;
+    let connected = get_connected_devices_list(&state.peers).await;
+    notify_cashier(&state.peers, &ServerMessage::ConnectionRequests { data: pending }).await;
+    notify_cashier(&state.peers, &ServerMessage::ConnectedDevices { data: connected }).await;
+    Ok(())
+}
+
+/// Unblock a previously blocked IP address. Called from the cashier UI via invoke().
+#[tauri::command]
+async fn unblock_device(state: State<'_, AppState>, ip: String) -> Result<(), String> {
+    let ip_addr: IpAddr = ip.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
+    state.blocked_ips.lock().await.remove(&ip_addr);
+    Ok(())
+}
+
+/// List currently blocked IP addresses. Called from the cashier UI via invoke().
+#[tauri::command]
+async fn get_blocked_devices(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let blocked = state.blocked_ips.lock().await;
+    Ok(blocked.iter().map(|ip| ip.to_string()).collect())
+}
+
 // ── Application Entry Point ───────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let order_service = Arc::new(OrderService::new());
     let peers: PeerMap = Arc::new(Mutex::new(HashMap::new()));
+    let blocked_ips: Arc<Mutex<HashSet<IpAddr>>> = Arc::new(Mutex::new(HashSet::new()));
 
     // ── WebSocket server (0.0.0.0 → reachable on LAN) ────────────────────────
     let ws_order_service = order_service.clone();
     let ws_peers = peers.clone();
+    let ws_blocked_ips = blocked_ips.clone();
     tauri::async_runtime::spawn(async move {
         let listener = TcpListener::bind("0.0.0.0:8080")
             .await
@@ -290,12 +328,27 @@ pub fn run() {
         while let Ok((stream, addr)) = listener.accept().await {
             let peers_inner = ws_peers.clone();
             let order_service_inner = ws_order_service.clone();
+            let blocked_ips_inner = ws_blocked_ips.clone();
 
             tauri::async_runtime::spawn(async move {
-                let ws_stream = match accept_async(stream).await {
+                let mut ws_stream = match accept_async(stream).await {
                     Ok(s) => s,
                     Err(_) => return,
                 };
+
+                // Refuse the handshake outright if this IP has been blocked by the cashier.
+                if blocked_ips_inner.lock().await.contains(&addr.ip()) {
+                    let _ = ws_stream
+                        .send(Message::Text(
+                            serde_json::to_string(&ServerMessage::ConnectionBlocked)
+                                .unwrap_or_default()
+                                .into(),
+                        ))
+                        .await;
+                    let _ = ws_stream.close(None).await;
+                    return;
+                }
+
                 let (mut ws_sender, mut ws_receiver) = ws_stream.split();
                 let (tx, mut rx) = mpsc::unbounded_channel();
 
@@ -437,7 +490,7 @@ pub fn run() {
             }
             Ok(())
         })
-        .manage(AppState { order_service, peers })
+        .manage(AppState { order_service, peers, blocked_ips })
         .invoke_handler(tauri::generate_handler![
             get_ws_address,
             get_pricing_matrix,
@@ -449,6 +502,9 @@ pub fn run() {
             approve_connection,
             reject_connection,
             disconnect_device,
+            block_device,
+            unblock_device,
+            get_blocked_devices,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

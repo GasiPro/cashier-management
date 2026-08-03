@@ -156,6 +156,14 @@ export class Cashier implements OnInit, OnDestroy {
     }
   }
 
+  async blockDevice(addr: string): Promise<void> {
+    try {
+      await invoke('block_device', { addr });
+    } catch (e) {
+      console.error('block_device failed', e);
+    }
+  }
+
   // ── Rust bridge ───────────────────────────────────────────────────────────────
 
   async markGroupAsPaid(groupId: number): Promise<void> {

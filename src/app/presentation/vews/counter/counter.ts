@@ -150,6 +150,12 @@ export class Counter implements OnInit, OnDestroy {
         this.waitingApproval.set(false);
         this.ws.disconnect();
         this.showToast('Connexion refusée par la caisse.');
+      } else if (msg.type === 'connection_blocked') {
+        this.wsConnected.set(false);
+        this.waitingApproval.set(false);
+        this.ws.disconnect();
+        this.showToast('Connexion bloquée par la caisse.');
+        this.router.navigate(['/login']);
       } else if (msg.type === 'orders') {
         this.orderGroups.set(this.buildGroups(msg.data as Order[]));
       } else if (msg.type === 'time') {

@@ -13,7 +13,8 @@ type Step =
   | 'cashier-setup'
   | 'counter-setup'
   | 'counter-waiting'
-  | 'counter-rejected';
+  | 'counter-rejected'
+  | 'counter-blocked';
 
 const LS_USERNAME = 'gasipro:username';
 const LS_CASHIER_URL = 'gasipro:cashierWsUrl';
@@ -148,6 +149,10 @@ export class LoginComponent implements OnInit, OnDestroy {
         this.wsSubscription?.unsubscribe();
         this.ws.disconnect();
         this.step.set('counter-rejected');
+      } else if (msg.type === 'connection_blocked') {
+        this.wsSubscription?.unsubscribe();
+        this.ws.disconnect();
+        this.step.set('counter-blocked');
       }
     });
 
