@@ -74,6 +74,8 @@ enum ServerMessage {
     ConnectionApproved,
     /// Sent to a counter when the cashier rejects its connection.
     ConnectionRejected,
+    /// Sent to a counter when the cashier blocks (force-disconnects) its connection.
+    ConnectionBlocked,
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -265,7 +267,18 @@ async fn reject_connection(state: State<'_, AppState>, addr: String) -> Result<(
 #[tauri::command]
 async fn disconnect_device(state: State<'_, AppState>, addr: String) -> Result<(), String> {
     let socket_addr: SocketAddr = addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
-    state.peers.lock().await.remove(&socket_addr);
+
+    {
+        let mut guard = state.peers.lock().await;
+        if let Some(peer) = guard.get(&socket_addr) {
+            let _ = peer.tx.send(Message::Text(
+                serde_json::to_string(&ServerMessage::ConnectionBlocked)
+                    .unwrap_or_default()
+                    .into(),
+            ));
+        }
+        guard.remove(&socket_addr);
+    }
 
     let connected = get_connected_devices_list(&state.peers).await;
     notify_cashier(&state.peers, &ServerMessage::ConnectedDevices { data: connected }).await;

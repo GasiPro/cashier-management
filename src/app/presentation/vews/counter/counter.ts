@@ -77,6 +77,8 @@ export class Counter implements OnInit, OnDestroy {
   wsConnected = signal(false);
   /** True while waiting for cashier to re-approve (e.g. after a reconnect). */
   waitingApproval = signal(false);
+  /** True once the cashier has blocked this device — no auto-reconnect. */
+  blocked = signal(false);
 
   // ── Server management panel ───────────────────────────────────────────────────
   showServerPanel = false;
@@ -150,6 +152,11 @@ export class Counter implements OnInit, OnDestroy {
         this.waitingApproval.set(false);
         this.ws.disconnect();
         this.showToast('Connexion refusée par la caisse.');
+      } else if (msg.type === 'connection_blocked') {
+        this.wsConnected.set(false);
+        this.waitingApproval.set(false);
+        this.blocked.set(true);
+        this.ws.disconnect();
       } else if (msg.type === 'orders') {
         this.orderGroups.set(this.buildGroups(msg.data as Order[]));
       } else if (msg.type === 'time') {
