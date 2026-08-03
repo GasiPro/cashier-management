@@ -154,8 +154,31 @@
   </div>
   }
 
+  <!-- ── Blocked overlay ─────────────────────────────────────────────────────── -->
+  @if (blocked()) {
+  <div class="fixed inset-0 z-40 bg-white/90 backdrop-blur-sm flex items-center justify-center px-4">
+    <div class="text-center max-w-sm">
+      <div class="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-5">
+        <svg class="w-7 h-7 text-red-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </div>
+      <h2 class="text-lg font-semibold text-[#1A1A1A] mb-1">Connexion bloquée</h2>
+      <p class="text-sm text-gray-500 mb-6">
+        Le caissier a bloqué ce poste.<br>
+        Contactez le caissier si vous pensez qu'il s'agit d'une erreur.
+      </p>
+      <button (click)="disconnectFromCashier()"
+        class="text-sm text-[#1E3A5F] font-medium border border-[#1E3A5F]/30 px-4 py-2 rounded-lg
+               hover:bg-[#EFF4FA] transition-colors">
+        Retour à la connexion
+      </button>
+    </div>
+  </div>
+  }
+
   <!-- ── Disconnected overlay ───────────────────────────────────────────────── -->
-  @if (!wsConnected() && !waitingApproval()) {
+  @if (!wsConnected() && !waitingApproval() && !blocked()) {
   <div class="fixed inset-0 z-40 bg-white/90 backdrop-blur-sm flex items-center justify-center px-4">
     <div class="text-center max-w-sm">
       <div class="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-5">
