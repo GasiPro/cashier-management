@@ -27,7 +27,7 @@ export interface Order {
   service_type: string;
   unit_price: number;
   quantity: number;
-  status: 'EN_ATTENTE' | 'PAYE';
+  status: 'EN_ATTENTE' | 'PAYE' | 'REJETEE';
   time: string;
   created_at: string;
   paid_at: string | null;
@@ -36,7 +36,7 @@ export interface Order {
 interface OrderGroup {
   groupId: number;
   lines: Order[];
-  status: 'EN_ATTENTE' | 'PAYE' | 'MIXTE';
+  status: 'EN_ATTENTE' | 'PAYE' | 'REJETEE' | 'MIXTE';
   time: string;
   createdAt: string;
   paidAt: string | null;
@@ -74,6 +74,8 @@ export class Counter implements OnInit, OnDestroy {
 
   // ── Order history ─────────────────────────────────────────────────────────────
   orderGroups = signal<OrderGroup[]>([]);
+  /** groupId of the pending order currently being edited from the history panel, if any. */
+  editingGroupId = signal<number | null>(null);
 
   // ── Connection state ──────────────────────────────────────────────────────────
   wsConnected = signal(false);
@@ -214,6 +216,56 @@ export class Counter implements OnInit, OnDestroy {
     this.showToast('Commande envoyée à la caisse !');
   }
 
+  // ── Pending order mutations (while EN_ATTENTE only) ───────────────────────────
+
+  /** Show/hide the inline edit controls for a pending order group in the history panel. */
+  toggleEditGroup(groupId: number): void {
+    this.editingGroupId.set(this.editingGroupId() === groupId ? null : groupId);
+  }
+
+  isEditingGroup(groupId: number): boolean {
+    return this.editingGroupId() === groupId;
+  }
+
+  /** Push a single order line's current quantity/price to the cashier. */
+  updateOrderLine(order: Order): void {
+    if (!this.wsConnected()) return;
+    this.ws.send({
+      type: 'update_order',
+      id: order.id,
+      quantity: order.quantity,
+      unit_price: order.unit_price,
+    });
+  }
+
+  incrementOrderLine(order: Order): void {
+    order.quantity++;
+    this.updateOrderLine(order);
+  }
+
+  decrementOrderLine(order: Order): void {
+    if (order.quantity > 1) {
+      order.quantity--;
+      this.updateOrderLine(order);
+    } else {
+      this.deleteOrderLine(order);
+    }
+  }
+
+  /** Remove a single line from a still-pending order. */
+  deleteOrderLine(order: Order): void {
+    if (!this.wsConnected()) return;
+    this.ws.send({ type: 'delete_order', id: order.id });
+  }
+
+  /** Cancel an entire pending order (all its lines). */
+  deleteOrderGroup(groupId: number): void {
+    if (!this.wsConnected()) return;
+    this.ws.send({ type: 'delete_order_group', group_id: groupId });
+    this.editingGroupId.set(null);
+    this.showToast('Commande annulée.');
+  }
+
   // ── Derived view state ────────────────────────────────────────────────────────
 
   get filteredServices(): ServiceItem[] {
@@ -306,12 +358,14 @@ export class Counter implements OnInit, OnDestroy {
   groupStatusLabel(g: OrderGroup): string {
     if (g.status === 'PAYE')       return 'Payé';
     if (g.status === 'EN_ATTENTE') return 'En attente';
+    if (g.status === 'REJETEE')    return 'Refusée';
     return 'Mixte';
   }
 
   groupStatusClass(g: OrderGroup): string {
     if (g.status === 'PAYE')       return 'bg-emerald-50 text-emerald-700 border border-emerald-100';
     if (g.status === 'EN_ATTENTE') return 'bg-amber-50  text-amber-700  border border-amber-100';
+    if (g.status === 'REJETEE')    return 'bg-red-50 text-red-700 border border-red-100';
     return 'bg-gray-50 text-gray-700 border border-gray-100';
   }
 
@@ -357,12 +411,13 @@ export class Counter implements OnInit, OnDestroy {
     }
     const groups: OrderGroup[] = [];
     for (const [groupId, lines] of map.entries()) {
-      const allPaid    = lines.every((l) => l.status === 'PAYE');
-      const allWaiting = lines.every((l) => l.status === 'EN_ATTENTE');
+      const allPaid     = lines.every((l) => l.status === 'PAYE');
+      const allWaiting   = lines.every((l) => l.status === 'EN_ATTENTE');
+      const allRejected = lines.every((l) => l.status === 'REJETEE');
       groups.push({
         groupId,
         lines,
-        status: allPaid ? 'PAYE' : allWaiting ? 'EN_ATTENTE' : 'MIXTE',
+        status: allPaid ? 'PAYE' : allWaiting ? 'EN_ATTENTE' : allRejected ? 'REJETEE' : 'MIXTE',
         time:    lines[0].time,
         createdAt: lines[0].created_at,
         paidAt: lines[0].paid_at,

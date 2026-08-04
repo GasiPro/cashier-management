@@ -7,6 +7,7 @@ use std::path::Path;
 pub enum OrderStatus {
     EnAttente, // Matches 'EN_ATTENTE' when serialized
     Paye,      // Matches 'PAYE' when serialized
+    Rejetee,   // Matches 'REJETEE' when serialized
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

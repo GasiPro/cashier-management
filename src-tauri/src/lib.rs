@@ -44,6 +44,12 @@ enum ClientMessage {
     RequestConnection { username: String },
     /// Counter sends its cart to the cashier for processing.
     CreateOrder { cart: Vec<CartItem> },
+    /// Comptoir: edit a single pending order line (only while EN_ATTENTE).
+    UpdateOrder { id: i64, quantity: u32, unit_price: u32 },
+    /// Comptoir: delete a single pending order line (only while EN_ATTENTE).
+    DeleteOrder { id: i64 },
+    /// Comptoir: delete an entire pending order group (only while EN_ATTENTE).
+    DeleteOrderGroup { group_id: i64 },
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -203,6 +209,18 @@ async fn create_order(state: State<'_, AppState>, cart: Vec<CartItem>) -> Result
 #[tauri::command]
 async fn mark_group_as_paid(state: State<'_, AppState>, group_id: i64) -> Result<(), String> {
     state.order_service.mark_group_as_paid(group_id);
+    broadcast_to_approved(
+        &state.peers,
+        &ServerMessage::Orders { data: state.order_service.get_orders() },
+    )
+    .await;
+    Ok(())
+}
+
+/// Caisse: refuse an entire pending order group. Called from the cashier UI via invoke().
+#[tauri::command]
+async fn reject_group(state: State<'_, AppState>, group_id: i64) -> Result<(), String> {
+    state.order_service.reject_group(group_id);
     broadcast_to_approved(
         &state.peers,
         &ServerMessage::Orders { data: state.order_service.get_orders() },
@@ -398,6 +416,57 @@ pub fn run() {
                                 }
                             }
 
+                            Ok(ClientMessage::UpdateOrder { id, quantity, unit_price }) => {
+                                let is_approved = {
+                                    let guard = peers_inner.lock().await;
+                                    guard.get(&addr).map(|s| s.approved).unwrap_or(false)
+                                };
+                                if is_approved {
+                                    order_service_inner.update_order(id, quantity, unit_price);
+                                    broadcast_to_approved(
+                                        &peers_inner,
+                                        &ServerMessage::Orders {
+                                            data: order_service_inner.get_orders(),
+                                        },
+                                    )
+                                    .await;
+                                }
+                            }
+
+                            Ok(ClientMessage::DeleteOrder { id }) => {
+                                let is_approved = {
+                                    let guard = peers_inner.lock().await;
+                                    guard.get(&addr).map(|s| s.approved).unwrap_or(false)
+                                };
+                                if is_approved {
+                                    order_service_inner.delete_order(id);
+                                    broadcast_to_approved(
+                                        &peers_inner,
+                                        &ServerMessage::Orders {
+                                            data: order_service_inner.get_orders(),
+                                        },
+                                    )
+                                    .await;
+                                }
+                            }
+
+                            Ok(ClientMessage::DeleteOrderGroup { group_id }) => {
+                                let is_approved = {
+                                    let guard = peers_inner.lock().await;
+                                    guard.get(&addr).map(|s| s.approved).unwrap_or(false)
+                                };
+                                if is_approved {
+                                    order_service_inner.delete_order_group(group_id);
+                                    broadcast_to_approved(
+                                        &peers_inner,
+                                        &ServerMessage::Orders {
+                                            data: order_service_inner.get_orders(),
+                                        },
+                                    )
+                                    .await;
+                                }
+                            }
+
                             Err(_) => {}
                         }
                     }
@@ -459,6 +528,7 @@ pub fn run() {
             get_paid_orders,
             create_order,
             mark_group_as_paid,
+            reject_group,
             approve_connection,
             reject_connection,
             disconnect_device,

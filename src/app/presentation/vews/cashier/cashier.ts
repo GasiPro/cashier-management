@@ -12,7 +12,7 @@ export interface Order {
   service_type: string;
   unit_price: number;
   quantity: number;
-  status: 'EN_ATTENTE' | 'PAYE';
+  status: 'EN_ATTENTE' | 'PAYE' | 'REJETEE';
   time: string;
   created_at: string;
   paid_at: string | null;
@@ -161,6 +161,15 @@ export class Cashier implements OnInit, OnDestroy {
 
   async markGroupAsPaid(groupId: number): Promise<void> {
     await invoke('mark_group_as_paid', { groupId });
+  }
+
+  /** Refuse an entire pending order (e.g. rupture de stock, client parti). */
+  async rejectGroup(groupId: number): Promise<void> {
+    try {
+      await invoke('reject_group', { groupId });
+    } catch (e) {
+      console.error('reject_group failed', e);
+    }
   }
 
   copyWsAddress(): void {
