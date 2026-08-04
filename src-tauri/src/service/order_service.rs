@@ -101,6 +101,72 @@ impl OrderService {
         }
     }
 
+    /// Caisse: refuse an entire pending order group (e.g. out of stock, client left).
+    pub fn reject_group(&self, group_id: i64) {
+        let mut guard = self.state.lock().unwrap();
+        let mut changed = false;
+
+        for order in &mut guard.orders {
+            if order.group_id == group_id && order.status == OrderStatus::EnAttente {
+                order.status = OrderStatus::Rejetee;
+                changed = true;
+            }
+        }
+
+        if changed {
+            self.commit(&mut guard);
+        }
+    }
+
+    /// Comptoir: edit the quantity/price of a single pending order line.
+    /// No-op if the order isn't pending (already paid/rejected) or doesn't exist.
+    pub fn update_order(&self, id: i64, quantity: u32, unit_price: u32) {
+        let mut guard = self.state.lock().unwrap();
+        let mut changed = false;
+
+        if let Some(order) = guard
+            .orders
+            .iter_mut()
+            .find(|o| o.id == id && o.status == OrderStatus::EnAttente)
+        {
+            order.quantity = quantity;
+            order.unit_price = unit_price;
+            changed = true;
+        }
+
+        if changed {
+            self.commit(&mut guard);
+        }
+    }
+
+    /// Comptoir: delete a single pending order line.
+    pub fn delete_order(&self, id: i64) {
+        let mut guard = self.state.lock().unwrap();
+        let before = guard.orders.len();
+
+        guard
+            .orders
+            .retain(|o| !(o.id == id && o.status == OrderStatus::EnAttente));
+
+        if guard.orders.len() != before {
+            self.commit(&mut guard);
+        }
+    }
+
+    /// Comptoir: delete an entire pending order group (cancels the whole order).
+    pub fn delete_order_group(&self, group_id: i64) {
+        let mut guard = self.state.lock().unwrap();
+        let before = guard.orders.len();
+
+        guard
+            .orders
+            .retain(|o| !(o.group_id == group_id && o.status == OrderStatus::EnAttente));
+
+        if guard.orders.len() != before {
+            self.commit(&mut guard);
+        }
+    }
+
     fn commit(&self, guard: &mut OrderState) {
         let _ = OrderApi::persist(&guard.orders, guard.next_id, guard.next_group_id);
     }
