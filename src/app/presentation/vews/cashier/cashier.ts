@@ -76,7 +76,9 @@ export class Cashier implements OnInit, OnDestroy {
   showDevicesPanel = false;
 
   // ── UI ──────────────────────────────────────────────────────────────────────
+  showMenu = false;
   showRapport = false;
+  showHistorique = false;
   wsAddress = signal('');
 
   private _rawPaidOrders: Order[] = [];

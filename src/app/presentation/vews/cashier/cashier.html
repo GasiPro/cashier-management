@@ -33,30 +33,62 @@
           </div>
         </div>
 
-        <!-- Devices button with badge -->
-        <button (click)="showDevicesPanel = !showDevicesPanel"
-          class="relative flex items-center gap-1.5 text-xs font-medium border border-gray-200 px-3 py-1.5 rounded-md
-                 text-gray-600 hover:bg-gray-50 transition-colors
-                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path stroke-linecap="round" stroke-linejoin="round" d="M8 21h8M12 17v4"/>
-          </svg>
-          <span class="hidden sm:inline">Appareils</span>
-          @if (totalPendingRequests > 0) {
-          <span class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold
-                       rounded-full flex items-center justify-center leading-none">
-            {{ totalPendingRequests }}
-          </span>
-          }
-        </button>
+        <!-- Menu button: Rapport / Historique / Appareils -->
+        <div class="relative">
+          <button (click)="showMenu = !showMenu" [attr.aria-expanded]="showMenu" aria-haspopup="menu"
+                  aria-controls="cashier-menu" aria-label="Menu"
+            class="relative flex items-center gap-1.5 text-xs font-medium border border-gray-200 px-3 py-1.5 rounded-md
+                   text-gray-600 hover:bg-gray-50 transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+            </svg>
+            <span class="hidden sm:inline">Menu</span>
+            @if (totalPendingRequests > 0) {
+            <span class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold
+                         rounded-full flex items-center justify-center leading-none">
+              {{ totalPendingRequests }}
+            </span>
+            }
+          </button>
 
-        <button (click)="showRapport = !showRapport" [attr.aria-expanded]="showRapport" aria-haspopup="dialog"
-                       aria-controls="rapport-panel" class="text-xs font-medium border border-gray-200 px-3 py-1.5 rounded-md
-                       text-gray-600 hover:bg-gray-50 transition-colors hidden sm:block
-                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-          Rapport
-        </button>
+          @if (showMenu) {
+          <div class="fixed inset-0 z-40" (click)="showMenu = false" (keydown.escape)="showMenu = false"></div>
+          <div id="cashier-menu" role="menu" aria-label="Menu principal"
+            class="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1.5 overflow-hidden">
+            <button role="menuitem" (click)="showRapport = true; showMenu = false" autofocus
+              class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
+              <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6M12 17V7M15 17v-3M4 21h16M5 21V5a1 1 0 011-1h12a1 1 0 011 1v16"/>
+              </svg>
+              Rapport
+            </button>
+            <button role="menuitem" (click)="showHistorique = true; showMenu = false"
+              class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
+              <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3M21 12a9 9 0 11-9-9 9 9 0 019 9z"/>
+              </svg>
+              Historique
+            </button>
+            <button role="menuitem" (click)="showDevicesPanel = true; showMenu = false"
+              class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
+              <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 21h8M12 17v4"/>
+              </svg>
+              <span class="flex-1">Appareils</span>
+              @if (totalPendingRequests > 0) {
+              <span class="text-[10px] bg-red-100 text-red-700 font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0">
+                {{ totalPendingRequests }}
+              </span>
+              }
+            </button>
+          </div>
+          }
+        </div>
       </div>
       <span class="text-xs text-gray-400">{{ currentTime() }}</span>
     </div>
@@ -249,6 +281,51 @@
             }
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- ── Historique panel ────────────────────────────────────────────────────── -->
+  @if (showHistorique) {
+  <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showHistorique = false"
+       (keydown.escape)="showHistorique = false">
+    <div class="absolute inset-0 bg-black/20"></div>
+    <div id="historique-panel" class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-y-auto
+                flex flex-col"
+         role="dialog" aria-modal="true" aria-labelledby="historique-heading"
+         (click)="$event.stopPropagation()">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+        <div>
+          <h2 id="historique-heading" class="text-base font-semibold text-[#1A1A1A]">Historique</h2>
+          <p class="text-xs text-gray-400 mt-0.5">{{ paidGroups().length }} encaissement{{ paidGroups().length > 1 ? 's' : '' }}</p>
+        </div>
+        <button (click)="showHistorique = false" autofocus
+          class="text-gray-400 hover:text-gray-600 p-1
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
+          aria-label="Fermer l'historique">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="flex-1 overflow-y-auto px-6 pb-6 pt-2">
+        @if (paidGroups().length === 0) {
+        <p class="text-sm text-gray-400 italic py-4">Aucun encaissement réalisé pour le moment.</p>
+        } @else {
+        <div class="space-y-0">
+          @for (group of paidGroups(); track group.groupId) {
+          <div class="py-3 border-b border-gray-100 last:border-0">
+            <div class="flex items-start justify-between gap-2 mb-1">
+              <span class="font-mono font-semibold text-sm text-gray-700">{{ formatGroupId(group.groupId) }}</span>
+              <span class="font-semibold text-[#1A1A1A] tabular-nums text-sm whitespace-nowrap">{{ group.totalAmount | number:'1.0-0' }} Ar</span>
+            </div>
+            <p class="text-xs text-gray-500 truncate mb-1">{{ getGroupItemsSummary(group) }}</p>
+            <p class="text-xs text-gray-400">{{ formatPaidLabel(group) }}</p>
+          </div>
+          }
+        </div>
+        }
       </div>
     </div>
   </div>
