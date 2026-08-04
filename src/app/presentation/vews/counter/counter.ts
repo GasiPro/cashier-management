@@ -84,8 +84,10 @@ export class Counter implements OnInit, OnDestroy {
   /** True once the cashier has blocked this device — no auto-reconnect. */
   blocked = signal(false);
 
-  // ── Server management panel ───────────────────────────────────────────────────
+  // ── Menu / panels ────────────────────────────────────────────────────────────
+  showMenu = false;
   showServerPanel = false;
+  showHistoriquePanel = false;
   newCashierHost = '';
 
   // ── UI ────────────────────────────────────────────────────────────────────────
