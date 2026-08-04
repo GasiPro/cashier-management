@@ -51,7 +51,8 @@
           }
         </button>
 
-        <button (click)="showRapport = !showRapport" class="text-xs font-medium border border-gray-200 px-3 py-1.5 rounded-md
+        <button (click)="showRapport = !showRapport" [attr.aria-expanded]="showRapport" aria-haspopup="dialog"
+                       aria-controls="rapport-panel" class="text-xs font-medium border border-gray-200 px-3 py-1.5 rounded-md
                        text-gray-600 hover:bg-gray-50 transition-colors hidden sm:block
                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
           Rapport
@@ -187,16 +188,22 @@
 
   <!-- ── Rapport panel ───────────────────────────────────────────────────────── -->
   @if (showRapport) {
-  <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showRapport = false">
+  <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showRapport = false"
+       (keydown.escape)="showRapport = false">
     <div class="absolute inset-0 bg-black/20"></div>
-    <div class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-y-auto
+    <div id="rapport-panel" class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-y-auto
                 flex flex-col"
+         role="dialog" aria-modal="true" aria-labelledby="rapport-heading"
          (click)="$event.stopPropagation()">
       <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-        <h2 class="text-base font-semibold text-[#1A1A1A]">Rapport</h2>
-        <button (click)="showRapport = false"
+        <div>
+          <h2 id="rapport-heading" class="text-base font-semibold text-[#1A1A1A]">Rapport</h2>
+          <p class="text-xs text-gray-400 mt-0.5 capitalize">{{ rapportDateLabel() }}</p>
+        </div>
+        <button (click)="showRapport = false" autofocus
           class="text-gray-400 hover:text-gray-600 p-1
-                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
+          aria-label="Fermer le rapport">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -206,12 +213,18 @@
         <div class="space-y-0">
           <div class="flex justify-between items-center py-3 border-b border-gray-100">
             <span class="text-sm text-gray-600">Chiffre d'affaires</span>
-            <span class="font-bold text-lg text-[#1E3A5F] tabular-nums">{{ totalRevenue() | number:'1.0-0' }} Ar</span>
+            <span class="font-bold text-lg text-[#1E3A5F] tabular-nums">{{ rapportRevenue() | number:'1.0-0' }} Ar</span>
           </div>
           <div class="flex justify-between items-center py-3 border-b border-gray-100">
             <span class="text-sm text-gray-600">Clients servis</span>
-            <span class="font-semibold">{{ paidGroups().length }}</span>
+            <span class="font-semibold">{{ rapportClientsCount() }}</span>
           </div>
+          @if (rapportTimeRange()) {
+          <div class="flex justify-between items-center py-3 border-b border-gray-100">
+            <span class="text-sm text-gray-600">Plage horaire</span>
+            <span class="font-semibold tabular-nums" aria-live="polite">{{ rapportTimeRange() }}</span>
+          </div>
+          }
           <div class="flex justify-between items-center py-3 border-b border-gray-100">
             <span class="text-sm text-gray-600">Files en attente</span>
             <span class="font-semibold">{{ pendingGroups().length }}</span>

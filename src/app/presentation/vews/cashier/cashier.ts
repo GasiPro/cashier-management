@@ -215,7 +215,7 @@ export class Cashier implements OnInit, OnDestroy {
 
   rapportGroups(): RapportCategoryGroup[] {
     const map = new Map<string, Map<string, RapportLine>>();
-    for (const order of this._rawPaidOrders) {
+    for (const order of this.todaysPaidOrders()) {
       const [category, label] = order.service_type.split(' — ');
       const key = label ?? order.service_type;
       if (!map.has(category)) map.set(category, new Map());
@@ -231,6 +231,50 @@ export class Cashier implements OnInit, OnDestroy {
       category,
       lines: Array.from(lines.values()),
     }));
+  }
+
+  /** Chiffre d'affaires du rapport (jour courant uniquement). */
+  rapportRevenue(): number {
+    return this.todaysPaidOrders().reduce((sum, o) => sum + o.quantity * o.unit_price, 0);
+  }
+
+  /** Nombre de clients (commandes distinctes) encaissés aujourd'hui. */
+  rapportClientsCount(): number {
+    return new Set(this.todaysPaidOrders().map((o) => o.group_id)).size;
+  }
+
+  /** Date du rapport, ex. "mardi 4 août 2026" — jour, mois et année en toutes lettres. */
+  rapportDateLabel(): string {
+    return new Date().toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  }
+
+  /** Plage horaire couverte par le rapport, de la première à la dernière commande encaissée aujourd'hui. */
+  rapportTimeRange(): string {
+    const orders = this.todaysPaidOrders();
+    if (orders.length === 0) return '';
+    const timestamps = orders
+      .map((o) => new Date(o.paid_at as string).getTime())
+      .sort((a, b) => a - b);
+    const format = (t: number) =>
+      new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    return `${format(timestamps[0])} – ${format(timestamps[timestamps.length - 1])}`;
+  }
+
+  /** Commandes payées appartenant à la journée en cours — seule base du rapport. */
+  private todaysPaidOrders(): Order[] {
+    return this._rawPaidOrders.filter((o) => o.paid_at && this.isToday(o.paid_at));
+  }
+
+  private isToday(iso: string): boolean {
+    const date = new Date(iso);
+    const now = new Date();
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    return startOfDay(date) === startOfDay(now);
   }
 
   // ── Derivation from "orders" broadcast ───────────────────────────────────────
