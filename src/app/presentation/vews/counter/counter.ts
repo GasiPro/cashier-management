@@ -1,5 +1,5 @@
 // src/app/presentation/vews/counter/counter.ts
-import { Component, OnInit, OnDestroy, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -74,6 +74,7 @@ export class Counter implements OnInit, OnDestroy {
 
   // ── Order history ─────────────────────────────────────────────────────────────
   orderGroups = signal<OrderGroup[]>([]);
+  recentOrderGroups = computed(() => this.orderGroups().slice(0, 5));
   /** groupId of the pending order currently being edited from the history panel, if any. */
   editingGroupId = signal<number | null>(null);
 
