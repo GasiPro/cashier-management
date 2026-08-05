@@ -196,8 +196,8 @@ fn get_paid_orders(state: State<'_, AppState>) -> Vec<Order> {
 }
 
 #[tauri::command]
-async fn create_order(state: State<'_, AppState>, cart: Vec<CartItem>) -> Result<(), String> {
-    state.order_service.create_order(&cart);
+async fn create_order(state: State<'_, AppState>, cart: Vec<CartItem>, counter_username: String) -> Result<(), String> {
+    state.order_service.create_order(&cart, &counter_username);
     broadcast_to_approved(
         &state.peers,
         &ServerMessage::Orders { data: state.order_service.get_orders() },
@@ -400,12 +400,15 @@ pub fn run() {
                             }
 
                             Ok(ClientMessage::CreateOrder { cart }) => {
-                                let is_approved = {
+                                let (is_approved, counter_username) = {
                                     let guard = peers_inner.lock().await;
-                                    guard.get(&addr).map(|s| s.approved).unwrap_or(false)
+                                    match guard.get(&addr) {
+                                        Some(s) => (s.approved, s.username.clone()),
+                                        None => (false, String::new()),
+                                    }
                                 };
                                 if is_approved {
-                                    order_service_inner.create_order(&cart);
+                                    order_service_inner.create_order(&cart, &counter_username);
                                     broadcast_to_approved(
                                         &peers_inner,
                                         &ServerMessage::Orders {
