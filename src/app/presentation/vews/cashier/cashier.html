@@ -424,7 +424,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (group of paidGroups(); track group.groupId) {
+            @for (group of recentPaidGroups(); track group.groupId) {
             <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
               <td class="px-3 sm:px-4 py-3 font-mono font-semibold text-gray-700 whitespace-nowrap">{{ formatGroupId(group.groupId) }}</td>
               <td class="px-3 sm:px-4 py-3 text-gray-600 max-w-[140px] xs:max-w-xs md:max-w-md truncate">{{ getGroupItemsSummary(group) }}</td>

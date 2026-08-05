@@ -1,5 +1,5 @@
 // src/app/presentation/vews/cashier/cashier.ts
-import { Component, OnInit, OnDestroy, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { invoke } from '@tauri-apps/api/core';
@@ -66,6 +66,7 @@ export class Cashier implements OnInit, OnDestroy {
   currentTime = signal('');
   pendingGroups = signal<OrderGroup[]>([]);
   paidGroups = signal<OrderGroup[]>([]);
+  recentPaidGroups = computed(() => this.paidGroups().slice(0, 5));
   totalRevenue = signal(0);
   volumeByService = signal<Record<string, number>>({});
   wsConnected = signal(false);

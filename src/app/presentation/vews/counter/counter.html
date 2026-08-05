@@ -468,7 +468,7 @@
           <div class="mt-4 bg-white border border-gray-200 rounded-xl p-5">
             <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">Historique</h3>
             <div class="space-y-2 max-h-80 overflow-y-auto">
-              @for (g of orderGroups(); track g.groupId) {
+              @for (g of recentOrderGroups(); track g.groupId) {
               <div class="text-sm border-b border-gray-50 last:border-0 pb-2 last:pb-0">
                 <div class="flex items-start justify-between gap-2">
                   <div class="flex items-start gap-2 min-w-0">
