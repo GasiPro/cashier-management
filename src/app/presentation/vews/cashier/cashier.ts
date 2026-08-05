@@ -72,7 +72,13 @@ export class Cashier implements OnInit, OnDestroy {
   pendingGroups = signal<OrderGroup[]>([]);
   paidGroups = signal<OrderGroup[]>([]);
   recentPaidGroups = computed(() => this.paidGroups().slice(0, 5));
+  /** Encaissements du jour uniquement — utilisé pour les compteurs de la barre de navigation. */
+  todaysPaidGroups = computed(() => this.paidGroups().filter((g) => g.paidAt && this.isToday(g.paidAt)));
   totalRevenue = signal(0);
+  /** Total encaissé aujourd'hui uniquement — utilisé pour les compteurs de la barre de navigation. */
+  todaysRevenue = computed(() =>
+    this.todaysPaidGroups().reduce((sum, g) => sum + g.totalAmount, 0),
+  );
   volumeByService = signal<Record<string, number>>({});
   wsConnected = signal(false);
 

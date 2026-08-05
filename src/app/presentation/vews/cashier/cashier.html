@@ -24,12 +24,12 @@
         <div class="hidden sm:flex items-center gap-4 text-sm">
           <div class="text-right">
             <p class="text-xs text-gray-400">Encaissé</p>
-            <p class="font-semibold text-[#1A1A1A] tabular-nums">{{ totalRevenue() | number:'1.0-0' }} Ar</p>
+            <p class="font-semibold text-[#1A1A1A] tabular-nums">{{ todaysRevenue() | number:'1.0-0' }} Ar</p>
           </div>
           <div class="w-px h-8 bg-gray-200"></div>
           <div class="text-right">
             <p class="text-xs text-gray-400">Transactions</p>
-            <p class="font-semibold text-[#1A1A1A]">{{ paidGroups().length }}</p>
+            <p class="font-semibold text-[#1A1A1A]">{{ todaysPaidGroups().length }}</p>
           </div>
         </div>
 
