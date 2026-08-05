@@ -20,6 +20,9 @@ pub struct Order {
     pub status: OrderStatus,
     pub time: String,
 
+    /// Username of the counter (comptoir) that placed the order.
+    #[serde(default)]
+    pub counter_username: String,
 
    pub created_at: String,
     pub paid_at: Option<String>, // 'string | null' becomes Option<String>

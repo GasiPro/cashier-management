@@ -51,7 +51,7 @@ impl OrderService {
             .collect()
     }
 
-    pub fn create_order(&self, cart: &[CartItem]) {
+    pub fn create_order(&self, cart: &[CartItem], counter_username: &str) {
         if cart.is_empty() {
             return;
         }
@@ -73,6 +73,7 @@ impl OrderService {
                 quantity: item.qty,
                 status: OrderStatus::EnAttente,
                 time: time.clone(),
+                counter_username: counter_username.to_string(),
                 created_at: created_at.clone(),
                 paid_at: None,
             };

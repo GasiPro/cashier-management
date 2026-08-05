@@ -1,547 +1,445 @@
-<div class="bg-[#FAFAFA] min-h-screen flex flex-col">
+// src/app/presentation/vews/counter/counter.ts
+import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { invoke } from '@tauri-apps/api/core';
+import { WebsocketService, WsMessage } from '../../../core/service/websocket.service';
+import { Subscription } from 'rxjs';
 
-  <header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sticky top-0 z-20">
-    <div class="max-w-6xl mx-auto flex items-center justify-between gap-4">
-      <div class="flex items-center gap-3">
-        <button (click)="goBack()" aria-label="Retour" class="text-gray-400 hover:text-gray-600 transition-colors
-                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <div class="flex items-center gap-2">
-          <div class="w-6 h-6 bg-[#1E3A5F] rounded-sm flex items-center justify-center">
-            <span class="text-white text-[10px] font-bold">G</span>
-          </div>
-          <span class="text-sm font-semibold text-gray-800 hidden sm:block">GasiPro</span>
-          <span class="text-gray-300 hidden sm:block">/</span>
-          <span class="text-sm text-gray-500 hidden sm:block">Comptoir · {{ username }}</span>
-        </div>
-      </div>
+export interface ServiceItem {
+  id: string;
+  label: string;
+  price: number;
+  category: string;
+  type: 'service' | 'product';
+}
 
-      <div class="flex items-center gap-2">
-        <!-- Connection indicator + server button -->
-        <button (click)="showServerPanel = !showServerPanel"
-          class="flex items-center gap-1.5 text-xs font-medium border rounded-md px-3 py-1.5 transition-colors
-                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
-          [class]="wsConnected()
-            ? 'border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
-            : waitingApproval()
-              ? 'border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100'
-              : 'border-red-200 text-red-600 bg-red-50 hover:bg-red-100'">
-          <span class="w-1.5 h-1.5 rounded-full inline-block"
-            [class]="wsConnected()
-              ? 'bg-emerald-400 animate-pulse'
-              : waitingApproval()
-                ? 'bg-amber-400 animate-pulse'
-                : 'bg-red-400'">
-          </span>
-          <span class="hidden sm:inline">
-            @if (wsConnected()) { Connecté }
-            @else if (waitingApproval()) { Approbation… }
-            @else { Déconnecté }
-          </span>
-          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
+export interface CartItem {
+  service: ServiceItem;
+  qty: number;
+  unitPrice: number;
+}
 
-        <!-- Menu button: Connexion / Historique -->
-        <div class="relative">
-          <button (click)="showMenu = !showMenu" [attr.aria-expanded]="showMenu" aria-haspopup="menu"
-                  aria-controls="counter-menu" aria-label="Menu"
-            class="flex items-center gap-1.5 text-xs font-medium border border-gray-200 px-3 py-1.5 rounded-md
-                   text-gray-600 hover:bg-gray-50 transition-colors
-                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
-            </svg>
-            <span class="hidden sm:inline">Menu</span>
-          </button>
+export interface Order {
+  id: number;
+  group_id: number;
+  service_type: string;
+  unit_price: number;
+  quantity: number;
+  status: 'EN_ATTENTE' | 'PAYE' | 'REJETEE';
+  time: string;
+  /** Username of the counter (comptoir) that placed the order. */
+  counter_username: string;
+  created_at: string;
+  paid_at: string | null;
+}
 
-          @if (showMenu) {
-          <div class="fixed inset-0 z-40" (click)="showMenu = false" (keydown.escape)="showMenu = false"></div>
-          <div id="counter-menu" role="menu" aria-label="Menu principal"
-            class="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1.5 overflow-hidden">
-            <button role="menuitem" (click)="showServerPanel = true; showMenu = false" autofocus
-              class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
-                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
-              <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <rect x="2" y="4" width="20" height="16" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 8h.01M6 12h.01"/>
-              </svg>
-              Connexion
-            </button>
-            <button role="menuitem" (click)="showHistoriquePanel = true; showMenu = false"
-              class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
-                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
-              <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3M21 12a9 9 0 11-9-9 9 9 0 019 9z"/>
-              </svg>
-              <span class="flex-1">Historique</span>
-              @if (orderGroups().length > 0) {
-              <span class="text-[10px] bg-gray-100 text-gray-600 font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0">
-                {{ orderGroups().length }}
-              </span>
-              }
-            </button>
-          </div>
-          }
-        </div>
-      </div>
+interface OrderGroup {
+  groupId: number;
+  lines: Order[];
+  status: 'EN_ATTENTE' | 'PAYE' | 'REJETEE' | 'MIXTE';
+  time: string;
+  createdAt: string;
+  paidAt: string | null;
+}
 
-      <span class="text-xs text-gray-400">{{ currentTime() }}</span>
-    </div>
-  </header>
+const LS_USERNAME = 'gasipro:username';
+const LS_CASHIER_URL = 'gasipro:cashierWsUrl';
+const DEFAULT_WS_HOST = '127.0.0.1:8080';
 
-  <!-- ── Server management panel ──────────────────────────────────────────── -->
-  @if (showServerPanel) {
-  <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showServerPanel = false">
-    <div class="absolute inset-0 bg-black/20"></div>
-    <div class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-y-auto flex flex-col"
-         (click)="$event.stopPropagation()">
+@Component({
+  selector: 'app-counter',
+  standalone: true,
+  imports: [CommonModule, FormsModule],
+  templateUrl: './counter.html',
+})
+export class Counter implements OnInit, OnDestroy {
+  // ── Identity ────────────────────────────────────────────────────────────────
+  username = localStorage.getItem(LS_USERNAME) ?? 'Comptoir';
+  cashierHost = localStorage.getItem(LS_CASHIER_URL) ?? DEFAULT_WS_HOST;
 
-      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-        <h2 class="text-base font-semibold text-[#1A1A1A]">Connexion serveur</h2>
-        <button (click)="showServerPanel = false"
-          class="text-gray-400 hover:text-gray-600 p-1
-                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
+  // ── Catalogue ───────────────────────────────────────────────────────────────
+  allServices = signal<ServiceItem[]>([]);
+  categories = signal<string[]>([]);
 
-      <div class="flex-1 px-6 py-5 space-y-6">
+  readonly typeFilters = [
+    { label: 'Tous',     value: 'tous'    },
+    { label: 'Services', value: 'service' },
+    { label: 'Produits', value: 'product' },
+  ] as const;
+  activeTypeFilter: 'tous' | 'service' | 'product' = 'tous';
+  activeCategory = 'Tous';
 
-        <!-- Current connection status -->
-        <div>
-          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Connexion actuelle</p>
-          <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="text-xs text-gray-500">Identifiant</span>
-              <span class="text-sm font-semibold text-[#1A1A1A]">{{ username }}</span>
-            </div>
-            <div class="flex items-center justify-between">
-              <span class="text-xs text-gray-500">Serveur caisse</span>
-              <span class="text-sm font-mono text-[#1E3A5F]">{{ cashierHost }}</span>
-            </div>
-            <div class="flex items-center justify-between">
-              <span class="text-xs text-gray-500">Statut</span>
-              <span class="flex items-center gap-1 text-xs font-medium"
-                [class]="wsConnected() ? 'text-emerald-600' : waitingApproval() ? 'text-amber-600' : 'text-red-500'">
-                <span class="w-1.5 h-1.5 rounded-full inline-block"
-                  [class]="wsConnected() ? 'bg-emerald-400' : waitingApproval() ? 'bg-amber-400 animate-pulse' : 'bg-red-400'">
-                </span>
-                @if (wsConnected()) { Connecté et approuvé }
-                @else if (waitingApproval()) { En attente d'approbation }
-                @else { Déconnecté }
-              </span>
-            </div>
-          </div>
-        </div>
+  // ── Cart ─────────────────────────────────────────────────────────────────────
+  cart: CartItem[] = [];
 
-        <!-- Connect to another server -->
-        <div>
-          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Se connecter à un autre serveur</p>
-          <div class="space-y-3">
-            <div>
-              <label class="block text-xs text-gray-500 mb-1.5">Adresse de la caisse (WS)</label>
-              <input
-                type="text"
-                [(ngModel)]="newCashierHost"
-                (keydown.enter)="connectToNewCashier()"
-                placeholder="ex : 192.168.1.5:8080"
-                class="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm font-mono text-[#1A1A1A]
-                       focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
-            </div>
-            <button (click)="connectToNewCashier()"
-              [disabled]="!newCashierHost.trim()"
-              class="w-full bg-[#1E3A5F] text-white text-sm font-semibold py-2.5 rounded-lg
-                     hover:bg-[#16304f] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
-                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
-              Changer de serveur
-            </button>
-          </div>
-        </div>
+  // ── Order history ─────────────────────────────────────────────────────────────
+  orderGroups = signal<OrderGroup[]>([]);
+  recentOrderGroups = computed(() => this.orderGroups().slice(0, 5));
+  /** groupId of the pending order currently being edited from the history panel, if any. */
+  editingGroupId = signal<number | null>(null);
 
-        <!-- Disconnect -->
-        <div class="pt-2 border-t border-gray-100">
-          <button (click)="disconnectFromCashier()"
-            class="w-full border border-red-200 text-red-600 text-sm font-medium py-2.5 rounded-lg
-                   hover:bg-red-50 active:scale-95 transition-all
-                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
-            Déconnecter ce poste
-          </button>
-          <p class="text-xs text-gray-400 text-center mt-2">
-            Retourne à l'écran de connexion.
-          </p>
-        </div>
+  // ── Connection state ──────────────────────────────────────────────────────────
+  wsConnected = signal(false);
+  /** True while waiting for cashier to re-approve (e.g. after a reconnect). */
+  waitingApproval = signal(false);
+  /** True once the cashier has blocked this device — no auto-reconnect. */
+  blocked = signal(false);
 
-      </div>
-    </div>
-  </div>
+  // ── Menu / panels ────────────────────────────────────────────────────────────
+  showMenu = false;
+  showServerPanel = false;
+  showHistoriquePanel = false;
+  newCashierHost = '';
+
+  // ── UI ────────────────────────────────────────────────────────────────────────
+  currentTime = signal('');
+  toastVisible = signal(false);
+  toastMessage = signal('');
+
+  private clockId!: ReturnType<typeof setInterval>;
+  private wsSubscription?: Subscription;
+  private openSubscription?: Subscription;
+  private closeSubscription?: Subscription;
+
+  constructor(
+    private router: Router,
+    private ws: WebsocketService,
+  ) {}
+
+  async ngOnInit(): Promise<void> {
+    this.updateClock();
+    this.clockId = setInterval(() => this.updateClock(), 60_000);
+    await this.loadCatalogue();
+
+    this.newCashierHost = this.cashierHost;
+
+    this.setupWsListeners();
+
+    const fullUrl = `ws://${this.cashierHost}`;
+    this.ws.connect(fullUrl);
+
+    // If the socket is already open (handed off from login), don't wait for onopen.
+    if (this.ws.isOpen()) {
+      // Connection is live and already approved (login handled approval before navigating).
+      this.wsConnected.set(true);
+      this.waitingApproval.set(false);
+    }
   }
 
-  <!-- ── Historique panel ────────────────────────────────────────────────────── -->
-  @if (showHistoriquePanel) {
-  <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showHistoriquePanel = false"
-       (keydown.escape)="showHistoriquePanel = false">
-    <div class="absolute inset-0 bg-black/20"></div>
-    <div id="historique-panel" class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-y-auto
-                flex flex-col"
-         role="dialog" aria-modal="true" aria-labelledby="historique-panel-heading"
-         (click)="$event.stopPropagation()">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-        <div>
-          <h2 id="historique-panel-heading" class="text-base font-semibold text-[#1A1A1A]">Historique</h2>
-          <p class="text-xs text-gray-400 mt-0.5">{{ orderGroups().length }} commande{{ orderGroups().length > 1 ? 's' : '' }}</p>
-        </div>
-        <button (click)="showHistoriquePanel = false" autofocus
-          class="text-gray-400 hover:text-gray-600 p-1
-                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
-          aria-label="Fermer l'historique">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-      <div class="flex-1 overflow-y-auto px-6 pb-6 pt-2">
-        @if (orderGroups().length === 0) {
-        <p class="text-sm text-gray-400 italic py-4">Aucune commande pour le moment.</p>
-        } @else {
-        <div class="space-y-2">
-          @for (g of orderGroups(); track g.groupId) {
-          <div class="text-sm border-b border-gray-50 last:border-0 pb-2 last:pb-0">
-            <div class="flex items-start justify-between gap-2">
-              <div class="flex items-start gap-2 min-w-0">
-                <span class="font-mono text-gray-500 font-semibold flex-shrink-0 mt-0.5">{{ groupLabel(g.groupId) }}</span>
-                <div class="min-w-0">
-                  <p class="text-gray-600 text-xs leading-snug truncate">{{ groupSummary(g) }}</p>
-                  <p class="text-gray-400 text-[11px] leading-snug mt-0.5">{{ groupTimeLabel(g) }}</p>
-                </div>
-              </div>
-              <div class="flex items-center gap-1 flex-shrink-0">
-                @if (g.status === 'EN_ATTENTE') {
-                <button (click)="toggleEditGroup(g.groupId)" title="Modifier"
-                  class="text-gray-400 hover:text-[#1E3A5F] p-1 rounded transition-colors
-                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5" />
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  </svg>
-                </button>
-                <button (click)="deleteOrderGroup(g.groupId)" title="Annuler la commande"
-                  class="text-gray-400 hover:text-red-600 p-1 rounded transition-colors
-                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-                }
-                <span class="text-xs px-2 py-0.5 rounded-full font-medium" [class]="groupStatusClass(g)">
-                  {{ groupStatusLabel(g) }}
-                </span>
-              </div>
-            </div>
-
-            @if (g.status === 'EN_ATTENTE' && isEditingGroup(g.groupId)) {
-            <div class="mt-2 ml-1 space-y-2 bg-[#F7F9FC] border border-gray-100 rounded-lg p-2.5">
-              @for (line of g.lines; track line.id) {
-              <div class="flex items-center gap-2">
-                <span class="flex-1 min-w-0 text-xs text-gray-600 truncate">{{ line.service_type }}</span>
-                <div class="flex items-center gap-1 flex-shrink-0">
-                  <button (click)="decrementOrderLine(line)" class="w-5 h-5 rounded border border-gray-200 flex items-center justify-center
-                                   text-gray-500 hover:bg-gray-100 transition-colors leading-none text-xs
-                                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">−</button>
-                  <span class="w-4 text-center text-xs font-semibold text-[#1A1A1A] tabular-nums">{{ line.quantity }}</span>
-                  <button (click)="incrementOrderLine(line)" class="w-5 h-5 rounded border border-gray-200 flex items-center justify-center
-                                   text-gray-500 hover:bg-gray-100 transition-colors leading-none text-xs
-                                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">+</button>
-                </div>
-                <input type="number" [(ngModel)]="line.unit_price" (change)="updateOrderLine(line)" min="0"
-                  class="w-16 border border-gray-200 rounded px-1 py-0.5 text-xs font-medium flex-shrink-0
-                         text-[#1A1A1A] focus:outline-none focus:border-[#1E3A5F] transition-colors tabular-nums" />
-                <button (click)="deleteOrderLine(line)" title="Supprimer cette ligne"
-                  class="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0
-                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400 rounded">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              }
-            </div>
-            }
-          </div>
-          }
-        </div>
-        }
-      </div>
-    </div>
-  </div>
+  ngOnDestroy(): void {
+    clearInterval(this.clockId);
+    this.wsSubscription?.unsubscribe();
+    this.openSubscription?.unsubscribe();
+    this.closeSubscription?.unsubscribe();
+    this.ws.disconnect();
   }
 
-  <!-- ── Waiting for approval overlay ─────────────────────────────────────── -->
-  @if (waitingApproval() && !wsConnected()) {
-  <div class="fixed inset-0 z-40 bg-white/90 backdrop-blur-sm flex items-center justify-center px-4">
-    <div class="text-center">
-      <div class="w-16 h-16 rounded-full bg-[#EFF4FA] flex items-center justify-center mx-auto mb-5">
-        <span class="w-7 h-7 rounded-full border-[3px] border-[#1E3A5F] border-t-transparent animate-spin inline-block"></span>
-      </div>
-      <h2 class="text-lg font-semibold text-[#1A1A1A] mb-1">En attente d'approbation</h2>
-      <p class="text-sm text-gray-500 mb-4">Reconnexion à <span class="font-mono text-[#1E3A5F]">{{ cashierHost }}</span></p>
-      <p class="text-xs text-gray-400">Le caissier doit approuver la reconnexion.</p>
-    </div>
-  </div>
+  // ── WS lifecycle ──────────────────────────────────────────────────────────────
+
+  private setupWsListeners(): void {
+    // Handle reconnect: re-send request_connection, show waiting overlay.
+    this.openSubscription = this.ws.onOpened().subscribe(() => {
+      this.wsConnected.set(false);
+      this.waitingApproval.set(true);
+      this.ws.send({ type: 'request_connection', username: this.username });
+    });
+
+    // Handle drop: show "disconnected" state.
+    this.closeSubscription = this.ws.onClosed().subscribe(() => {
+      this.wsConnected.set(false);
+      this.waitingApproval.set(false);
+    });
+
+    this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
+      if (msg.type === 'connection_approved') {
+        this.wsConnected.set(true);
+        this.waitingApproval.set(false);
+      } else if (msg.type === 'connection_rejected') {
+        this.wsConnected.set(false);
+        this.waitingApproval.set(false);
+        this.ws.disconnect();
+        this.showToast('Connexion refusée par la caisse.');
+      } else if (msg.type === 'connection_blocked') {
+        this.wsConnected.set(false);
+        this.waitingApproval.set(false);
+        this.blocked.set(true);
+        this.ws.disconnect();
+      } else if (msg.type === 'orders') {
+        this.orderGroups.set(this.buildGroups(msg.data as Order[]));
+      } else if (msg.type === 'time') {
+        this.currentTime.set(msg.data as string);
+      }
+    });
   }
 
-  <!-- ── Blocked overlay ─────────────────────────────────────────────────────── -->
-  @if (blocked()) {
-  <div class="fixed inset-0 z-40 bg-white/90 backdrop-blur-sm flex items-center justify-center px-4">
-    <div class="text-center max-w-sm">
-      <div class="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-5">
-        <svg class="w-7 h-7 text-red-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </div>
-      <h2 class="text-lg font-semibold text-[#1A1A1A] mb-1">Connexion bloquée</h2>
-      <p class="text-sm text-gray-500 mb-6">
-        Le caissier a bloqué ce poste.<br>
-        Contactez le caissier si vous pensez qu'il s'agit d'une erreur.
-      </p>
-      <button (click)="disconnectFromCashier()"
-        class="text-sm text-[#1E3A5F] font-medium border border-[#1E3A5F]/30 px-4 py-2 rounded-lg
-               hover:bg-[#EFF4FA] transition-colors">
-        Retour à la connexion
-      </button>
-    </div>
-  </div>
+  // ── Server management ─────────────────────────────────────────────────────────
+
+  disconnectFromCashier(): void {
+    this.ws.disconnect();
+    this.router.navigate(['/login']);
   }
 
-  <!-- ── Disconnected overlay ───────────────────────────────────────────────── -->
-  @if (!wsConnected() && !waitingApproval() && !blocked()) {
-  <div class="fixed inset-0 z-40 bg-white/90 backdrop-blur-sm flex items-center justify-center px-4">
-    <div class="text-center max-w-sm">
-      <div class="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-5">
-        <svg class="w-7 h-7 text-red-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round"
-                d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-        </svg>
-      </div>
-      <h2 class="text-lg font-semibold text-[#1A1A1A] mb-1">Connexion perdue</h2>
-      <p class="text-sm text-gray-500 mb-6">La connexion avec la caisse a été interrompue. Reconnexion en cours…</p>
-      <button (click)="showServerPanel = true"
-        class="text-sm text-[#1E3A5F] font-medium border border-[#1E3A5F]/30 px-4 py-2 rounded-lg
-               hover:bg-[#EFF4FA] transition-colors">
-        Changer de serveur
-      </button>
-    </div>
-  </div>
+  connectToNewCashier(): void {
+    const host = this.newCashierHost.trim();
+    if (!host) return;
+
+    this.showServerPanel = false;
+    this.cashierHost = host;
+    localStorage.setItem(LS_CASHIER_URL, host);
+
+    // Tear down current connection and set up fresh.
+    this.ws.disconnect();
+
+    // Give the socket a tick to close before reconnecting.
+    setTimeout(() => {
+      const fullUrl = `ws://${host}`;
+      this.ws.connect(fullUrl);
+      this.waitingApproval.set(true);
+    }, 100);
   }
 
-  @if (toastVisible()) {
-  <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50
-                bg-[#1E3A5F] text-white text-sm font-medium px-5 py-3 rounded-lg shadow-lg">
-    {{ toastMessage() }}
-  </div>
+  // ── Catalogue ─────────────────────────────────────────────────────────────────
+
+  private async loadCatalogue(): Promise<void> {
+    const services = await invoke<ServiceItem[]>('get_pricing_matrix');
+    this.allServices.set(services);
+    this.extractCategories();
   }
 
-  <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6">
-    <div class="flex flex-col lg:flex-row gap-6">
+  // ── Order submission ──────────────────────────────────────────────────────────
 
-      <div class="flex-1 min-w-0">
-        <h1 class="text-base font-semibold text-[#1A1A1A] mb-4">Nouvelle commande</h1>
+  envoyerCommande(): void {
+    if (this.cart.length === 0) return;
+    if (!this.wsConnected()) {
+      this.showToast('Non connecté à la caisse — vérifiez la connexion réseau');
+      return;
+    }
+    this.ws.send({ type: 'create_order', cart: this.cart });
+    this.cart = [];
+    this.showToast('Commande envoyée à la caisse !');
+  }
 
-        <div class="flex gap-2 mb-3">
-          @for (tf of typeFilters; track tf.value) {
-          <button (click)="setTypeFilter(tf.value)" [class]="activeTypeFilter === tf.value
-                ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]'
-                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'" class="flex-shrink-0 text-xs font-semibold border px-4 py-1.5 rounded-full
-                     transition-colors whitespace-nowrap
-                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-            {{ tf.label }}
-          </button>
-          }
-        </div>
+  // ── Pending order mutations (while EN_ATTENTE only) ───────────────────────────
 
-        <div class="flex gap-2 mb-4 overflow-x-auto pb-1">
-          @for (cat of filteredCategories; track cat) {
-          <button (click)="setCategory(cat)" [class]="activeCategory === cat
-                ? 'bg-[#EFF4FA] text-[#1E3A5F] border-[#1E3A5F]'
-                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'" class="flex-shrink-0 text-xs font-medium border px-3 py-1 rounded-full
-                     transition-colors whitespace-nowrap
-                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-            {{ cat }}
-          </button>
-          }
-        </div>
+  /** Show/hide the inline edit controls for a pending order group in the history panel. */
+  toggleEditGroup(groupId: number): void {
+    this.editingGroupId.set(this.editingGroupId() === groupId ? null : groupId);
+  }
 
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          @for (service of filteredServices; track service.id) {
-          <button (click)="selectService(service)" [class]="isInCart(service)
-                ? 'bg-[#EFF4FA] border-[#1E3A5F]'
-                : 'bg-white border-gray-200 hover:border-gray-300'" class="relative text-left border rounded-lg px-3.5 py-3 transition-all
-                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-            @if (cartQty(service) > 0) {
-            <span class="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#1E3A5F] text-white
-                             text-[10px] font-bold flex items-center justify-center leading-none">
-              {{ cartQty(service) }}
-            </span>
-            }
-            <p class="text-xs text-gray-400 mb-0.5 leading-tight">{{ service.category }}</p>
-            <p class="text-sm font-medium text-[#1A1A1A] leading-snug">{{ service.label }}</p>
-            <p class="text-sm font-semibold text-[#1E3A5F] mt-1 tabular-nums">{{ service.price | number:'1.0-0' }} Ar</p>
-          </button>
-          }
-        </div>
-      </div>
+  isEditingGroup(groupId: number): boolean {
+    return this.editingGroupId() === groupId;
+  }
 
-      <div class="w-full lg:w-80 flex-shrink-0 sticky top-20">
-        <div class="sticky top-20">
-          <div class="bg-white border border-gray-200 rounded-xl p-5">
-            <div class="flex items-center justify-between mb-4">
-              <h2 class="text-sm font-semibold text-gray-700">Récapitulatif</h2>
-              @if (cart.length > 0) {
-              <span class="text-xs bg-[#1E3A5F] text-white font-semibold px-2 py-0.5 rounded-full">
-                {{ totalCartItems }} article{{ totalCartItems > 1 ? 's' : '' }}
-              </span>
-              }
-            </div>
+  /** Push a single order line's current quantity/price to the cashier. */
+  updateOrderLine(order: Order): void {
+    if (!this.wsConnected()) return;
+    this.ws.send({
+      type: 'update_order',
+      id: order.id,
+      quantity: order.quantity,
+      unit_price: order.unit_price,
+    });
+  }
 
-            @if (cart.length === 0) {
-            <div class="text-center py-8 text-gray-400">
-              <svg class="w-7 h-7 mx-auto mb-2 opacity-40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-              <p class="text-sm">Sélectionnez un service ou produit</p>
-            </div>
-            }
+  incrementOrderLine(order: Order): void {
+    order.quantity++;
+    this.updateOrderLine(order);
+  }
 
-            @if (cart.length > 0) {
-            <div class="space-y-2 mb-4 max-h-64 overflow-y-auto pr-0.5">
-              @for (item of cart; track item.service.id) {
-              <div class="flex items-start gap-2 p-2.5 bg-[#F7F9FC] rounded-lg border border-gray-100">
-                <div class="flex-1 min-w-0">
-                  <p class="text-xs text-gray-400 leading-tight truncate">{{ item.service.category }}</p>
-                  <p class="text-sm font-medium text-[#1A1A1A] leading-snug truncate">{{ item.service.label }}</p>
-                  <div class="flex items-center gap-1 mt-1.5">
-                    <input type="number" [(ngModel)]="item.unitPrice" min="0" class="w-24 border border-gray-200 rounded px-1.5 py-0.5 text-xs font-medium
-                               text-[#1A1A1A] focus:outline-none focus:border-[#1E3A5F] transition-colors tabular-nums" />
-                    <span class="text-xs text-gray-400">Ar</span>
-                  </div>
-                </div>
-                <div class="flex items-center gap-1 flex-shrink-0 mt-4">
-                  <button (click)="decrementItem(item)" class="w-6 h-6 rounded border border-gray-200 flex items-center justify-center
-                                   text-gray-500 hover:bg-gray-100 transition-colors leading-none text-base
-                                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">−</button>
-                  <span class="w-5 text-center text-sm font-semibold text-[#1A1A1A] tabular-nums">{{ item.qty }}</span>
-                  <button (click)="incrementItem(item)" class="w-6 h-6 rounded border border-gray-200 flex items-center justify-center
-                                   text-gray-500 hover:bg-gray-100 transition-colors leading-none text-base
-                                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">+</button>
-                </div>
-                <button (click)="removeItem(item)" class="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0 mt-1
-                                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              }
-            </div>
+  decrementOrderLine(order: Order): void {
+    if (order.quantity > 1) {
+      order.quantity--;
+      this.updateOrderLine(order);
+    } else {
+      this.deleteOrderLine(order);
+    }
+  }
 
-            <div class="flex items-center justify-between py-3 border-t border-gray-100 mb-4">
-              <span class="text-sm text-gray-500">Total</span>
-              <span class="text-xl font-bold text-[#1A1A1A] tabular-nums">{{ grandTotal | number:'1.0-0' }} Ar</span>
-            </div>
+  /** Remove a single line from a still-pending order. */
+  deleteOrderLine(order: Order): void {
+    if (!this.wsConnected()) return;
+    this.ws.send({ type: 'delete_order', id: order.id });
+  }
 
-            <button (click)="envoyerCommande()" [disabled]="!wsConnected()"
-              class="w-full bg-[#1E3A5F] text-white text-sm font-semibold py-3 rounded-lg
-                     hover:bg-[#16304f] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
-                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
-              Envoyer à la caisse
-            </button>
-            }
-          </div>
+  /** Cancel an entire pending order (all its lines). */
+  deleteOrderGroup(groupId: number): void {
+    if (!this.wsConnected()) return;
+    this.ws.send({ type: 'delete_order_group', group_id: groupId });
+    this.editingGroupId.set(null);
+    this.showToast('Commande annulée.');
+  }
 
-          @if (orderGroups().length > 0) {
-          <div class="mt-4 bg-white border border-gray-200 rounded-xl p-5">
-            <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">Historique</h3>
-            <div class="space-y-2 max-h-80 overflow-y-auto">
-              @for (g of recentOrderGroups(); track g.groupId) {
-              <div class="text-sm border-b border-gray-50 last:border-0 pb-2 last:pb-0">
-                <div class="flex items-start justify-between gap-2">
-                  <div class="flex items-start gap-2 min-w-0">
-                    <span class="font-mono text-gray-500 font-semibold flex-shrink-0 mt-0.5">{{ groupLabel(g.groupId) }}</span>
-                    <div class="min-w-0">
-                      <p class="text-gray-600 text-xs leading-snug truncate">{{ groupSummary(g) }}</p>
-                      <p class="text-gray-400 text-[11px] leading-snug mt-0.5">{{ groupTimeLabel(g) }}</p>
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-1 flex-shrink-0">
-                    @if (g.status === 'EN_ATTENTE') {
-                    <button (click)="toggleEditGroup(g.groupId)" title="Modifier"
-                      class="text-gray-400 hover:text-[#1E3A5F] p-1 rounded transition-colors
-                             focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                      </svg>
-                    </button>
-                    <button (click)="deleteOrderGroup(g.groupId)" title="Annuler la commande"
-                      class="text-gray-400 hover:text-red-600 p-1 rounded transition-colors
-                             focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                    }
-                    <span class="text-xs px-2 py-0.5 rounded-full font-medium" [class]="groupStatusClass(g)">
-                      {{ groupStatusLabel(g) }}
-                    </span>
-                  </div>
-                </div>
+  // ── Derived view state ────────────────────────────────────────────────────────
 
-                @if (g.status === 'EN_ATTENTE' && isEditingGroup(g.groupId)) {
-                <div class="mt-2 ml-1 space-y-2 bg-[#F7F9FC] border border-gray-100 rounded-lg p-2.5">
-                  @for (line of g.lines; track line.id) {
-                  <div class="flex items-center gap-2">
-                    <span class="flex-1 min-w-0 text-xs text-gray-600 truncate">{{ line.service_type }}</span>
-                    <div class="flex items-center gap-1 flex-shrink-0">
-                      <button (click)="decrementOrderLine(line)" class="w-5 h-5 rounded border border-gray-200 flex items-center justify-center
-                                       text-gray-500 hover:bg-gray-100 transition-colors leading-none text-xs
-                                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">−</button>
-                      <span class="w-4 text-center text-xs font-semibold text-[#1A1A1A] tabular-nums">{{ line.quantity }}</span>
-                      <button (click)="incrementOrderLine(line)" class="w-5 h-5 rounded border border-gray-200 flex items-center justify-center
-                                       text-gray-500 hover:bg-gray-100 transition-colors leading-none text-xs
-                                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">+</button>
-                    </div>
-                    <input type="number" [(ngModel)]="line.unit_price" (change)="updateOrderLine(line)" min="0"
-                      class="w-16 border border-gray-200 rounded px-1 py-0.5 text-xs font-medium flex-shrink-0
-                             text-[#1A1A1A] focus:outline-none focus:border-[#1E3A5F] transition-colors tabular-nums" />
-                    <button (click)="deleteOrderLine(line)" title="Supprimer cette ligne"
-                      class="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0
-                             focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400 rounded">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                  }
-                </div>
-                }
-              </div>
-              }
-            </div>
-          </div>
-          }
-        </div>
-      </div>
-    </div>
-  </main>
+  get filteredServices(): ServiceItem[] {
+    return this.allServices().filter((s) => {
+      const matchType = this.activeTypeFilter === 'tous' || s.type === this.activeTypeFilter;
+      const matchCat  = this.activeCategory   === 'Tous' || s.category === this.activeCategory;
+      return matchType && matchCat;
+    });
+  }
 
-  <footer class="px-6 py-3 border-t border-gray-100 text-center mt-4">
-    <p class="text-xs text-gray-400">APP v1.0</p>
-  </footer>
+  get filteredCategories(): string[] {
+    return ['Tous', ...this.categories()];
+  }
 
-</div>
+  get totalCartItems(): number {
+    return this.cart.reduce((sum, item) => sum + item.qty, 0);
+  }
+
+  get grandTotal(): number {
+    return this.cart.reduce((sum, item) => sum + item.qty * item.unitPrice, 0);
+  }
+
+  // ── Filter actions ────────────────────────────────────────────────────────────
+
+  setTypeFilter(type: 'tous' | 'service' | 'product'): void {
+    this.activeTypeFilter = type;
+    this.extractCategories();
+    this.activeCategory = 'Tous';
+  }
+
+  setCategory(cat: string): void {
+    this.activeCategory = cat;
+  }
+
+  private extractCategories(): void {
+    const raw = this.allServices()
+      .filter((s) => this.activeTypeFilter === 'tous' || s.type === this.activeTypeFilter)
+      .map((s) => s.category);
+    this.categories.set(Array.from(new Set(raw)));
+  }
+
+  // ── Cart mutations ────────────────────────────────────────────────────────────
+
+  selectService(service: ServiceItem): void {
+    const found = this.cart.find((item) => item.service.id === service.id);
+    if (found) {
+      found.qty++;
+    } else {
+      this.cart.push({ service, qty: 1, unitPrice: service.price });
+    }
+  }
+
+  isInCart(service: ServiceItem): boolean {
+    return this.cart.some((item) => item.service.id === service.id);
+  }
+
+  cartQty(service: ServiceItem): number {
+    return this.cart.find((item) => item.service.id === service.id)?.qty ?? 0;
+  }
+
+  incrementItem(item: CartItem): void {
+    item.qty++;
+  }
+
+  decrementItem(item: CartItem): void {
+    if (item.qty > 1) {
+      item.qty--;
+    } else {
+      this.removeItem(item);
+    }
+  }
+
+  removeItem(item: CartItem): void {
+    this.cart = this.cart.filter((i) => i.service.id !== item.service.id);
+  }
+
+  // ── Template helpers ──────────────────────────────────────────────────────────
+
+  groupLabel(groupId: number): string {
+    return '#' + String(groupId).padStart(4, '0');
+  }
+
+  groupSummary(g: OrderGroup): string {
+    return g.lines.map((l) => {
+      const parts = l.service_type.split(' — ');
+      return parts.length > 1 ? parts[1] : l.service_type;
+    }).join(', ');
+  }
+
+  groupStatusLabel(g: OrderGroup): string {
+    if (g.status === 'PAYE')       return 'Payé';
+    if (g.status === 'EN_ATTENTE') return 'En attente';
+    if (g.status === 'REJETEE')    return 'Refusée';
+    return 'Mixte';
+  }
+
+  groupStatusClass(g: OrderGroup): string {
+    if (g.status === 'PAYE')       return 'bg-emerald-50 text-emerald-700 border border-emerald-100';
+    if (g.status === 'EN_ATTENTE') return 'bg-amber-50  text-amber-700  border border-amber-100';
+    if (g.status === 'REJETEE')    return 'bg-red-50 text-red-700 border border-red-100';
+    return 'bg-gray-50 text-gray-700 border border-gray-100';
+  }
+
+  /** "aujourd'hui", "hier", or the localized date, based on the given ISO timestamp. */
+  private formatRelativeDay(iso: string): string {
+    const date = new Date(iso);
+    const now = new Date();
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const diffDays = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
+
+    if (diffDays === 0) return "aujourd'hui";
+    if (diffDays === 1) return 'hier';
+    return date.toLocaleDateString('fr-FR');
+  }
+
+  /**
+   * Human-readable date/time label for a history entry: shows when it was paid if
+   * settled, otherwise when it was created — e.g. "Encaissé hier à 14:32" or
+   * "Envoyé aujourd'hui à 09:05".
+   */
+  groupTimeLabel(g: OrderGroup): string {
+    if (g.status === 'PAYE' && g.paidAt) {
+      const date = new Date(g.paidAt);
+      const dayLabel = this.formatRelativeDay(g.paidAt);
+      const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      return `Encaissé ${dayLabel} à ${time}`;
+    }
+    const dayLabel = this.formatRelativeDay(g.createdAt);
+    return `Envoyé ${dayLabel} à ${g.time}`;
+  }
+
+  goBack(): void {
+    this.router.navigate(['/']);
+  }
+
+  // ── Layout formatters ──────────────────────────────────────────────────────────
+
+  private buildGroups(orders: Order[]): OrderGroup[] {
+    const map = new Map<number, Order[]>();
+    for (const o of orders) {
+      if (!map.has(o.group_id)) map.set(o.group_id, []);
+      map.get(o.group_id)!.push(o);
+    }
+    const groups: OrderGroup[] = [];
+    for (const [groupId, lines] of map.entries()) {
+      const allPaid     = lines.every((l) => l.status === 'PAYE');
+      const allWaiting   = lines.every((l) => l.status === 'EN_ATTENTE');
+      const allRejected = lines.every((l) => l.status === 'REJETEE');
+      groups.push({
+        groupId,
+        lines,
+        status: allPaid ? 'PAYE' : allWaiting ? 'EN_ATTENTE' : allRejected ? 'REJETEE' : 'MIXTE',
+        time:    lines[0].time,
+        createdAt: lines[0].created_at,
+        paidAt: lines[0].paid_at,
+      });
+    }
+    return groups.sort((a, b) => b.groupId - a.groupId);
+  }
+
+  private showToast(msg: string): void {
+    this.toastMessage.set(msg);
+    this.toastVisible.set(true);
+    setTimeout(() => this.toastVisible.set(false), 3000);
+  }
+
+  private updateClock(): void {
+    this.currentTime.set(
+      new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+    );
+  }
+}

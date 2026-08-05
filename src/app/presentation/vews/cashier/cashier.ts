@@ -14,6 +14,8 @@ export interface Order {
   quantity: number;
   status: 'EN_ATTENTE' | 'PAYE' | 'REJETEE';
   time: string;
+  /** Username of the counter (comptoir) that placed the order. */
+  counter_username: string;
   created_at: string;
   paid_at: string | null;
 }
@@ -25,6 +27,8 @@ export interface OrderGroup {
   time: string;
   createdAt: string;
   paidAt?: string | null;
+  /** Username of the counter (comptoir) that placed the order. */
+  counterUsername: string;
 }
 
 interface RapportLine {
@@ -51,6 +55,7 @@ export interface ConnectedDevice {
 
 const CASHIER_LOCAL_WS_URL = 'ws://127.0.0.1:8080';
 const LS_USERNAME = 'gasipro:username';
+const HISTORIQUE_ALL_COUNTERS = 'Tous';
 
 @Component({
   selector: 'app-cashier',
@@ -81,6 +86,21 @@ export class Cashier implements OnInit, OnDestroy {
   showRapport = false;
   showHistorique = false;
   wsAddress = signal('');
+
+  // ── Historique: per-counter filter ───────────────────────────────────────────
+  readonly historiqueAllCounters = HISTORIQUE_ALL_COUNTERS;
+  selectedHistoriqueUser = signal<string>(HISTORIQUE_ALL_COUNTERS);
+  /** Distinct counter usernames present in the paid history, sorted alphabetically. */
+  historiqueUsernames = computed(() => {
+    const names = new Set(this.paidGroups().map((g) => g.counterUsername).filter(Boolean));
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  });
+  /** Paid history filtered to the currently selected counter, if any. */
+  filteredHistoriqueGroups = computed(() => {
+    const user = this.selectedHistoriqueUser();
+    const groups = this.paidGroups();
+    return user === HISTORIQUE_ALL_COUNTERS ? groups : groups.filter((g) => g.counterUsername === user);
+  });
 
   private _rawPaidOrders: Order[] = [];
   private wsSubscription?: Subscription;
@@ -198,7 +218,12 @@ export class Cashier implements OnInit, OnDestroy {
       .join(', ');
   }
 
-  /** "aujourd'hui", "hier", or the localized date, based on the given ISO timestamp. */
+  /** Set which counter's history should be shown in the Historique panel ('Tous' = all). */
+  setHistoriqueUserFilter(username: string): void {
+    this.selectedHistoriqueUser.set(username);
+  }
+
+  /** \"aujourd'hui\", \"hier\", or the localized date, based on the given ISO timestamp. */
   private formatRelativeDay(iso: string): string {
     const date = new Date(iso);
     const now = new Date();
@@ -305,6 +330,13 @@ export class Cashier implements OnInit, OnDestroy {
         return acc;
       }, {} as Record<string, number>),
     );
+    // Drop the counter filter if it no longer matches any group in the refreshed history.
+    if (
+      this.selectedHistoriqueUser() !== HISTORIQUE_ALL_COUNTERS &&
+      !this.historiqueUsernames().includes(this.selectedHistoriqueUser())
+    ) {
+      this.selectedHistoriqueUser.set(HISTORIQUE_ALL_COUNTERS);
+    }
   }
 
   private buildGroups(orders: Order[]): OrderGroup[] {
@@ -322,6 +354,7 @@ export class Cashier implements OnInit, OnDestroy {
         time: lines[0].time,
         createdAt: lines[0].created_at,
         paidAt: lines[0].paid_at,
+        counterUsername: lines[0].counter_username,
       });
     }
     return groups.sort((a, b) => b.groupId - a.groupId);
