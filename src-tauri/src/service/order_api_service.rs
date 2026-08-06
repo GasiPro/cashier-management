@@ -16,6 +16,11 @@ pub struct Order {
     pub group_id: i64,
     pub service_type: String,
     pub unit_price: u32,
+    /// Catalogue price for this service at the time the order was created, before
+    /// any manual adjustment by the counter. Used to detect and display discounts
+    /// on the order, in the history, and in the cashier's report.
+    #[serde(default)]
+    pub original_unit_price: u32,
     pub quantity: u32,
     pub status: OrderStatus,
     pub time: String,

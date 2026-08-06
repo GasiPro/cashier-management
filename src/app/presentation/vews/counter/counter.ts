@@ -1,4 +1,3 @@
-
 // src/app/presentation/vews/counter/counter.ts
 import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -31,6 +30,8 @@ export interface Order {
   group_id: number;
   service_type: string;
   unit_price: number;
+  /** Catalogue price before any manual adjustment by the counter (0 = not tracked). */
+  original_unit_price: number;
   quantity: number;
   status: 'EN_ATTENTE' | 'PAYE' | 'REJETEE';
   time: string;
@@ -419,6 +420,21 @@ export class Counter implements OnInit, OnDestroy {
       const parts = l.service_type.split(' — ');
       return parts.length > 1 ? parts[1] : l.service_type;
     }).join(', ');
+  }
+
+  /** True if a cart line's price has been lowered below the service's catalogue price. */
+  isCartItemDiscounted(item: CartItem): boolean {
+    return item.unitPrice < item.service.price;
+  }
+
+  /** True if a placed order line's price was edited down from its original catalogue price. */
+  isLineDiscounted(order: Order): boolean {
+    return order.original_unit_price > 0 && order.unit_price < order.original_unit_price;
+  }
+
+  /** True if any line of the group carries a manually-applied discount. */
+  groupHasDiscount(g: OrderGroup): boolean {
+    return g.lines.some((l) => this.isLineDiscounted(l));
   }
 
   groupStatusLabel(g: OrderGroup): string {

@@ -273,8 +273,23 @@
             </p>
             @for (line of group.lines; track line.label) {
             <div class="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 items-baseline text-sm px-1 py-1 border-b border-gray-50 last:border-0">
-              <span class="text-gray-700">{{ line.label }}</span>
-              <span class="text-gray-400 tabular-nums text-right whitespace-nowrap">{{ line.unitPrice | number:'1.0-0' }} Ar</span>
+              <span class="text-gray-700 flex items-center gap-1.5">
+                {{ line.label }}
+                @if (line.discounted) {
+                <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700
+                             bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full"
+                      title="Prix réduit par le comptoir">
+                  Remise
+                </span>
+                }
+              </span>
+              <span class="text-gray-400 tabular-nums text-right whitespace-nowrap">
+                @if (line.discounted) {
+                <span class="line-through text-gray-300 mr-1" aria-hidden="true">{{ line.originalUnitPrice | number:'1.0-0' }}</span>
+                <span class="sr-only">Prix initial {{ line.originalUnitPrice }} Ar, prix réduit à</span>
+                }
+                {{ line.unitPrice | number:'1.0-0' }} Ar
+              </span>
               <span class="font-medium text-gray-400 tabular-nums text-right">×{{ line.qty }}</span>
               <span class="font-semibold text-gray-400 tabular-nums text-right whitespace-nowrap">{{ line.total | number:'1.0-0' }} Ar</span>
             </div>
@@ -358,6 +373,14 @@
               <span class="font-semibold text-[#1A1A1A] tabular-nums text-sm whitespace-nowrap">{{ group.totalAmount | number:'1.0-0' }} Ar</span>
             </div>
             <p class="text-xs text-gray-500 truncate mb-1">{{ getGroupItemsSummary(group) }}</p>
+            @if (groupHasDiscount(group)) {
+            <span class="inline-flex items-center gap-1 mb-1 text-[10px] font-semibold text-amber-700
+                         bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full"
+                  title="Un ou plusieurs prix ont été réduits par le comptoir">
+              Remise
+              <span class="sr-only">appliquée sur cette commande</span>
+            </span>
+            }
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs text-gray-400">{{ formatPaidLabel(group) }}</p>
               @if (group.counterUsername) {
@@ -414,16 +437,36 @@
             </div>
             <div class="mb-4 space-y-1">
               @for (line of group.lines; track line.id) {
-              <div class="text-sm text-gray-700 flex justify-between">
-                <span class="truncate pr-2">{{ line.service_type }}</span>
-                <span class="text-gray-400 font-medium whitespace-nowrap">x{{ line.quantity }}</span>
+              <div class="text-sm text-gray-700 flex justify-between items-baseline gap-2">
+                <span class="truncate pr-2 flex items-center gap-1.5 min-w-0">
+                  <span class="truncate">{{ line.service_type }}</span>
+                  @if (isLineDiscounted(line)) {
+                  <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700
+                               bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full flex-shrink-0"
+                        title="Prix réduit par le comptoir">
+                    Remise
+                  </span>
+                  }
+                </span>
+                <span class="text-gray-400 font-medium whitespace-nowrap">
+                  @if (isLineDiscounted(line)) {
+                  <span class="line-through text-gray-300 mr-1" aria-hidden="true">{{ line.original_unit_price | number:'1.0-0' }} Ar</span>
+                  <span class="sr-only">Prix initial {{ line.original_unit_price }} Ar, prix réduit,</span>
+                  }
+                  x{{ line.quantity }}
+                </span>
               </div>
               }
             </div>
           </div>
           <div class="flex items-center justify-between pt-3 border-t border-gray-50">
             <div>
-              <p class="text-xs text-gray-400">Total à payer</p>
+              <p class="text-xs text-gray-400 flex items-center gap-1.5">
+                Total à payer
+                @if (groupHasDiscount(group)) {
+                <span class="text-amber-600" title="Cette commande inclut une remise" aria-label="Remise appliquée">●</span>
+                }
+              </p>
               <p class="text-lg font-bold text-[#1A1A1A] tabular-nums">{{ group.totalAmount | number:'1.0-0' }} Ar</p>
             </div>
             <div class="flex items-center gap-2">
@@ -475,7 +518,17 @@
             @for (group of recentPaidGroups(); track group.groupId) {
             <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
               <td class="px-3 sm:px-4 py-3 font-mono font-semibold text-gray-700 whitespace-nowrap">{{ formatGroupId(group.groupId) }}</td>
-              <td class="px-3 sm:px-4 py-3 text-gray-600 max-w-[140px] xs:max-w-xs md:max-w-md truncate">{{ getGroupItemsSummary(group) }}</td>
+              <td class="px-3 sm:px-4 py-3 text-gray-600 max-w-[140px] xs:max-w-xs md:max-w-md truncate">
+                {{ getGroupItemsSummary(group) }}
+                @if (groupHasDiscount(group)) {
+                <span class="inline-flex items-center gap-1 ml-1 text-[10px] font-semibold text-amber-700
+                             bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full align-middle"
+                      title="Un ou plusieurs prix ont été réduits par le comptoir">
+                  Remise
+                  <span class="sr-only">appliquée sur cette commande</span>
+                </span>
+                }
+              </td>
               <td class="px-3 sm:px-4 py-3 text-gray-500 hidden sm:table-cell whitespace-nowrap">{{ group.counterUsername }}</td>
               <td class="px-3 sm:px-4 py-3 text-right font-semibold text-[#1A1A1A] tabular-nums whitespace-nowrap">{{ group.totalAmount | number:'1.0-0' }} Ar</td>
               <td class="px-3 sm:px-4 py-3 text-right text-gray-400 hidden sm:table-cell whitespace-nowrap">{{ formatPaidLabel(group) }}</td>

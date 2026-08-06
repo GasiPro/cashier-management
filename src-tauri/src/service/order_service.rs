@@ -70,6 +70,7 @@ impl OrderService {
                 group_id,
                 service_type: format!("{} — {}", item.service.category, item.service.label),
                 unit_price: item.unit_price,
+                original_unit_price: item.service.price,
                 quantity: item.qty,
                 status: OrderStatus::EnAttente,
                 time: time.clone(),

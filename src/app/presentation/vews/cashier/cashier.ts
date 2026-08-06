@@ -11,6 +11,8 @@ export interface Order {
   group_id: number;
   service_type: string;
   unit_price: number;
+  /** Catalogue price before any manual adjustment by the counter (0 = not tracked). */
+  original_unit_price: number;
   quantity: number;
   status: 'EN_ATTENTE' | 'PAYE' | 'REJETEE';
   time: string;
@@ -36,6 +38,10 @@ interface RapportLine {
   unitPrice: number;
   qty: number;
   total: number;
+  /** Catalogue price before any manual adjustment by the counter. */
+  originalUnitPrice: number;
+  /** True if this line includes at least one order sold below its catalogue price. */
+  discounted: boolean;
 }
 
 interface RapportCategoryGroup {
@@ -215,6 +221,16 @@ export class Cashier implements OnInit, OnDestroy {
     return '#' + String(groupId).padStart(4, '0');
   }
 
+  /** True if a placed order line's price was edited down from its original catalogue price. */
+  isLineDiscounted(order: Order): boolean {
+    return order.original_unit_price > 0 && order.unit_price < order.original_unit_price;
+  }
+
+  /** True if any line of the group carries a manually-applied discount. */
+  groupHasDiscount(group: OrderGroup): boolean {
+    return group.lines.some((l) => this.isLineDiscounted(l));
+  }
+
   getGroupItemsSummary(group: OrderGroup): string {
     return group.lines
       .map((l) => {
@@ -264,11 +280,19 @@ export class Cashier implements OnInit, OnDestroy {
       if (!map.has(category)) map.set(category, new Map());
       const cat = map.get(category)!;
       if (!cat.has(key)) {
-        cat.set(key, { label: key, unitPrice: order.unit_price, qty: 0, total: 0 });
+        cat.set(key, {
+          label: key,
+          unitPrice: order.unit_price,
+          qty: 0,
+          total: 0,
+          originalUnitPrice: order.original_unit_price,
+          discounted: false,
+        });
       }
       const entry = cat.get(key)!;
       entry.qty += order.quantity;
       entry.total += order.quantity * order.unit_price;
+      entry.discounted = entry.discounted || this.isLineDiscounted(order);
     }
     return Array.from(map.entries()).map(([category, lines]) => ({
       category,
