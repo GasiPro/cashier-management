@@ -1,3 +1,4 @@
+
 // src/app/presentation/vews/counter/counter.ts
 import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -19,6 +20,10 @@ export interface CartItem {
   service: ServiceItem;
   qty: number;
   unitPrice: number;
+  /** Editable display label for this line, defaults to the service's label. */
+  label: string;
+  /** Free-text note for the cashier (e.g. special instructions). */
+  observation: string;
 }
 
 export interface Order {
@@ -90,6 +95,13 @@ export class Counter implements OnInit, OnDestroy {
   showServerPanel = false;
   showHistoriquePanel = false;
   newCashierHost = '';
+
+  // ── Cart line notes ──────────────────────────────────────────────────────────
+  /** ids of cart items whose observation field is expanded. */
+  private noteOpenIds = new Set<string>();
+
+  // ── Cancel confirmation ─────────────────────────────────────────────────────
+  confirmingCancel = false;
 
   // ── UI ────────────────────────────────────────────────────────────────────────
   currentTime = signal('');
@@ -216,7 +228,28 @@ export class Counter implements OnInit, OnDestroy {
     }
     this.ws.send({ type: 'create_order', cart: this.cart });
     this.cart = [];
+    this.noteOpenIds.clear();
+    this.confirmingCancel = false;
     this.showToast('Commande envoyée à la caisse !');
+  }
+
+  // ── Cart cancellation ────────────────────────────────────────────────────────
+
+  /** Toggle the inline "are you sure?" confirmation before wiping the cart. */
+  toggleCancelConfirm(): void {
+    this.confirmingCancel = !this.confirmingCancel;
+  }
+
+  /** Clear the current cart (called once the cancellation is confirmed). */
+  annulerCommande(): void {
+    if (this.cart.length === 0) {
+      this.confirmingCancel = false;
+      return;
+    }
+    this.cart = [];
+    this.noteOpenIds.clear();
+    this.confirmingCancel = false;
+    this.showToast('Commande annulée.');
   }
 
   // ── Pending order mutations (while EN_ATTENTE only) ───────────────────────────
@@ -317,7 +350,7 @@ export class Counter implements OnInit, OnDestroy {
     if (found) {
       found.qty++;
     } else {
-      this.cart.push({ service, qty: 1, unitPrice: service.price });
+      this.cart.push({ service, qty: 1, unitPrice: service.price, label: service.label, observation: '' });
     }
   }
 
@@ -342,7 +375,37 @@ export class Counter implements OnInit, OnDestroy {
   }
 
   removeItem(item: CartItem): void {
+    this.noteOpenIds.delete(item.service.id);
     this.cart = this.cart.filter((i) => i.service.id !== item.service.id);
+    if (this.cart.length === 0) {
+      this.confirmingCancel = false;
+    }
+  }
+
+  // ── Cart line label & observation ─────────────────────────────────────────────
+
+  /** Update a cart line's editable label. */
+  updateItemLabel(item: CartItem, value: string): void {
+    item.label = value.trim() || item.service.label;
+  }
+
+  /** Update a cart line's free-text observation for the cashier. */
+  updateItemObservation(item: CartItem, value: string): void {
+    item.observation = value;
+  }
+
+  /** Show/hide the observation field for a given cart line. */
+  toggleItemNote(item: CartItem): void {
+    const id = item.service.id;
+    if (this.noteOpenIds.has(id)) {
+      this.noteOpenIds.delete(id);
+    } else {
+      this.noteOpenIds.add(id);
+    }
+  }
+
+  isNoteOpen(item: CartItem): boolean {
+    return this.noteOpenIds.has(item.service.id);
   }
 
   // ── Template helpers ──────────────────────────────────────────────────────────
