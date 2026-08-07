@@ -214,10 +214,17 @@
           @for (g of orderGroups(); track g.groupId) {
           <div class="text-sm border-b border-gray-50 last:border-0 pb-2 last:pb-0">
             <div class="flex items-start justify-between gap-2">
-              <div class="flex items-start gap-2 min-w-0">
+              <div class="flex items-start gap-2 min-w-0 cursor-pointer rounded -m-1 p-1
+                          hover:bg-gray-50 transition-colors
+                          focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]"
+                   role="button" tabindex="0"
+                   [attr.aria-label]="'Voir le détail de la commande ' + groupLabel(g.groupId)"
+                   (click)="openGroupDetail(g)"
+                   (keydown.enter)="openGroupDetail(g)"
+                   (keydown.space)="$event.preventDefault(); openGroupDetail(g)">
                 <span class="font-mono text-gray-500 font-semibold flex-shrink-0 mt-0.5">{{ groupLabel(g.groupId) }}</span>
                 <div class="min-w-0">
-                  <p class="text-gray-600 text-xs leading-snug truncate">{{ groupSummary(g) }}</p>
+                  <p class="text-gray-600 text-xs leading-snug line-clamp-2">{{ groupSummary(g) }}</p>
                   <p class="text-gray-400 text-[11px] leading-snug mt-0.5">{{ groupTimeLabel(g) }}</p>
                   @if (groupHasDiscount(g)) {
                   <span class="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-amber-700
@@ -594,10 +601,17 @@
               @for (g of recentOrderGroups(); track g.groupId) {
               <div class="text-sm border-b border-gray-50 last:border-0 pb-2 last:pb-0">
                 <div class="flex items-start justify-between gap-2">
-                  <div class="flex items-start gap-2 min-w-0">
+                  <div class="flex items-start gap-2 min-w-0 cursor-pointer rounded -m-1 p-1
+                              hover:bg-gray-50 transition-colors
+                              focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]"
+                       role="button" tabindex="0"
+                       [attr.aria-label]="'Voir le détail de la commande ' + groupLabel(g.groupId)"
+                       (click)="openGroupDetail(g)"
+                       (keydown.enter)="openGroupDetail(g)"
+                       (keydown.space)="$event.preventDefault(); openGroupDetail(g)">
                     <span class="font-mono text-gray-500 font-semibold flex-shrink-0 mt-0.5">{{ groupLabel(g.groupId) }}</span>
                     <div class="min-w-0">
-                      <p class="text-gray-600 text-xs leading-snug truncate">{{ groupSummary(g) }}</p>
+                      <p class="text-gray-600 text-xs leading-snug line-clamp-2">{{ groupSummary(g) }}</p>
                       <p class="text-gray-400 text-[11px] leading-snug mt-0.5">{{ groupTimeLabel(g) }}</p>
                       @if (groupHasDiscount(g)) {
                       <span class="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-amber-700
@@ -703,5 +717,96 @@
   <footer class="px-6 py-3 border-t border-gray-100 text-center mt-4">
     <p class="text-xs text-gray-400">APP v1.0</p>
   </footer>
+
+  <!-- ── Order detail modal ──────────────────────────────────────────────────── -->
+  @if (selectedGroup(); as group) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center px-4" (click)="closeGroupDetail()"
+       (keydown.escape)="closeGroupDetail()">
+    <div class="absolute inset-0 bg-black/30"></div>
+    <div id="group-detail-modal" class="relative bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[85vh]
+                overflow-y-auto flex flex-col"
+         role="dialog" aria-modal="true" aria-labelledby="group-detail-heading"
+         (click)="$event.stopPropagation()">
+      <div class="flex items-start justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+        <div class="min-w-0">
+          <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Commande</p>
+          <h2 id="group-detail-heading" class="text-xl font-bold text-[#1E3A5F] tabular-nums leading-tight">
+            {{ groupLabel(group.groupId) }}
+          </h2>
+          <p class="text-xs text-gray-400 mt-0.5">{{ groupTimeLabel(group) }}</p>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <span class="text-xs px-2 py-0.5 rounded-full font-medium" [class]="groupStatusClass(group)">
+            {{ groupStatusLabel(group) }}
+          </span>
+          <button (click)="closeGroupDetail()" autofocus
+            class="text-gray-400 hover:text-gray-600 p-1
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
+            aria-label="Fermer le détail de la commande">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto px-6 py-3">
+        @for (line of group.lines; track line.id) {
+        <div class="flex justify-between items-baseline gap-2 py-2 border-b border-gray-50 last:border-0">
+          <span class="text-sm text-gray-700 flex items-center gap-1.5 min-w-0">
+            <span class="truncate">{{ line.service_type }}</span>
+            @if (isLineDiscounted(line)) {
+            <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700
+                         bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full flex-shrink-0"
+                  title="Prix réduit">
+              Remise
+            </span>
+            } @else if (isLineIncreased(line)) {
+            <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700
+                         bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full flex-shrink-0"
+                  title="Prix majoré">
+              Majoration
+            </span>
+            }
+          </span>
+          <span class="text-sm text-gray-500 font-medium whitespace-nowrap tabular-nums">
+            @if (isLineDiscounted(line) || isLineIncreased(line)) {
+            <span class="line-through text-gray-300 mr-1" aria-hidden="true">{{ line.original_unit_price | number:'1.0-0' }} Ar</span>
+            <span class="sr-only">Prix initial {{ line.original_unit_price }} Ar, prix {{ isLineDiscounted(line) ? 'réduit' : 'majoré' }},</span>
+            }
+            {{ line.unit_price | number:'1.0-0' }} Ar × {{ line.quantity }}
+          </span>
+        </div>
+        }
+      </div>
+
+      <div class="px-6 py-4 border-t border-gray-100 shrink-0">
+        <div class="flex items-center justify-between mb-4">
+          <span class="text-sm text-gray-500 flex items-center gap-1.5">
+            Total
+            @if (groupHasDiscount(group)) {
+            <span class="text-amber-600" title="Cette commande inclut une remise" aria-label="Remise appliquée">●</span>
+            }
+            @if (groupHasIncrease(group)) {
+            <span class="text-sky-600" title="Cette commande inclut une majoration" aria-label="Majoration appliquée">●</span>
+            }
+          </span>
+          <span class="text-xl font-bold text-[#1A1A1A] tabular-nums">{{ groupTotal(group) | number:'1.0-0' }} Ar</span>
+        </div>
+        @if (group.status === 'EN_ATTENTE') {
+        <div class="flex items-center gap-2">
+          <button (click)="deleteOrderGroup(group.groupId); closeGroupDetail()" title="Annuler la commande"
+            [attr.aria-label]="'Annuler la commande ' + groupLabel(group.groupId)"
+            class="flex-1 px-4 py-3 rounded-lg text-sm font-semibold border border-gray-200 text-gray-500
+                   hover:bg-red-50 hover:text-red-600 hover:border-red-200 active:scale-95 transition-all
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
+            Annuler la commande
+          </button>
+        </div>
+        }
+      </div>
+    </div>
+  </div>
+  }
 
 </div>

@@ -100,6 +100,8 @@ export class Cashier implements OnInit, OnDestroy {
   showRapport = false;
   showHistorique = false;
   wsAddress = signal('');
+  /** Order group currently shown in the full-detail modal, if any. */
+  selectedGroup = signal<OrderGroup | null>(null);
 
   // ── Historique: per-counter filter ───────────────────────────────────────────
   readonly historiqueAllCounters = HISTORIQUE_ALL_COUNTERS;
@@ -217,6 +219,22 @@ export class Cashier implements OnInit, OnDestroy {
     this.router.navigate(['/']);
   }
 
+  // ── Order detail modal ────────────────────────────────────────────────────────
+
+  /** Open the full-detail modal for a given order group (pending or paid). */
+  openGroupDetail(g: OrderGroup): void {
+    this.selectedGroup.set(g);
+  }
+
+  closeGroupDetail(): void {
+    this.selectedGroup.set(null);
+  }
+
+  /** True if the given group is still awaiting payment (not yet settled). */
+  isGroupPending(g: OrderGroup): boolean {
+    return !g.paidAt;
+  }
+
   // ── Template helpers ─────────────────────────────────────────────────────────
 
   formatGroupId(groupId: number): string {
@@ -243,13 +261,26 @@ export class Cashier implements OnInit, OnDestroy {
     return group.lines.some((l) => this.isLineIncreased(l));
   }
 
+  /**
+   * Brief, categorized summary of a group's lines, e.g.
+   * "Impression: Couleur x4, Normal NB x8 • Reliure: Spirale x2".
+   */
   getGroupItemsSummary(group: OrderGroup): string {
-    return group.lines
-      .map((l) => {
-        const parts = l.service_type.split(' — ');
-        return `${l.quantity}× ${parts[1] ?? l.service_type}`;
-      })
-      .join(', ');
+    const categoryOrder: string[] = [];
+    const byCategory = new Map<string, string[]>();
+    for (const l of group.lines) {
+      const parts = l.service_type.split(' — ');
+      const category = parts.length > 1 ? parts[0] : 'Autre';
+      const label = parts.length > 1 ? parts[1] : l.service_type;
+      if (!byCategory.has(category)) {
+        byCategory.set(category, []);
+        categoryOrder.push(category);
+      }
+      byCategory.get(category)!.push(`${label} x${l.quantity}`);
+    }
+    return categoryOrder
+      .map((category) => `${category}: ${byCategory.get(category)!.join(', ')}`)
+      .join(' • ');
   }
 
   /** Set which counter's history should be shown in the Historique panel ('Tous' = all). */
