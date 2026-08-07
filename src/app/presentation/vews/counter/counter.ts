@@ -83,6 +83,8 @@ export class Counter implements OnInit, OnDestroy {
   recentOrderGroups = computed(() => this.orderGroups().slice(0, 5));
   /** groupId of the pending order currently being edited from the history panel, if any. */
   editingGroupId = signal<number | null>(null);
+  /** Order group currently shown in the full-detail modal, if any. */
+  selectedGroup = signal<OrderGroup | null>(null);
 
   // ── Connection state ──────────────────────────────────────────────────────────
   wsConnected = signal(false);
@@ -264,6 +266,17 @@ export class Counter implements OnInit, OnDestroy {
     return this.editingGroupId() === groupId;
   }
 
+  // ── Order detail modal ────────────────────────────────────────────────────────
+
+  /** Open the full-detail modal for a given order group (pending or history). */
+  openGroupDetail(g: OrderGroup): void {
+    this.selectedGroup.set(g);
+  }
+
+  closeGroupDetail(): void {
+    this.selectedGroup.set(null);
+  }
+
   /** Push a single order line's current quantity/price to the cashier. */
   updateOrderLine(order: Order): void {
     if (!this.wsConnected()) return;
@@ -415,11 +428,36 @@ export class Counter implements OnInit, OnDestroy {
     return '#' + String(groupId).padStart(4, '0');
   }
 
+  /**
+   * Brief, categorized summary of a group's lines, e.g.
+   * "Impression: Couleur x4, Normal NB x8 • Reliure: Spirale x2".
+   */
   groupSummary(g: OrderGroup): string {
-    return g.lines.map((l) => {
+    return this.formatGroupSummary(g.lines);
+  }
+
+  /** Sum of quantity × unit price across a group's lines. */
+  groupTotal(g: OrderGroup): number {
+    return g.lines.reduce((sum, l) => sum + l.quantity * l.unit_price, 0);
+  }
+
+  /** Groups lines by category and formats each as "Category: Label x2, Label2 x1". */
+  private formatGroupSummary(lines: Order[]): string {
+    const categoryOrder: string[] = [];
+    const byCategory = new Map<string, string[]>();
+    for (const l of lines) {
       const parts = l.service_type.split(' — ');
-      return parts.length > 1 ? parts[1] : l.service_type;
-    }).join(', ');
+      const category = parts.length > 1 ? parts[0] : 'Autre';
+      const label = parts.length > 1 ? parts[1] : l.service_type;
+      if (!byCategory.has(category)) {
+        byCategory.set(category, []);
+        categoryOrder.push(category);
+      }
+      byCategory.get(category)!.push(`${label} x${l.quantity}`);
+    }
+    return categoryOrder
+      .map((category) => `${category}: ${byCategory.get(category)!.join(', ')}`)
+      .join(' • ');
   }
 
   /** True if a cart line's price has been lowered below the service's catalogue price. */
