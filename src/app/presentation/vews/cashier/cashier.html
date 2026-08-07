@@ -233,14 +233,25 @@
           <h2 id="rapport-heading" class="text-base font-semibold text-[#1A1A1A]">Rapport</h2>
           <p class="text-xs text-gray-400 mt-0.5 capitalize">{{ rapportDateLabel() }}</p>
         </div>
-        <button (click)="showRapport = false" autofocus
-          class="text-gray-400 hover:text-gray-600 p-1
-                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
-          aria-label="Fermer le rapport">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        <div class="flex items-center gap-1">
+          <button (click)="exportRapportXlsx()"
+            class="text-gray-400 hover:text-[#1E3A5F] p-1
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
+            aria-label="Exporter le rapport en Excel"
+            title="Exporter en Excel (.xlsx)">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+            </svg>
+          </button>
+          <button (click)="showRapport = false" autofocus
+            class="text-gray-400 hover:text-gray-600 p-1
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
+            aria-label="Fermer le rapport">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
       <div class="flex-1 overflow-y-auto px-6 pb-6 pt-2">
         <div class="space-y-0">
