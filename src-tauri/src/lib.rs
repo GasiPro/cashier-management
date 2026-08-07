@@ -303,6 +303,13 @@ async fn disconnect_device(state: State<'_, AppState>, addr: String) -> Result<(
     Ok(())
 }
 
+/// Write raw bytes to an absolute path chosen by the user (e.g. via a save dialog).
+/// Used by the cashier UI to export the daily report (rapport du jour) as an Excel file.
+#[tauri::command]
+fn save_binary_file(path: String, data: Vec<u8>) -> Result<(), String> {
+    std::fs::write(&path, data).map_err(|e| e.to_string())
+}
+
 // ── Application Entry Point ───────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -512,6 +519,7 @@ pub fn run() {
     });
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -535,6 +543,7 @@ pub fn run() {
             approve_connection,
             reject_connection,
             disconnect_device,
+            save_binary_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
