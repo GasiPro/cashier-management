@@ -325,7 +325,7 @@
   <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showHistorique = false"
        (keydown.escape)="showHistorique = false">
     <div class="absolute inset-0 bg-black/20"></div>
-    <div id="historique-panel" class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-y-auto
+    <div id="historique-panel" class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-hidden
                 flex flex-col"
          role="dialog" aria-modal="true" aria-labelledby="historique-heading"
          (click)="$event.stopPropagation()">
@@ -382,7 +382,7 @@
       </div>
       }
 
-      <div class="flex-1 overflow-y-auto px-6 pb-6 pt-2">
+      <div class="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-2">
         @if (filteredHistoriqueGroups().length === 0) {
         <p class="text-sm text-gray-400 italic py-4">
           @if (paidGroups().length === 0) {
