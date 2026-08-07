@@ -42,6 +42,8 @@ interface RapportLine {
   originalUnitPrice: number;
   /** True if this line includes at least one order sold below its catalogue price. */
   discounted: boolean;
+  /** True if this line includes at least one order sold above its catalogue price. */
+  increased: boolean;
 }
 
 interface RapportCategoryGroup {
@@ -226,9 +228,19 @@ export class Cashier implements OnInit, OnDestroy {
     return order.original_unit_price > 0 && order.unit_price < order.original_unit_price;
   }
 
+  /** True if a placed order line's price was edited up from its original catalogue price. */
+  isLineIncreased(order: Order): boolean {
+    return order.original_unit_price > 0 && order.unit_price > order.original_unit_price;
+  }
+
   /** True if any line of the group carries a manually-applied discount. */
   groupHasDiscount(group: OrderGroup): boolean {
     return group.lines.some((l) => this.isLineDiscounted(l));
+  }
+
+  /** True if any line of the group carries a manually-applied price increase. */
+  groupHasIncrease(group: OrderGroup): boolean {
+    return group.lines.some((l) => this.isLineIncreased(l));
   }
 
   getGroupItemsSummary(group: OrderGroup): string {
@@ -287,12 +299,14 @@ export class Cashier implements OnInit, OnDestroy {
           total: 0,
           originalUnitPrice: order.original_unit_price,
           discounted: false,
+          increased: false,
         });
       }
       const entry = cat.get(key)!;
       entry.qty += order.quantity;
       entry.total += order.quantity * order.unit_price;
       entry.discounted = entry.discounted || this.isLineDiscounted(order);
+      entry.increased = entry.increased || this.isLineIncreased(order);
     }
     return Array.from(map.entries()).map(([category, lines]) => ({
       category,

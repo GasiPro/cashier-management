@@ -231,6 +231,17 @@
                     <span class="sr-only">appliquée sur cette commande</span>
                   </span>
                   }
+                  @if (groupHasIncrease(g)) {
+                  <span class="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-sky-700
+                               bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full"
+                        title="Un ou plusieurs prix ont été majorés par le comptoir">
+                    <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M5 12l7-7 7 7"/>
+                    </svg>
+                    Majoration
+                    <span class="sr-only">appliquée sur cette commande</span>
+                  </span>
+                  }
                 </div>
               </div>
               <div class="flex items-center gap-1 flex-shrink-0">
@@ -273,14 +284,19 @@
                 </div>
                 <label class="sr-only" [attr.for]="'edit-price-' + line.id">Prix unitaire pour {{ line.service_type }}</label>
                 <input [id]="'edit-price-' + line.id" type="number" [(ngModel)]="line.unit_price" (change)="updateOrderLine(line)" min="0"
-                  [attr.aria-describedby]="isLineDiscounted(line) ? ('edit-price-hint-' + line.id) : null"
+                  [attr.aria-describedby]="(isLineDiscounted(line) || isLineIncreased(line)) ? ('edit-price-hint-' + line.id) : null"
                   class="w-16 border rounded px-1 py-0.5 text-xs font-medium flex-shrink-0
                          text-[#1A1A1A] focus:outline-none focus:border-[#1E3A5F] transition-colors tabular-nums"
-                  [class]="isLineDiscounted(line) ? 'border-amber-300 bg-amber-50' : 'border-gray-200'" />
+                  [class]="isLineDiscounted(line) ? 'border-amber-300 bg-amber-50' : isLineIncreased(line) ? 'border-sky-300 bg-sky-50' : 'border-gray-200'" />
                 @if (isLineDiscounted(line)) {
                 <span [id]="'edit-price-hint-' + line.id" class="text-[10px] text-amber-600 flex-shrink-0 whitespace-nowrap">
                   <span aria-hidden="true">initial {{ line.original_unit_price | number:'1.0-0' }} Ar</span>
                   <span class="sr-only">Prix réduit, initialement {{ line.original_unit_price }} Ar</span>
+                </span>
+                } @else if (isLineIncreased(line)) {
+                <span [id]="'edit-price-hint-' + line.id" class="text-[10px] text-sky-600 flex-shrink-0 whitespace-nowrap">
+                  <span aria-hidden="true">initial {{ line.original_unit_price | number:'1.0-0' }} Ar</span>
+                  <span class="sr-only">Prix majoré, initialement {{ line.original_unit_price }} Ar</span>
                 </span>
                 }
                 <button (click)="deleteOrderLine(line)" title="Supprimer cette ligne"
@@ -456,10 +472,10 @@
                     <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
                       <label class="sr-only" [attr.for]="'price-' + item.service.id">Prix unitaire</label>
                       <input [id]="'price-' + item.service.id" type="number" [(ngModel)]="item.unitPrice" min="0"
-                        [attr.aria-describedby]="isCartItemDiscounted(item) ? ('price-hint-' + item.service.id) : null"
+                        [attr.aria-describedby]="(isCartItemDiscounted(item) || isCartItemIncreased(item)) ? ('price-hint-' + item.service.id) : null"
                         class="w-24 border rounded px-1.5 py-0.5 text-xs font-medium
                                text-[#1A1A1A] focus:outline-none focus:border-[#1E3A5F] transition-colors tabular-nums"
-                        [class]="isCartItemDiscounted(item) ? 'border-amber-300 bg-amber-50' : 'border-gray-200'" />
+                        [class]="isCartItemDiscounted(item) ? 'border-amber-300 bg-amber-50' : isCartItemIncreased(item) ? 'border-sky-300 bg-sky-50' : 'border-gray-200'" />
                       <span class="text-xs text-gray-400">Ar</span>
                       @if (isCartItemDiscounted(item)) {
                       <span [id]="'price-hint-' + item.service.id"
@@ -468,6 +484,14 @@
                         <span class="line-through" aria-hidden="true">{{ item.service.price | number:'1.0-0' }} Ar</span>
                         <span class="sr-only">Prix réduit depuis {{ item.service.price }} Ar</span>
                         Remise
+                      </span>
+                      } @else if (isCartItemIncreased(item)) {
+                      <span [id]="'price-hint-' + item.service.id"
+                        class="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700
+                               bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full">
+                        <span class="line-through" aria-hidden="true">{{ item.service.price | number:'1.0-0' }} Ar</span>
+                        <span class="sr-only">Prix majoré depuis {{ item.service.price }} Ar</span>
+                        Majoration
                       </span>
                       }
                     </div>
@@ -587,6 +611,17 @@
                         <span class="sr-only">appliquée sur cette commande</span>
                       </span>
                       }
+                      @if (groupHasIncrease(g)) {
+                      <span class="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-sky-700
+                                   bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full"
+                            title="Un ou plusieurs prix ont été majorés par le comptoir">
+                        <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M5 12l7-7 7 7"/>
+                        </svg>
+                        Majoration
+                        <span class="sr-only">appliquée sur cette commande</span>
+                      </span>
+                      }
                     </div>
                   </div>
                   <div class="flex items-center gap-1 flex-shrink-0">
@@ -629,14 +664,19 @@
                     </div>
                     <label class="sr-only" [attr.for]="'edit-price-sb-' + line.id">Prix unitaire pour {{ line.service_type }}</label>
                     <input [id]="'edit-price-sb-' + line.id" type="number" [(ngModel)]="line.unit_price" (change)="updateOrderLine(line)" min="0"
-                      [attr.aria-describedby]="isLineDiscounted(line) ? ('edit-price-sb-hint-' + line.id) : null"
+                      [attr.aria-describedby]="(isLineDiscounted(line) || isLineIncreased(line)) ? ('edit-price-sb-hint-' + line.id) : null"
                       class="w-16 border rounded px-1 py-0.5 text-xs font-medium flex-shrink-0
                              text-[#1A1A1A] focus:outline-none focus:border-[#1E3A5F] transition-colors tabular-nums"
-                      [class]="isLineDiscounted(line) ? 'border-amber-300 bg-amber-50' : 'border-gray-200'" />
+                      [class]="isLineDiscounted(line) ? 'border-amber-300 bg-amber-50' : isLineIncreased(line) ? 'border-sky-300 bg-sky-50' : 'border-gray-200'" />
                     @if (isLineDiscounted(line)) {
                     <span [id]="'edit-price-sb-hint-' + line.id" class="text-[10px] text-amber-600 flex-shrink-0 whitespace-nowrap">
                       <span aria-hidden="true">initial {{ line.original_unit_price | number:'1.0-0' }} Ar</span>
                       <span class="sr-only">Prix réduit, initialement {{ line.original_unit_price }} Ar</span>
+                    </span>
+                    } @else if (isLineIncreased(line)) {
+                    <span [id]="'edit-price-sb-hint-' + line.id" class="text-[10px] text-sky-600 flex-shrink-0 whitespace-nowrap">
+                      <span aria-hidden="true">initial {{ line.original_unit_price | number:'1.0-0' }} Ar</span>
+                      <span class="sr-only">Prix majoré, initialement {{ line.original_unit_price }} Ar</span>
                     </span>
                     }
                     <button (click)="deleteOrderLine(line)" title="Supprimer cette ligne"

@@ -427,14 +427,29 @@ export class Counter implements OnInit, OnDestroy {
     return item.unitPrice < item.service.price;
   }
 
+  /** True if a cart line's price has been raised above the service's catalogue price. */
+  isCartItemIncreased(item: CartItem): boolean {
+    return item.unitPrice > item.service.price;
+  }
+
   /** True if a placed order line's price was edited down from its original catalogue price. */
   isLineDiscounted(order: Order): boolean {
     return order.original_unit_price > 0 && order.unit_price < order.original_unit_price;
   }
 
+  /** True if a placed order line's price was edited up from its original catalogue price. */
+  isLineIncreased(order: Order): boolean {
+    return order.original_unit_price > 0 && order.unit_price > order.original_unit_price;
+  }
+
   /** True if any line of the group carries a manually-applied discount. */
   groupHasDiscount(g: OrderGroup): boolean {
     return g.lines.some((l) => this.isLineDiscounted(l));
+  }
+
+  /** True if any line of the group carries a manually-applied price increase. */
+  groupHasIncrease(g: OrderGroup): boolean {
+    return g.lines.some((l) => this.isLineIncreased(l));
   }
 
   groupStatusLabel(g: OrderGroup): string {
