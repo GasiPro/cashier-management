@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { invoke } from '@tauri-apps/api/core';
 import { WebsocketService, WsMessage } from '../../../core/service/websocket.service';
 import { Subscription } from 'rxjs';
+import * as XLSX from 'xlsx';
 
 export interface Order {
   id: number;
@@ -375,6 +376,76 @@ export class Cashier implements OnInit, OnDestroy {
     const format = (t: number) =>
       new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     return `${format(timestamps[0])} – ${format(timestamps[timestamps.length - 1])}`;
+  }
+
+  /** Exporte le rapport du jour en cours au format Excel (.xlsx), mis en forme pour la lisibilité. */
+  exportRapportXlsx(): void {
+    const groups = this.rapportGroups();
+    const rows: (string | number)[][] = [];
+    const currencyCells: { r: number; c: number }[] = [];
+
+    const pushRow = (row: (string | number)[]): number => {
+      rows.push(row);
+      return rows.length - 1;
+    };
+
+    const titleRow = pushRow(['Rapport du jour']);
+    const dateRow = pushRow([this.rapportDateLabel()]);
+    pushRow([]);
+
+    const revenueRow = pushRow(["Chiffre d'affaires", this.rapportRevenue()]);
+    currencyCells.push({ r: revenueRow, c: 1 });
+
+    pushRow(['Clients servis', this.rapportClientsCount()]);
+
+    if (this.rapportTimeRange()) {
+      pushRow(['Plage horaire', this.rapportTimeRange()]);
+    }
+
+    pushRow([]);
+
+    const headerRow = pushRow(['Catégorie', 'Service', 'Prix unitaire (Ar)', 'Quantité', 'Total (Ar)']);
+
+    for (const group of groups) {
+      for (const line of group.lines) {
+        const r = pushRow([group.category, line.label, line.unitPrice, line.qty, line.total]);
+        currencyCells.push({ r, c: 2 }, { r, c: 4 });
+      }
+    }
+
+    pushRow([]);
+    const totalRow = pushRow(['', '', '', 'Total général', this.rapportRevenue()]);
+    currencyCells.push({ r: totalRow, c: 4 });
+
+    const worksheet = XLSX.utils.aoa_to_sheet(rows);
+
+    // Largeurs de colonnes adaptées au contenu pour une meilleure lisibilité.
+    worksheet['!cols'] = [{ wch: 20 }, { wch: 30 }, { wch: 18 }, { wch: 12 }, { wch: 16 }];
+
+    // Fusion des lignes de titre et de date sur toute la largeur du tableau.
+    worksheet['!merges'] = [
+      { s: { r: titleRow, c: 0 }, e: { r: titleRow, c: 4 } },
+      { s: { r: dateRow, c: 0 }, e: { r: dateRow, c: 4 } },
+    ];
+
+    // Filtre automatique sur l'en-tête du détail par service.
+    worksheet['!autofilter'] = {
+      ref: XLSX.utils.encode_range({ s: { r: headerRow, c: 0 }, e: { r: headerRow, c: 4 } }),
+    };
+
+    // Format monétaire (Ar) pour les colonnes de montants.
+    const currencyFormat = '#,##0" Ar"';
+    for (const { r, c } of currencyCells) {
+      const cellRef = XLSX.utils.encode_cell({ r, c });
+      const cell = worksheet[cellRef];
+      if (cell) cell.z = currencyFormat;
+    }
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Rapport');
+
+    const isoDate = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(workbook, `rapport_du_jour_${isoDate}.xlsx`);
   }
 
   /** Commandes payées appartenant à la journée en cours — seule base du rapport. */
