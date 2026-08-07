@@ -48,9 +48,17 @@ interface OrderGroup {
   paidAt: string | null;
 }
 
+/** One day's worth of history, pre-grouped for the full-page Historique panel. */
+interface HistoriqueDayGroup {
+  dayLabel: string;
+  groups: OrderGroup[];
+  count: number;
+}
+
 const LS_USERNAME = 'gasipro:username';
 const LS_CASHIER_URL = 'gasipro:cashierWsUrl';
 const DEFAULT_WS_HOST = '127.0.0.1:8080';
+const HISTORIQUE_ALL_STATUSES = 'TOUS';
 
 @Component({
   selector: 'app-counter',
@@ -80,11 +88,49 @@ export class Counter implements OnInit, OnDestroy {
 
   // ── Order history ─────────────────────────────────────────────────────────────
   orderGroups = signal<OrderGroup[]>([]);
+  /** Snapshot shown on the order-taking screen — status at a glance, no filters. */
   recentOrderGroups = computed(() => this.orderGroups().slice(0, 5));
   /** groupId of the pending order currently being edited from the history panel, if any. */
   editingGroupId = signal<number | null>(null);
   /** Order group currently shown in the full-detail modal, if any. */
   selectedGroup = signal<OrderGroup | null>(null);
+
+  // ── Historique panel: status filter ─────────────────────────────────────────
+  readonly historiqueAllStatuses = HISTORIQUE_ALL_STATUSES;
+  readonly historiqueStatusFilters = [
+    { label: 'Toutes',      value: HISTORIQUE_ALL_STATUSES },
+    { label: 'En attente',  value: 'EN_ATTENTE' as const },
+    { label: 'Payées',      value: 'PAYE' as const },
+    { label: 'Refusées',    value: 'REJETEE' as const },
+  ];
+  selectedHistoriqueStatus = signal<string>(HISTORIQUE_ALL_STATUSES);
+  /** Full history filtered to the currently selected status, if any. */
+  filteredHistoriqueGroups = computed(() => {
+    const status = this.selectedHistoriqueStatus();
+    const groups = this.orderGroups();
+    return status === HISTORIQUE_ALL_STATUSES ? groups : groups.filter((g) => g.status === status);
+  });
+  /**
+   * Filtered history split into day buckets (most recent day first, groups within a day
+   * already newest-first) — the "worthy extra" that turns a flat feed into something a
+   * comptoir can actually scan, unlike the brief unsorted snapshot on the order screen.
+   */
+  historiqueGroupsByDay = computed<HistoriqueDayGroup[]>(() => {
+    const days: HistoriqueDayGroup[] = [];
+    const byLabel = new Map<string, HistoriqueDayGroup>();
+    for (const group of this.filteredHistoriqueGroups()) {
+      const dayLabel = this.formatRelativeDay(group.paidAt ?? group.createdAt);
+      let bucket = byLabel.get(dayLabel);
+      if (!bucket) {
+        bucket = { dayLabel, groups: [], count: 0 };
+        byLabel.set(dayLabel, bucket);
+        days.push(bucket);
+      }
+      bucket.groups.push(group);
+      bucket.count += 1;
+    }
+    return days;
+  });
 
   // ── Connection state ──────────────────────────────────────────────────────────
   wsConnected = signal(false);
@@ -266,6 +312,11 @@ export class Counter implements OnInit, OnDestroy {
     return this.editingGroupId() === groupId;
   }
 
+  /** Set which status should be shown in the Historique panel ('TOUS' = all). */
+  setHistoriqueStatusFilter(status: string): void {
+    this.selectedHistoriqueStatus.set(status);
+  }
+
   // ── Order detail modal ────────────────────────────────────────────────────────
 
   /** Open the full-detail modal for a given order group (pending or history). */
@@ -441,6 +492,11 @@ export class Counter implements OnInit, OnDestroy {
     return g.lines.reduce((sum, l) => sum + l.quantity * l.unit_price, 0);
   }
 
+  /** Total quantity of items across a group's lines, for the compact "N articles" indicator. */
+  historiqueItemCount(g: OrderGroup): number {
+    return g.lines.reduce((sum, l) => sum + l.quantity, 0);
+  }
+
   /** Groups lines by category and formats each as "Category: Label x2, Label2 x1". */
   private formatGroupSummary(lines: Order[]): string {
     const categoryOrder: string[] = [];
@@ -530,6 +586,18 @@ export class Counter implements OnInit, OnDestroy {
     }
     const dayLabel = this.formatRelativeDay(g.createdAt);
     return `Envoyé ${dayLabel} à ${g.time}`;
+  }
+
+  /**
+   * Time-only label for a history entry inside the day-grouped Historique panel, where the
+   * day is already shown by the section header — e.g. "Encaissé à 14:32" or "Envoyé à 09:05".
+   */
+  historiqueTimeLabel(g: OrderGroup): string {
+    if (g.status === 'PAYE' && g.paidAt) {
+      const time = new Date(g.paidAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      return `Encaissé à ${time}`;
+    }
+    return `Envoyé à ${g.time}`;
   }
 
   goBack(): void {

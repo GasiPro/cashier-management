@@ -35,6 +35,14 @@ export interface OrderGroup {
   counterUsername: string;
 }
 
+/** One day's worth of paid history, pre-grouped for the Historique panel. */
+interface HistoriqueDayGroup {
+  dayLabel: string;
+  groups: OrderGroup[];
+  count: number;
+  totalAmount: number;
+}
+
 interface RapportLine {
   label: string;
   unitPrice: number;
@@ -118,6 +126,31 @@ export class Cashier implements OnInit, OnDestroy {
     const user = this.selectedHistoriqueUser();
     const groups = this.paidGroups();
     return user === HISTORIQUE_ALL_COUNTERS ? groups : groups.filter((g) => g.counterUsername === user);
+  });
+  /** Sum of the currently filtered history — the running total a cashier checks first. */
+  historiqueTotalAmount = computed(() =>
+    this.filteredHistoriqueGroups().reduce((sum, g) => sum + g.totalAmount, 0),
+  );
+  /**
+   * Filtered history split into day buckets (most recent day first, groups within a day
+   * already newest-first), each carrying its own count and subtotal for quick scanning.
+   */
+  historiqueGroupsByDay = computed<HistoriqueDayGroup[]>(() => {
+    const days: HistoriqueDayGroup[] = [];
+    const byLabel = new Map<string, HistoriqueDayGroup>();
+    for (const group of this.filteredHistoriqueGroups()) {
+      const dayLabel = group.paidAt ? this.formatRelativeDay(group.paidAt) : 'Date inconnue';
+      let bucket = byLabel.get(dayLabel);
+      if (!bucket) {
+        bucket = { dayLabel, groups: [], count: 0, totalAmount: 0 };
+        byLabel.set(dayLabel, bucket);
+        days.push(bucket);
+      }
+      bucket.groups.push(group);
+      bucket.count += 1;
+      bucket.totalAmount += group.totalAmount;
+    }
+    return days;
   });
 
   private _rawPaidOrders: Order[] = [];
@@ -309,6 +342,17 @@ export class Cashier implements OnInit, OnDestroy {
     const dayLabel = this.formatRelativeDay(group.paidAt);
     const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     return `Encaissé ${dayLabel} à ${time}`;
+  }
+
+  /** Time-only "HH:MM" label for a paid group — used inside the Historique panel, where entries are already grouped by day. */
+  formatPaidTime(group: OrderGroup): string {
+    if (!group.paidAt) return '';
+    return new Date(group.paidAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  /** Total quantity of items across a group's lines, for the compact "N articles" indicator in the history list. */
+  historiqueItemCount(group: OrderGroup): number {
+    return group.lines.reduce((sum, l) => sum + l.quantity, 0);
   }
 
   /** Human-readable "aujourd'hui/hier/JJ/MM/AAAA à HH:MM" label for a pending order's creation time. */
