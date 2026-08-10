@@ -63,6 +63,13 @@ interface RapportCategoryGroup {
   lines: RapportLine[];
 }
 
+/** Detail of the Rapport (catégorie/service), scoped to a single comptoir username. */
+interface RapportUserSection {
+  username: string;
+  groups: RapportCategoryGroup[];
+  total: number;
+}
+
 /** Revenue/client rollup for one comptoir within the Rapport period. */
 interface RapportCounterBreakdown {
   username: string;
@@ -421,8 +428,30 @@ export class Cashier implements OnInit, OnDestroy {
   }
 
   rapportGroups(): RapportCategoryGroup[] {
-    const map = new Map<string, Map<string, RapportLine>>();
+    return this.buildRapportGroups(this.rapportPaidOrders());
+  }
+
+  /** Détail du rapport (catégorie/service), séparé par comptoir, avec le total de chacun. */
+  rapportGroupsByUsername(): RapportUserSection[] {
+    const byUser = new Map<string, Order[]>();
     for (const order of this.rapportPaidOrders()) {
+      const key = order.counter_username || 'Non renseigné';
+      if (!byUser.has(key)) byUser.set(key, []);
+      byUser.get(key)!.push(order);
+    }
+    return Array.from(byUser.entries())
+      .map(([username, orders]) => ({
+        username,
+        groups: this.buildRapportGroups(orders),
+        total: orders.reduce((sum, o) => sum + o.quantity * o.unit_price, 0),
+      }))
+      .sort((a, b) => b.total - a.total);
+  }
+
+  /** Regroupe une liste de commandes par catégorie puis par service, avec quantités et totaux cumulés. */
+  private buildRapportGroups(orders: Order[]): RapportCategoryGroup[] {
+    const map = new Map<string, Map<string, RapportLine>>();
+    for (const order of orders) {
       const [category, label] = order.service_type.split(' — ');
       const key = label ?? order.service_type;
       if (!map.has(category)) map.set(category, new Map());
@@ -622,9 +651,9 @@ export class Cashier implements OnInit, OnDestroy {
 
   /** Exporte le rapport du jour en cours au format Excel (.xlsx), mis en forme pour la lisibilité. */
   async exportRapportXlsx(): Promise<void> {
-    const groups = this.rapportGroups();
     const rows: (string | number)[][] = [];
     const currencyCells: { r: number; c: number }[] = [];
+    const usernameHeaderRows: number[] = [];
 
     const pushRow = (row: (string | number)[]): number => {
       rows.push(row);
@@ -679,14 +708,22 @@ export class Cashier implements OnInit, OnDestroy {
 
     const headerRow = pushRow(['Catégorie', 'Service', 'Prix unitaire (Ar)', 'Quantité', 'Total (Ar)']);
 
-    for (const group of groups) {
-      for (const line of group.lines) {
-        const r = pushRow([group.category, line.label, line.unitPrice, line.qty, line.total]);
-        currencyCells.push({ r, c: 2 }, { r, c: 4 });
+    // Détail groupé par comptoir, chacun suivi de son propre sous-total.
+    const sections = this.rapportGroupsByUsername();
+    for (const section of sections) {
+      const usernameRow = pushRow([section.username]);
+      usernameHeaderRows.push(usernameRow);
+      for (const group of section.groups) {
+        for (const line of group.lines) {
+          const r = pushRow([group.category, line.label, line.unitPrice, line.qty, line.total]);
+          currencyCells.push({ r, c: 2 }, { r, c: 4 });
+        }
       }
+      const subtotalRow = pushRow(['', '', '', `Total ${section.username}`, section.total]);
+      currencyCells.push({ r: subtotalRow, c: 4 });
+      pushRow([]);
     }
 
-    pushRow([]);
     const totalRow = pushRow(['', '', '', 'Total général', this.rapportRevenue()]);
     currencyCells.push({ r: totalRow, c: 4 });
 
@@ -695,10 +732,11 @@ export class Cashier implements OnInit, OnDestroy {
     // Largeurs de colonnes adaptées au contenu pour une meilleure lisibilité.
     worksheet['!cols'] = [{ wch: 20 }, { wch: 30 }, { wch: 18 }, { wch: 12 }, { wch: 16 }];
 
-    // Fusion des lignes de titre et de date sur toute la largeur du tableau.
+    // Fusion des lignes de titre, de date et d'en-tête de comptoir sur toute la largeur du tableau.
     worksheet['!merges'] = [
       { s: { r: titleRow, c: 0 }, e: { r: titleRow, c: 4 } },
       { s: { r: dateRow, c: 0 }, e: { r: dateRow, c: 4 } },
+      ...usernameHeaderRows.map((r) => ({ s: { r, c: 0 }, e: { r, c: 4 } })),
     ];
 
     // Filtre automatique sur l'en-tête du détail par service.
