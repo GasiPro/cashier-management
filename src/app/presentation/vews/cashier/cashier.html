@@ -232,8 +232,9 @@
         <div class="flex items-center justify-between">
           <div class="relative">
             <h2 id="rapport-heading" class="text-base font-semibold text-[#1A1A1A]">Rapport</h2>
-            <button (click)="toggleRapportDatePicker()"
-              class="flex items-center gap-1 text-xs text-gray-400 hover:text-[#1E3A5F] mt-0.5 capitalize
+            <button (click)="toggleRapportDatePicker()" [attr.aria-pressed]="isRapportCustomDate()"
+              [class]="isRapportCustomDate() ? 'text-[#1E3A5F] font-semibold' : 'text-gray-400 hover:text-[#1E3A5F]'"
+              class="flex items-center gap-1 text-xs mt-0.5 capitalize
                      focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
               aria-haspopup="dialog" [attr.aria-expanded]="showRapportDatePicker()"
               title="Choisir une date">
@@ -361,6 +362,29 @@
           <div class="absolute right-0 top-full mt-1 z-10 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-56"
                (click)="$event.stopPropagation()">
             <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Plage horaire</p>
+            <div class="flex items-center gap-1.5 mb-3" role="group" aria-label="Mode du filtre horaire">
+              <button (click)="setRapportTimeFilterMode('all')" [attr.aria-pressed]="rapportTimeFilterMode() === 'all'"
+                [class]="rapportTimeFilterMode() === 'all'
+                  ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]'
+                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
+                class="flex-1 text-xs font-medium px-2 py-1 rounded-full border transition-colors
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                Toute la journée
+              </button>
+              <button (click)="setRapportTimeFilterMode('range')" [attr.aria-pressed]="rapportTimeFilterMode() === 'range'"
+                [class]="rapportTimeFilterMode() === 'range'
+                  ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]'
+                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
+                class="flex-1 text-xs font-medium px-2 py-1 rounded-full border transition-colors
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                Heure spécifique
+              </button>
+            </div>
+            @if (rapportTimeFilterMode() === 'all') {
+            <p class="text-xs text-gray-500 mb-3">
+              Bornes calculées à partir de la première et de la dernière commande encaissée.
+            </p>
+            } @else {
             <div class="flex items-center gap-2 mb-3">
               <input type="time" [value]="rapportTimeFilterDraft().start"
                 (change)="updateRapportTimeDraft('start', $any($event.target).value)"
@@ -374,6 +398,7 @@
                 class="flex-1 min-w-0 text-sm border border-gray-200 rounded-md px-2 py-1.5 text-gray-700
                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]" />
             </div>
+            }
             <div class="flex items-center gap-2">
               <button (click)="applyRapportTimeFilter()"
                 class="flex-1 bg-[#1E3A5F] text-white text-xs font-semibold py-1.5 rounded-md

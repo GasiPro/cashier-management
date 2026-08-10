@@ -146,6 +146,8 @@ export class Cashier implements OnInit, OnDestroy {
   showRapportDatePicker = signal(false);
   rapportTimeFilter = signal<{ start: string; end: string } | null>(null);
   rapportTimeFilterDraft = signal<{ start: string; end: string }>({ start: '', end: '' });
+  /** Mode choisi dans le sélecteur de plage horaire : 'all' = toute la journée (bornes déduites des commandes), 'range' = plage saisie manuellement. */
+  rapportTimeFilterMode = signal<'all' | 'range'>('all');
   showRapportTimePicker = signal(false);
   wsAddress = signal('');
   /** Order group currently shown in the full-detail modal, if any. */
@@ -573,6 +575,11 @@ export class Cashier implements OnInit, OnDestroy {
     return this.rapportSelectedDate() === this.formatIsoDate(d);
   }
 
+  /** True si la date sélectionnée du rapport n'est ni aujourd'hui ni hier — filtre "actif" sur une date choisie manuellement. */
+  isRapportCustomDate(): boolean {
+    return !this.isRapportToday() && !this.isRapportYesterday();
+  }
+
   /** Chiffre d'affaires du rapport (date et plage horaire sélectionnées). */
   rapportRevenue(): number {
     return this.rapportPaidOrders().reduce((sum, o) => sum + o.quantity * o.unit_price, 0);
@@ -624,8 +631,14 @@ export class Cashier implements OnInit, OnDestroy {
   toggleRapportTimePicker(): void {
     const current = this.rapportTimeFilter();
     this.rapportTimeFilterDraft.set(current ? { ...current } : { start: '', end: '' });
+    this.rapportTimeFilterMode.set(current ? 'range' : 'all');
     this.showRapportTimePicker.update((v) => !v);
     this.showRapportDatePicker.set(false);
+  }
+
+  /** Sélectionne le mode du filtre horaire : toute la journée (bornes calculées) ou plage spécifique. */
+  setRapportTimeFilterMode(mode: 'all' | 'range'): void {
+    this.rapportTimeFilterMode.set(mode);
   }
 
   /** Met à jour l'heure de début ou de fin en cours de saisie dans le sélecteur de plage horaire. */
@@ -633,8 +646,12 @@ export class Cashier implements OnInit, OnDestroy {
     this.rapportTimeFilterDraft.update((d) => ({ ...d, [field]: value }));
   }
 
-  /** Valide la plage horaire saisie et l'applique au rapport. */
+  /** Valide le mode choisi dans le sélecteur (toute la journée ou plage saisie) et l'applique au rapport. */
   applyRapportTimeFilter(): void {
+    if (this.rapportTimeFilterMode() === 'all') {
+      this.clearRapportTimeFilter();
+      return;
+    }
     const { start, end } = this.rapportTimeFilterDraft();
     if (start && end) {
       this.rapportTimeFilter.set({ start, end });
@@ -642,10 +659,11 @@ export class Cashier implements OnInit, OnDestroy {
     this.showRapportTimePicker.set(false);
   }
 
-  /** Retire le filtre de plage horaire du rapport (affiche à nouveau toute la journée). */
+  /** Retire le filtre de plage horaire du rapport (affiche à nouveau toute la journée, bornes déduites des commandes). */
   clearRapportTimeFilter(): void {
     this.rapportTimeFilter.set(null);
     this.rapportTimeFilterDraft.set({ start: '', end: '' });
+    this.rapportTimeFilterMode.set('all');
     this.showRapportTimePicker.set(false);
   }
 
