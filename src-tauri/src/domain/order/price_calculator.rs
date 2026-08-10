@@ -24,6 +24,11 @@ pub struct CartItem {
     pub qty: u32,
     #[serde(rename = "unitPrice")]
     pub unit_price: u32,
+    /// Free-text note left by the counter for the cashier (e.g. special instructions).
+    /// Defaults to an empty string so payloads sent before this field existed still
+    /// deserialize cleanly.
+    #[serde(default)]
+    pub observation: String,
 }
 
 // Trait bounds / duck-typing structures used for looser function signatures

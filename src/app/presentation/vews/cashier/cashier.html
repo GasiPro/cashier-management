@@ -904,6 +904,9 @@
             }
             {{ line.unit_price | number:'1.0-0' }} Ar × {{ line.quantity }}
           </span>
+          @if (line.observation) {
+          <p class="w-full mt-0.5 text-[11px] text-gray-500 italic">{{ line.observation }}</p>
+          }
         </div>
         }
       </div>
