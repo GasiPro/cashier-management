@@ -228,159 +228,277 @@
                 flex flex-col"
          role="dialog" aria-modal="true" aria-labelledby="rapport-heading"
          (click)="$event.stopPropagation()">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-        <div class="relative">
-          <h2 id="rapport-heading" class="text-base font-semibold text-[#1A1A1A]">Rapport</h2>
-          <button (click)="toggleRapportDatePicker()"
-            class="flex items-center gap-1 text-xs text-gray-400 hover:text-[#1E3A5F] mt-0.5 capitalize
-                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
-            aria-haspopup="dialog" [attr.aria-expanded]="showRapportDatePicker()"
-            title="Choisir une date">
-            <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path stroke-linecap="round" stroke-linejoin="round" d="M16 2v4M8 2v4M3 10h18"/>
-            </svg>
-            <span class="underline decoration-dotted underline-offset-2">{{ rapportDateLabel() }}</span>
-          </button>
+      <div class="px-6 py-4 border-b border-gray-100 shrink-0">
+        <div class="flex items-center justify-between">
+          <div class="relative">
+            <h2 id="rapport-heading" class="text-base font-semibold text-[#1A1A1A]">Rapport</h2>
+            <button (click)="toggleRapportDatePicker()"
+              class="flex items-center gap-1 text-xs text-gray-400 hover:text-[#1E3A5F] mt-0.5 capitalize
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
+              aria-haspopup="dialog" [attr.aria-expanded]="showRapportDatePicker()"
+              title="Choisir une date">
+              <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16 2v4M8 2v4M3 10h18"/>
+              </svg>
+              <span class="underline decoration-dotted underline-offset-2">{{ rapportDateLabel() }}</span>
+            </button>
 
-          @if (showRapportDatePicker()) {
-          <div class="absolute left-0 top-full mt-1 z-10 bg-white border border-gray-200 rounded-lg shadow-lg p-3"
-               (click)="$event.stopPropagation()">
-            <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5" for="rapport-date-input">
-              Choisir une date
-            </label>
-            <input id="rapport-date-input" type="date" [value]="rapportSelectedDate()"
-              (change)="onRapportDateChange($any($event.target).value)"
-              class="text-sm border border-gray-200 rounded-md px-2 py-1.5 text-gray-700
-                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]" />
+            @if (showRapportDatePicker()) {
+            <div class="absolute left-0 top-full mt-1 z-10 bg-white border border-gray-200 rounded-lg shadow-lg p-3"
+                 (click)="$event.stopPropagation()">
+              <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5" for="rapport-date-input">
+                Choisir une date
+              </label>
+              <input id="rapport-date-input" type="date" [value]="rapportSelectedDate()"
+                (change)="onRapportDateChange($any($event.target).value)"
+                class="text-sm border border-gray-200 rounded-md px-2 py-1.5 text-gray-700
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]" />
+            </div>
+            }
           </div>
-          }
+          <div class="flex items-center gap-1">
+            <button (click)="exportRapportXlsx()"
+              class="text-gray-400 hover:text-[#1E3A5F] p-1
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
+              aria-label="Exporter le rapport en Excel"
+              title="Exporter en Excel (.xlsx)">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+              </svg>
+            </button>
+            <button (click)="showRapport = false" autofocus
+              class="text-gray-400 hover:text-gray-600 p-1
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
+              aria-label="Fermer le rapport">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
-        <div class="flex items-center gap-1">
-          <button (click)="exportRapportXlsx()"
-            class="text-gray-400 hover:text-[#1E3A5F] p-1
-                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
-            aria-label="Exporter le rapport en Excel"
-            title="Exporter en Excel (.xlsx)">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
-            </svg>
+
+        <!-- Quick date presets: the "single click" a cashier reaches for at open/close of shift, -->
+        <!-- rather than hunting through the date picker every time — POS-report convention. -->
+        <div class="flex items-center gap-1.5 mt-3" role="group" aria-label="Raccourcis de date du rapport">
+          <button (click)="setRapportToday()" [attr.aria-pressed]="isRapportToday()"
+            [class]="isRapportToday()
+              ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]'
+              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
+            class="text-xs font-medium px-2.5 py-1 rounded-full border transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            Aujourd'hui
           </button>
-          <button (click)="showRapport = false" autofocus
-            class="text-gray-400 hover:text-gray-600 p-1
-                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
-            aria-label="Fermer le rapport">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+          <button (click)="setRapportYesterday()" [attr.aria-pressed]="isRapportYesterday()"
+            [class]="isRapportYesterday()
+              ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]'
+              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
+            class="text-xs font-medium px-2.5 py-1 rounded-full border transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            Hier
           </button>
         </div>
       </div>
-      <div class="flex-1 overflow-y-auto px-6 pb-6 pt-2">
-        <div class="space-y-0">
-          <div class="flex justify-between items-center py-3 border-b border-gray-100">
-            <span class="text-sm text-gray-600">Chiffre d'affaires</span>
-            <span class="font-bold text-lg text-[#1E3A5F] tabular-nums">{{ rapportRevenue() | number:'1.0-0' }} Ar</span>
-          </div>
-          <div class="flex justify-between items-center py-3 border-b border-gray-100">
-            <span class="text-sm text-gray-600">Clients servis</span>
-            <span class="font-semibold">{{ rapportClientsCount() }}</span>
-          </div>
-          <div class="relative flex justify-between items-center py-3 border-b border-gray-100">
-            <span class="text-sm text-gray-600">Plage horaire</span>
-            <button (click)="toggleRapportTimePicker()"
-              class="flex items-center gap-1 font-semibold tabular-nums text-[#1A1A1A] hover:text-[#1E3A5F]
-                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
-              aria-haspopup="dialog" [attr.aria-expanded]="showRapportTimePicker()"
-              aria-live="polite" title="Filtrer par plage horaire">
-              <span class="underline decoration-dotted underline-offset-2">{{ rapportTimeRange() || 'Toute la journée' }}</span>
-              <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="9" stroke-linecap="round" stroke-linejoin="round"/>
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 3"/>
-              </svg>
-            </button>
+      <div class="flex-1 overflow-y-auto px-6 pb-6 pt-4">
 
-            @if (showRapportTimePicker()) {
-            <div class="absolute right-0 top-full mt-1 z-10 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-56"
-                 (click)="$event.stopPropagation()">
-              <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Plage horaire</p>
-              <div class="flex items-center gap-2 mb-3">
-                <input type="time" [value]="rapportTimeFilterDraft().start"
-                  (change)="updateRapportTimeDraft('start', $any($event.target).value)"
-                  aria-label="Heure de début"
-                  class="flex-1 min-w-0 text-sm border border-gray-200 rounded-md px-2 py-1.5 text-gray-700
-                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]" />
-                <span class="text-gray-400 text-xs">à</span>
-                <input type="time" [value]="rapportTimeFilterDraft().end"
-                  (change)="updateRapportTimeDraft('end', $any($event.target).value)"
-                  aria-label="Heure de fin"
-                  class="flex-1 min-w-0 text-sm border border-gray-200 rounded-md px-2 py-1.5 text-gray-700
-                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]" />
+        <!-- Headline figure: the number a cashier hands off at end of shift, with an at-a-glance -->
+        <!-- trend vs the previous day — the "match POS expectation" reason this panel exists -->
+        <!-- instead of just reading totals off the raw Historique feed. -->
+        <div class="bg-[#1E3A5F] rounded-xl px-5 py-4 text-white mb-4">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-medium text-white/70 uppercase tracking-wide">Chiffre d'affaires</span>
+            @if (rapportRevenueTrend().changePercent !== null) {
+            <span [class]="(rapportRevenueTrend().changePercent ?? 0) >= 0
+                ? 'bg-emerald-400/20 text-emerald-300'
+                : 'bg-red-400/20 text-red-300'"
+              class="text-[11px] font-semibold px-2 py-0.5 rounded-full tabular-nums"
+              title="Comparé à la veille">
+              {{ (rapportRevenueTrend().changePercent ?? 0) >= 0 ? '+' : '' }}{{ rapportRevenueTrend().changePercent }}%
+            </span>
+            }
+          </div>
+          <p class="text-3xl font-bold tabular-nums leading-tight">{{ rapportRevenue() | number:'1.0-0' }} Ar</p>
+          <p class="text-xs text-white/60 mt-1">
+            Veille : {{ rapportRevenueTrend().previousRevenue | number:'1.0-0' }} Ar
+          </p>
+        </div>
+
+        <!-- Secondary stat grid: scannable at a glance, unlike the flat row list this replaces. -->
+        <div class="grid grid-cols-2 gap-2 mb-4">
+          <div class="bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5">
+            <p class="text-[11px] text-gray-400 uppercase tracking-wide">Clients servis</p>
+            <p class="text-lg font-semibold text-[#1A1A1A] tabular-nums">{{ rapportClientsCount() }}</p>
+          </div>
+          <div class="bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5">
+            <p class="text-[11px] text-gray-400 uppercase tracking-wide">Panier moyen</p>
+            <p class="text-lg font-semibold text-[#1A1A1A] tabular-nums">{{ rapportAverageBasket() | number:'1.0-0' }} Ar</p>
+          </div>
+          <div class="bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5">
+            <p class="text-[11px] text-gray-400 uppercase tracking-wide">Articles vendus</p>
+            <p class="text-lg font-semibold text-[#1A1A1A] tabular-nums">{{ rapportItemsCount() }}</p>
+          </div>
+          <div class="bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5">
+            <p class="text-[11px] text-gray-400 uppercase tracking-wide">Files en attente</p>
+            <p class="text-lg font-semibold text-[#1A1A1A] tabular-nums">{{ pendingGroups().length }}</p>
+          </div>
+        </div>
+
+        <div class="relative flex justify-between items-center py-3 border-b border-gray-100 mb-1">
+          <span class="text-sm text-gray-600">Plage horaire</span>
+          <button (click)="toggleRapportTimePicker()"
+            class="flex items-center gap-1 font-semibold tabular-nums text-[#1A1A1A] hover:text-[#1E3A5F]
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
+            aria-haspopup="dialog" [attr.aria-expanded]="showRapportTimePicker()"
+            aria-live="polite" title="Filtrer par plage horaire">
+            <span class="underline decoration-dotted underline-offset-2">{{ rapportTimeRange() || 'Toute la journée' }}</span>
+            <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9" stroke-linecap="round" stroke-linejoin="round"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 3"/>
+            </svg>
+          </button>
+
+          @if (showRapportTimePicker()) {
+          <div class="absolute right-0 top-full mt-1 z-10 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-56"
+               (click)="$event.stopPropagation()">
+            <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Plage horaire</p>
+            <div class="flex items-center gap-2 mb-3">
+              <input type="time" [value]="rapportTimeFilterDraft().start"
+                (change)="updateRapportTimeDraft('start', $any($event.target).value)"
+                aria-label="Heure de début"
+                class="flex-1 min-w-0 text-sm border border-gray-200 rounded-md px-2 py-1.5 text-gray-700
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]" />
+              <span class="text-gray-400 text-xs">à</span>
+              <input type="time" [value]="rapportTimeFilterDraft().end"
+                (change)="updateRapportTimeDraft('end', $any($event.target).value)"
+                aria-label="Heure de fin"
+                class="flex-1 min-w-0 text-sm border border-gray-200 rounded-md px-2 py-1.5 text-gray-700
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]" />
+            </div>
+            <div class="flex items-center gap-2">
+              <button (click)="applyRapportTimeFilter()"
+                class="flex-1 bg-[#1E3A5F] text-white text-xs font-semibold py-1.5 rounded-md
+                       hover:bg-[#16304f] active:scale-95 transition-all
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                Appliquer
+              </button>
+              @if (rapportTimeFilter()) {
+              <button (click)="clearRapportTimeFilter()"
+                class="flex-1 bg-white border border-gray-200 text-gray-600 text-xs font-semibold py-1.5 rounded-md
+                       hover:bg-gray-50 active:scale-95 transition-all
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-300">
+                Réinitialiser
+              </button>
+              }
+            </div>
+          </div>
+          }
+        </div>
+
+        <!-- Per-comptoir breakdown: an aggregate a cashier can't get from Historique, which only -->
+        <!-- lets you filter one comptoir's raw transaction list at a time. -->
+        @if (rapportByCounter().length > 1) {
+        <div class="pt-4">
+          <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">Par comptoir</p>
+          <div class="space-y-2">
+            @for (counter of rapportByCounter(); track counter.username) {
+            <div class="flex items-center gap-3">
+              <span class="text-sm text-gray-600 w-24 truncate flex-shrink-0" [title]="counter.username">{{ counter.username }}</span>
+              <div class="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div class="h-full bg-[#1E3A5F] rounded-full"
+                     [style.width.%]="rapportRevenue() === 0 ? 0 : (counter.total / rapportRevenue()) * 100"></div>
               </div>
-              <div class="flex items-center gap-2">
-                <button (click)="applyRapportTimeFilter()"
-                  class="flex-1 bg-[#1E3A5F] text-white text-xs font-semibold py-1.5 rounded-md
-                         hover:bg-[#16304f] active:scale-95 transition-all
-                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-                  Appliquer
-                </button>
-                @if (rapportTimeFilter()) {
-                <button (click)="clearRapportTimeFilter()"
-                  class="flex-1 bg-white border border-gray-200 text-gray-600 text-xs font-semibold py-1.5 rounded-md
-                         hover:bg-gray-50 active:scale-95 transition-all
-                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-300">
-                  Réinitialiser
-                </button>
-                }
-              </div>
+              <span class="text-sm font-semibold text-[#1A1A1A] tabular-nums w-20 text-right flex-shrink-0">{{ counter.total | number:'1.0-0' }} Ar</span>
             </div>
             }
           </div>
-          <div class="flex justify-between items-center py-3 border-b border-gray-100">
-            <span class="text-sm text-gray-600">Files en attente</span>
-            <span class="font-semibold">{{ pendingGroups().length }}</span>
-          </div>
-          <div class="pt-4">
-            <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">Détail par service</p>
-            @if (rapportGroups().length === 0) {
-            <p class="text-sm text-gray-400 italic">Aucune commande payée.</p>
-            }
-            @for (group of rapportGroups(); track group.category) {
-            <p class="text-xs font-semibold text-[#1E3A5F] uppercase tracking-wide mt-4 mb-1 first:mt-0">
-              {{ '- ' + group.category }}
-            </p>
-            @for (line of group.lines; track line.label) {
-            <div class="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 items-baseline text-sm px-1 py-1 border-b border-gray-50 last:border-0">
-              <span class="text-gray-700 flex items-center gap-1.5">
-                {{ line.label }}
-                @if (line.discounted) {
-                <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700
-                             bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full"
-                      title="Prix réduit par le comptoir">
-                  Remise
-                </span>
-                }
-                @if (line.increased) {
-                <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700
-                             bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full"
-                      title="Prix majoré par le comptoir">
-                  Majoration
-                </span>
-                }
-              </span>
-              <span class="text-gray-400 tabular-nums text-right whitespace-nowrap">
-                @if (line.discounted || line.increased) {
-                <span class="line-through text-gray-300 mr-1" aria-hidden="true">{{ line.originalUnitPrice | number:'1.0-0' }}</span>
-                <span class="sr-only">Prix initial {{ line.originalUnitPrice }} Ar, prix {{ line.discounted ? 'réduit' : 'majoré' }} à</span>
-                }
-                {{ line.unitPrice | number:'1.0-0' }} Ar
-              </span>
-              <span class="font-medium text-gray-400 tabular-nums text-right">×{{ line.qty }}</span>
-              <span class="font-semibold text-gray-400 tabular-nums text-right whitespace-nowrap">{{ line.total | number:'1.0-0' }} Ar</span>
+        </div>
+        }
+
+        <!-- Top ventes: ranks services by revenue so a cashier can spot what's driving the day -->
+        <!-- without scanning the full detail list — Historique has no such ranking. -->
+        @if (rapportTopServices().length > 0) {
+        <div class="pt-4">
+          <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">Top ventes</p>
+          <div class="space-y-2">
+            @for (line of rapportTopServices(); track line.label) {
+            <div class="flex items-center gap-3">
+              <span class="text-sm text-gray-600 truncate flex-1 min-w-0" [title]="line.label">{{ line.label }}</span>
+              <div class="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden flex-shrink-0">
+                <div class="h-full bg-emerald-400 rounded-full" [style.width.%]="rapportLineShare(line)"></div>
+              </div>
+              <span class="text-sm font-semibold text-[#1A1A1A] tabular-nums w-20 text-right flex-shrink-0">{{ line.total | number:'1.0-0' }} Ar</span>
             </div>
             }
-            }
           </div>
+        </div>
+        }
+
+        <!-- Adjustments summary: a rollup total, not a per-order badge — the reason a cashier -->
+        <!-- opens Rapport instead of counting "Remise"/"Majoration" chips in Historique. -->
+        @if (rapportAdjustmentsSummary().discountCount > 0 || rapportAdjustmentsSummary().increaseCount > 0) {
+        <div class="pt-4">
+          <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">Ajustements de prix</p>
+          <div class="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-4 py-2.5">
+            <div class="flex items-center gap-3 text-xs">
+              @if (rapportAdjustmentsSummary().discountCount > 0) {
+              <span class="inline-flex items-center gap-1 font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                {{ rapportAdjustmentsSummary().discountCount }} remise{{ rapportAdjustmentsSummary().discountCount > 1 ? 's' : '' }}
+              </span>
+              }
+              @if (rapportAdjustmentsSummary().increaseCount > 0) {
+              <span class="inline-flex items-center gap-1 font-semibold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full">
+                {{ rapportAdjustmentsSummary().increaseCount }} majoration{{ rapportAdjustmentsSummary().increaseCount > 1 ? 's' : '' }}
+              </span>
+              }
+            </div>
+            <span [class]="rapportAdjustmentsSummary().netImpact >= 0 ? 'text-emerald-700' : 'text-red-600'"
+              class="text-sm font-semibold tabular-nums" title="Impact net sur le chiffre d'affaires">
+              {{ rapportAdjustmentsSummary().netImpact >= 0 ? '+' : '' }}{{ rapportAdjustmentsSummary().netImpact | number:'1.0-0' }} Ar
+            </span>
+          </div>
+        </div>
+        }
+
+        <div class="pt-4">
+          <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">Détail par service</p>
+          @if (rapportGroups().length === 0) {
+          <p class="text-sm text-gray-400 italic">Aucune commande payée.</p>
+          }
+          @for (group of rapportGroups(); track group.category) {
+          <p class="text-xs font-semibold text-[#1E3A5F] uppercase tracking-wide mt-4 mb-1 first:mt-0">
+            {{ '- ' + group.category }}
+          </p>
+          @for (line of group.lines; track line.label) {
+          <div class="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 items-baseline text-sm px-1 py-1 border-b border-gray-50 last:border-0">
+            <span class="text-gray-700 flex items-center gap-1.5">
+              {{ line.label }}
+              @if (line.discounted) {
+              <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700
+                           bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full"
+                    title="Prix réduit par le comptoir">
+                Remise
+              </span>
+              }
+              @if (line.increased) {
+              <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700
+                           bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full"
+                    title="Prix majoré par le comptoir">
+                Majoration
+              </span>
+              }
+            </span>
+            <span class="text-gray-400 tabular-nums text-right whitespace-nowrap">
+              @if (line.discounted || line.increased) {
+              <span class="line-through text-gray-300 mr-1" aria-hidden="true">{{ line.originalUnitPrice | number:'1.0-0' }}</span>
+              <span class="sr-only">Prix initial {{ line.originalUnitPrice }} Ar, prix {{ line.discounted ? 'réduit' : 'majoré' }} à</span>
+              }
+              {{ line.unitPrice | number:'1.0-0' }} Ar
+            </span>
+            <span class="font-medium text-gray-400 tabular-nums text-right">×{{ line.qty }}</span>
+            <span class="font-semibold text-gray-400 tabular-nums text-right whitespace-nowrap">{{ line.total | number:'1.0-0' }} Ar</span>
+          </div>
+          }
+          }
         </div>
       </div>
     </div>

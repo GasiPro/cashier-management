@@ -61,6 +61,28 @@ interface RapportCategoryGroup {
   lines: RapportLine[];
 }
 
+/** Revenue/client rollup for one comptoir within the Rapport period. */
+interface RapportCounterBreakdown {
+  username: string;
+  total: number;
+  clients: number;
+}
+
+/** Result of comparing the Rapport's revenue against the previous day's. */
+interface RapportRevenueTrend {
+  previousRevenue: number;
+  /** null when there is no prior-day data to compare against. */
+  changePercent: number | null;
+}
+
+/** Rollup of manually-adjusted prices (remises/majorations) across the Rapport period. */
+interface RapportAdjustmentsSummary {
+  discountCount: number;
+  increaseCount: number;
+  /** Net effect on revenue of every adjusted line (unit_price - original_unit_price) × quantity. */
+  netImpact: number;
+}
+
 export interface ConnectionRequest {
   addr: string;
   username: string;
@@ -394,8 +416,102 @@ export class Cashier implements OnInit, OnDestroy {
     }
     return Array.from(map.entries()).map(([category, lines]) => ({
       category,
-      lines: Array.from(lines.values()),
+      lines: Array.from(lines.values()).sort((a, b) => b.total - a.total),
     }));
+  }
+
+  /** Répartition du chiffre d'affaires du rapport par comptoir, triée du plus grand au plus petit. */
+  rapportByCounter(): RapportCounterBreakdown[] {
+    const map = new Map<string, { total: number; groupIds: Set<number> }>();
+    for (const order of this.rapportPaidOrders()) {
+      const key = order.counter_username || 'Non renseigné';
+      if (!map.has(key)) map.set(key, { total: 0, groupIds: new Set() });
+      const entry = map.get(key)!;
+      entry.total += order.quantity * order.unit_price;
+      entry.groupIds.add(order.group_id);
+    }
+    return Array.from(map.entries())
+      .map(([username, v]) => ({ username, total: v.total, clients: v.groupIds.size }))
+      .sort((a, b) => b.total - a.total);
+  }
+
+  /** Panier moyen (chiffre d'affaires / nombre de clients) du rapport. */
+  rapportAverageBasket(): number {
+    const clients = this.rapportClientsCount();
+    return clients === 0 ? 0 : this.rapportRevenue() / clients;
+  }
+
+  /** Quantité totale d'articles vendus sur la période du rapport. */
+  rapportItemsCount(): number {
+    return this.rapportPaidOrders().reduce((sum, o) => sum + o.quantity, 0);
+  }
+
+  /** Les services les plus vendus (par chiffre d'affaires), tous comptoirs confondus. */
+  rapportTopServices(limit = 5): RapportLine[] {
+    const all = this.rapportGroups().flatMap((g) => g.lines);
+    return [...all].sort((a, b) => b.total - a.total).slice(0, limit);
+  }
+
+  /** Part (en %) du chiffre d'affaires total que représente une ligne — pour la mini barre de progression. */
+  rapportLineShare(line: RapportLine): number {
+    const revenue = this.rapportRevenue();
+    return revenue === 0 ? 0 : Math.round((line.total / revenue) * 100);
+  }
+
+  /** Résumé des ajustements de prix (remises et majorations) appliqués par les comptoirs sur la période. */
+  rapportAdjustmentsSummary(): RapportAdjustmentsSummary {
+    let discountCount = 0;
+    let increaseCount = 0;
+    let netImpact = 0;
+    for (const order of this.rapportPaidOrders()) {
+      if (this.isLineDiscounted(order)) discountCount += 1;
+      if (this.isLineIncreased(order)) increaseCount += 1;
+      if (order.original_unit_price > 0) {
+        netImpact += (order.unit_price - order.original_unit_price) * order.quantity;
+      }
+    }
+    return { discountCount, increaseCount, netImpact };
+  }
+
+  /** Compare le chiffre d'affaires du jour sélectionné (journée complète) à celui de la veille. */
+  rapportRevenueTrend(): RapportRevenueTrend {
+    const previousRevenue = this.revenueForDate(this.previousRapportDate());
+    const currentRevenue = this.revenueForDate(this.rapportSelectedDate());
+    if (previousRevenue === 0) {
+      return { previousRevenue, changePercent: currentRevenue > 0 ? 100 : null };
+    }
+    return {
+      previousRevenue,
+      changePercent: Math.round(((currentRevenue - previousRevenue) / previousRevenue) * 100),
+    };
+  }
+
+  /** Positionne le rapport sur la date du jour. */
+  setRapportToday(): void {
+    this.rapportSelectedDate.set(this.formatIsoDate(new Date()));
+    this.rapportTimeFilter.set(null);
+    this.showRapportDatePicker.set(false);
+  }
+
+  /** Positionne le rapport sur la date d'hier. */
+  setRapportYesterday(): void {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    this.rapportSelectedDate.set(this.formatIsoDate(d));
+    this.rapportTimeFilter.set(null);
+    this.showRapportDatePicker.set(false);
+  }
+
+  /** True si la date sélectionnée du rapport est celle d'aujourd'hui. */
+  isRapportToday(): boolean {
+    return this.rapportSelectedDate() === this.formatIsoDate(new Date());
+  }
+
+  /** True si la date sélectionnée du rapport est celle d'hier. */
+  isRapportYesterday(): boolean {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return this.rapportSelectedDate() === this.formatIsoDate(d);
   }
 
   /** Chiffre d'affaires du rapport (date et plage horaire sélectionnées). */
@@ -492,10 +608,41 @@ export class Cashier implements OnInit, OnDestroy {
     const revenueRow = pushRow(["Chiffre d'affaires", this.rapportRevenue()]);
     currencyCells.push({ r: revenueRow, c: 1 });
 
+    const trend = this.rapportRevenueTrend();
+    const previousRevenueRow = pushRow(['Chiffre d\'affaires (veille)', trend.previousRevenue]);
+    currencyCells.push({ r: previousRevenueRow, c: 1 });
+    if (trend.changePercent !== null) {
+      pushRow(['Évolution vs veille', `${trend.changePercent >= 0 ? '+' : ''}${trend.changePercent}%`]);
+    }
+
     pushRow(['Clients servis', this.rapportClientsCount()]);
+
+    const avgBasketRow = pushRow(['Panier moyen', this.rapportAverageBasket()]);
+    currencyCells.push({ r: avgBasketRow, c: 1 });
+
+    pushRow(['Articles vendus', this.rapportItemsCount()]);
 
     if (this.rapportTimeRange()) {
       pushRow(['Plage horaire', this.rapportTimeRange()]);
+    }
+
+    const counters = this.rapportByCounter();
+    if (counters.length > 1) {
+      pushRow([]);
+      pushRow(['Comptoir', 'Clients', 'Total (Ar)']);
+      for (const counter of counters) {
+        const r = pushRow([counter.username, counter.clients, counter.total]);
+        currencyCells.push({ r, c: 2 });
+      }
+    }
+
+    const adjustments = this.rapportAdjustmentsSummary();
+    if (adjustments.discountCount > 0 || adjustments.increaseCount > 0) {
+      pushRow([]);
+      pushRow(['Remises appliquées', adjustments.discountCount]);
+      pushRow(['Majorations appliquées', adjustments.increaseCount]);
+      const netImpactRow = pushRow(['Impact net des ajustements (Ar)', adjustments.netImpact]);
+      currencyCells.push({ r: netImpactRow, c: 1 });
     }
 
     pushRow([]);
@@ -579,6 +726,20 @@ export class Cashier implements OnInit, OnDestroy {
 
   private isSelectedRapportDate(iso: string): boolean {
     return this.formatIsoDate(new Date(iso)) === this.rapportSelectedDate();
+  }
+
+  /** Chiffre d'affaires encaissé sur une date ISO donnée (journée complète, sans filtre horaire). */
+  private revenueForDate(isoDate: string): number {
+    return this._rawPaidOrders
+      .filter((o) => o.paid_at && this.formatIsoDate(new Date(o.paid_at)) === isoDate)
+      .reduce((sum, o) => sum + o.quantity * o.unit_price, 0);
+  }
+
+  /** Date ISO du jour précédant celui actuellement sélectionné dans le rapport. */
+  private previousRapportDate(): string {
+    const d = this.parseIsoDate(this.rapportSelectedDate());
+    d.setDate(d.getDate() - 1);
+    return this.formatIsoDate(d);
   }
 
   private isWithinRapportTimeFilter(iso: string): boolean {
