@@ -230,7 +230,9 @@ export class Counter implements OnInit, OnDestroy {
         this.blocked.set(true);
         this.ws.disconnect();
       } else if (msg.type === 'orders') {
-        this.orderGroups.set(this.buildGroups(msg.data as Order[]));
+        const newGroups = this.buildGroups(msg.data as Order[]);
+        this.notifyStatusChanges(newGroups);
+        this.orderGroups.set(newGroups);
       } else if (msg.type === 'time') {
         this.currentTime.set(msg.data as string);
       }
@@ -636,6 +638,30 @@ export class Counter implements OnInit, OnDestroy {
       });
     }
     return groups.sort((a, b) => b.groupId - a.groupId);
+  }
+
+  /**
+   * Compares freshly-pushed order groups against the current state to detect groups that
+   * just transitioned out of EN_ATTENTE (i.e. the cashier just acted on them), and surfaces
+   * the same toast used for "Commande envoyée à la caisse !" — accepted or refused, with the
+   * cashier's reason when one was given.
+   */
+  private notifyStatusChanges(newGroups: OrderGroup[]): void {
+    const previousStatuses = new Map(this.orderGroups().map((g) => [g.groupId, g.status]));
+    for (const g of newGroups) {
+      const prevStatus = previousStatuses.get(g.groupId);
+      if (prevStatus !== 'EN_ATTENTE') continue;
+      if (g.status === 'PAYE') {
+        this.showToast(`Commande ${this.groupLabel(g.groupId)} acceptée par la caisse !`);
+      } else if (g.status === 'REJETEE') {
+        const reason = this.groupRejectReason(g);
+        this.showToast(
+          reason
+            ? `Commande ${this.groupLabel(g.groupId)} refusée : ${reason}`
+            : `Commande ${this.groupLabel(g.groupId)} refusée.`,
+        );
+      }
+    }
   }
 
   private showToast(msg: string): void {
