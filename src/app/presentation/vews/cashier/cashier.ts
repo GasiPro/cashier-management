@@ -109,6 +109,13 @@ export class Cashier implements OnInit, OnDestroy {
   showMenu = false;
   showRapport = false;
   showHistorique = false;
+
+  // ── Rapport: selected date / time-range filters ──────────────────────────────
+  rapportSelectedDate = signal<string>(this.formatIsoDate(new Date()));
+  showRapportDatePicker = signal(false);
+  rapportTimeFilter = signal<{ start: string; end: string } | null>(null);
+  rapportTimeFilterDraft = signal<{ start: string; end: string }>({ start: '', end: '' });
+  showRapportTimePicker = signal(false);
   wsAddress = signal('');
   /** Order group currently shown in the full-detail modal, if any. */
   selectedGroup = signal<OrderGroup | null>(null);
@@ -363,7 +370,7 @@ export class Cashier implements OnInit, OnDestroy {
 
   rapportGroups(): RapportCategoryGroup[] {
     const map = new Map<string, Map<string, RapportLine>>();
-    for (const order of this.todaysPaidOrders()) {
+    for (const order of this.rapportPaidOrders()) {
       const [category, label] = order.service_type.split(' — ');
       const key = label ?? order.service_type;
       if (!map.has(category)) map.set(category, new Map());
@@ -391,19 +398,19 @@ export class Cashier implements OnInit, OnDestroy {
     }));
   }
 
-  /** Chiffre d'affaires du rapport (jour courant uniquement). */
+  /** Chiffre d'affaires du rapport (date et plage horaire sélectionnées). */
   rapportRevenue(): number {
-    return this.todaysPaidOrders().reduce((sum, o) => sum + o.quantity * o.unit_price, 0);
+    return this.rapportPaidOrders().reduce((sum, o) => sum + o.quantity * o.unit_price, 0);
   }
 
-  /** Nombre de clients (commandes distinctes) encaissés aujourd'hui. */
+  /** Nombre de clients (commandes distinctes) encaissés sur la date/plage sélectionnée. */
   rapportClientsCount(): number {
-    return new Set(this.todaysPaidOrders().map((o) => o.group_id)).size;
+    return new Set(this.rapportPaidOrders().map((o) => o.group_id)).size;
   }
 
   /** Date du rapport, ex. "mardi 4 août 2026" — jour, mois et année en toutes lettres. */
   rapportDateLabel(): string {
-    return new Date().toLocaleDateString('fr-FR', {
+    return this.parseIsoDate(this.rapportSelectedDate()).toLocaleDateString('fr-FR', {
       weekday: 'long',
       day: 'numeric',
       month: 'long',
@@ -411,9 +418,11 @@ export class Cashier implements OnInit, OnDestroy {
     });
   }
 
-  /** Plage horaire couverte par le rapport, de la première à la dernière commande encaissée aujourd'hui. */
+  /** Plage horaire couverte par le rapport : la sélection manuelle si définie, sinon la plage réelle des commandes. */
   rapportTimeRange(): string {
-    const orders = this.todaysPaidOrders();
+    const filter = this.rapportTimeFilter();
+    if (filter) return `${filter.start} – ${filter.end}`;
+    const orders = this.rapportPaidOrders();
     if (orders.length === 0) return '';
     const timestamps = orders
       .map((o) => new Date(o.paid_at as string).getTime())
@@ -421,6 +430,48 @@ export class Cashier implements OnInit, OnDestroy {
     const format = (t: number) =>
       new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     return `${format(timestamps[0])} – ${format(timestamps[timestamps.length - 1])}`;
+  }
+
+  /** Ouvre/ferme le sélecteur de date du rapport. */
+  toggleRapportDatePicker(): void {
+    this.showRapportDatePicker.update((v) => !v);
+    this.showRapportTimePicker.set(false);
+  }
+
+  /** Applique la date choisie dans le sélecteur du rapport. */
+  onRapportDateChange(value: string): void {
+    if (!value) return;
+    this.rapportSelectedDate.set(value);
+    this.showRapportDatePicker.set(false);
+  }
+
+  /** Ouvre/ferme le sélecteur de plage horaire du rapport. */
+  toggleRapportTimePicker(): void {
+    const current = this.rapportTimeFilter();
+    this.rapportTimeFilterDraft.set(current ? { ...current } : { start: '', end: '' });
+    this.showRapportTimePicker.update((v) => !v);
+    this.showRapportDatePicker.set(false);
+  }
+
+  /** Met à jour l'heure de début ou de fin en cours de saisie dans le sélecteur de plage horaire. */
+  updateRapportTimeDraft(field: 'start' | 'end', value: string): void {
+    this.rapportTimeFilterDraft.update((d) => ({ ...d, [field]: value }));
+  }
+
+  /** Valide la plage horaire saisie et l'applique au rapport. */
+  applyRapportTimeFilter(): void {
+    const { start, end } = this.rapportTimeFilterDraft();
+    if (start && end) {
+      this.rapportTimeFilter.set({ start, end });
+    }
+    this.showRapportTimePicker.set(false);
+  }
+
+  /** Retire le filtre de plage horaire du rapport (affiche à nouveau toute la journée). */
+  clearRapportTimeFilter(): void {
+    this.rapportTimeFilter.set(null);
+    this.rapportTimeFilterDraft.set({ start: '', end: '' });
+    this.showRapportTimePicker.set(false);
   }
 
   /** Exporte le rapport du jour en cours au format Excel (.xlsx), mis en forme pour la lisibilité. */
@@ -489,7 +540,7 @@ export class Cashier implements OnInit, OnDestroy {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Rapport');
 
-    const isoDate = new Date().toISOString().slice(0, 10);
+    const isoDate = this.rapportSelectedDate();
     const defaultFileName = `rapport_du_jour_${isoDate}.xlsx`;
 
     // Laisse l'utilisateur choisir le dossier de destination et le nom du fichier.
@@ -516,9 +567,39 @@ export class Cashier implements OnInit, OnDestroy {
     }
   }
 
-  /** Commandes payées appartenant à la journée en cours — seule base du rapport. */
-  private todaysPaidOrders(): Order[] {
-    return this._rawPaidOrders.filter((o) => o.paid_at && this.isToday(o.paid_at));
+  /** Commandes payées appartenant à la date sélectionnée et, le cas échéant, à la plage horaire choisie — seule base du rapport. */
+  private rapportPaidOrders(): Order[] {
+    return this._rawPaidOrders.filter(
+      (o) =>
+        o.paid_at &&
+        this.isSelectedRapportDate(o.paid_at) &&
+        this.isWithinRapportTimeFilter(o.paid_at),
+    );
+  }
+
+  private isSelectedRapportDate(iso: string): boolean {
+    return this.formatIsoDate(new Date(iso)) === this.rapportSelectedDate();
+  }
+
+  private isWithinRapportTimeFilter(iso: string): boolean {
+    const filter = this.rapportTimeFilter();
+    if (!filter) return true;
+    const date = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const time = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    return time >= filter.start && time <= filter.end;
+  }
+
+  /** Formate une date locale en "AAAA-MM-JJ", utilisable dans un input[type=date]. */
+  private formatIsoDate(d: Date): string {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  /** Reconstruit une Date locale (minuit) à partir d'une chaîne "AAAA-MM-JJ". */
+  private parseIsoDate(iso: string): Date {
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, (m ?? 1) - 1, d ?? 1);
   }
 
   private isToday(iso: string): boolean {
