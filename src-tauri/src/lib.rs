@@ -218,9 +218,10 @@ async fn mark_group_as_paid(state: State<'_, AppState>, group_id: i64) -> Result
 }
 
 /// Caisse: refuse an entire pending order group. Called from the cashier UI via invoke().
+/// `raison` is an optional reason for the cancellation.
 #[tauri::command]
-async fn reject_group(state: State<'_, AppState>, group_id: i64) -> Result<(), String> {
-    state.order_service.reject_group(group_id);
+async fn reject_group(state: State<'_, AppState>, group_id: i64, raison: Option<String>) -> Result<(), String> {
+    state.order_service.reject_group(group_id, raison);
     broadcast_to_approved(
         &state.peers,
         &ServerMessage::Orders { data: state.order_service.get_orders() },

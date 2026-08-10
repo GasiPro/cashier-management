@@ -22,6 +22,8 @@ export interface Order {
   counter_username: string;
   created_at: string;
   paid_at: string | null;
+  /** Optional reason given by the cashier when cancelling (rejecting) this order. */
+  raison: string | null;
 }
 
 export interface OrderGroup {
@@ -141,6 +143,12 @@ export class Cashier implements OnInit, OnDestroy {
   wsAddress = signal('');
   /** Order group currently shown in the full-detail modal, if any. */
   selectedGroup = signal<OrderGroup | null>(null);
+
+  // ── Reject (cancel) order dialog ─────────────────────────────────────────────
+  /** Group currently targeted by the reject confirmation dialog, if any. */
+  rejectGroupTarget = signal<OrderGroup | null>(null);
+  /** Optional reason ("raison") entered by the cashier for the pending cancellation. */
+  rejectReason = signal('');
 
   // ── Historique: per-counter filter ───────────────────────────────────────────
   readonly historiqueAllCounters = HISTORIQUE_ALL_COUNTERS;
@@ -267,12 +275,34 @@ export class Cashier implements OnInit, OnDestroy {
   }
 
   /** Refuse an entire pending order (e.g. rupture de stock, client parti). */
-  async rejectGroup(groupId: number): Promise<void> {
+  async rejectGroup(groupId: number, raison?: string): Promise<void> {
     try {
-      await invoke('reject_group', { groupId });
+      await invoke('reject_group', { groupId, raison: raison?.trim() ? raison.trim() : null });
     } catch (e) {
       console.error('reject_group failed', e);
     }
+  }
+
+  // ── Reject (cancel) order dialog ─────────────────────────────────────────────
+
+  /** Open the reject confirmation dialog for a group, optionally closing the detail modal. */
+  openRejectDialog(group: OrderGroup): void {
+    this.rejectReason.set('');
+    this.rejectGroupTarget.set(group);
+    this.selectedGroup.set(null);
+  }
+
+  closeRejectDialog(): void {
+    this.rejectGroupTarget.set(null);
+    this.rejectReason.set('');
+  }
+
+  /** Confirm the cancellation from the reject dialog, including the optional raison. */
+  async confirmRejectGroup(): Promise<void> {
+    const group = this.rejectGroupTarget();
+    if (!group) return;
+    await this.rejectGroup(group.groupId, this.rejectReason());
+    this.closeRejectDialog();
   }
 
   copyWsAddress(): void {
