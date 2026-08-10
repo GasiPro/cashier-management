@@ -507,10 +507,22 @@ export class Cashier implements OnInit, OnDestroy {
     return this.rapportPaidOrders().reduce((sum, o) => sum + o.quantity, 0);
   }
 
-  /** Les services les plus vendus (par chiffre d'affaires), tous comptoirs confondus. */
+  /** Les catégories les plus vendues (par chiffre d'affaires), tous comptoirs confondus. */
   rapportTopServices(limit = 5): RapportLine[] {
-    const all = this.rapportGroups().flatMap((g) => g.lines);
-    return [...all].sort((a, b) => b.total - a.total).slice(0, limit);
+    return this.rapportGroups()
+      .map(
+        (g): RapportLine => ({
+          label: g.category,
+          unitPrice: 0,
+          qty: g.lines.reduce((sum, l) => sum + l.qty, 0),
+          total: g.lines.reduce((sum, l) => sum + l.total, 0),
+          originalUnitPrice: 0,
+          discounted: g.lines.some((l) => l.discounted),
+          increased: g.lines.some((l) => l.increased),
+        }),
+      )
+      .sort((a, b) => b.total - a.total)
+      .slice(0, limit);
   }
 
   /** Part (en %) du chiffre d'affaires total que représente une ligne — pour la mini barre de progression. */

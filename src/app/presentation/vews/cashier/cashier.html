@@ -224,7 +224,7 @@
   <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showRapport = false"
        (keydown.escape)="showRapport = false">
     <div class="absolute inset-0 bg-black/20"></div>
-    <div id="rapport-panel" class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-y-auto
+    <div id="rapport-panel" class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-hidden
                 flex flex-col"
          role="dialog" aria-modal="true" aria-labelledby="rapport-heading"
          (click)="$event.stopPropagation()">
@@ -300,7 +300,7 @@
           </button>
         </div>
       </div>
-      <div class="flex-1 overflow-y-auto px-6 pb-6 pt-4">
+      <div class="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-4">
 
         <!-- Headline figure: the number a cashier hands off at end of shift, with an at-a-glance -->
         <!-- trend vs the previous day — the "match POS expectation" reason this panel exists -->
