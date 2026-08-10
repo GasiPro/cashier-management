@@ -32,6 +32,12 @@ pub struct Order {
    pub created_at: String,
     pub paid_at: Option<String>, // 'string | null' becomes Option<String>
 
+    /// Free-text note left by the counter for the cashier at the time the order was
+    /// placed (e.g. special instructions). Defaults to an empty string for orders
+    /// persisted before this field existed.
+    #[serde(default)]
+    pub observation: String,
+
     /// Optional reason given by the cashier when cancelling (rejecting) a pending order.
     #[serde(default)]
     pub raison: Option<String>,

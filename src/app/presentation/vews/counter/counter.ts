@@ -37,6 +37,10 @@ export interface Order {
   time: string;
   created_at: string;
   paid_at: string | null;
+  /** Free-text note left by the counter for the cashier when the order was placed. */
+  observation: string;
+  /** Reason given by the cashier when cancelling (rejecting) this order, if any. */
+  raison: string | null;
 }
 
 interface OrderGroup {
@@ -558,6 +562,11 @@ export class Counter implements OnInit, OnDestroy {
     if (g.status === 'EN_ATTENTE') return 'bg-amber-50  text-amber-700  border border-amber-100';
     if (g.status === 'REJETEE')    return 'bg-red-50 text-red-700 border border-red-100';
     return 'bg-gray-50 text-gray-700 border border-gray-100';
+  }
+
+  /** Reason the cashier gave for refusing this group, if it was rejected and one was provided. */
+  groupRejectReason(g: OrderGroup): string | null {
+    return g.lines.find((l) => l.raison)?.raison ?? null;
   }
 
   /** "aujourd'hui", "hier", or the localized date, based on the given ISO timestamp. */

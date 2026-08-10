@@ -22,6 +22,8 @@ export interface Order {
   counter_username: string;
   created_at: string;
   paid_at: string | null;
+  /** Free-text note left by the counter for the cashier when the order was placed. */
+  observation: string;
   /** Optional reason given by the cashier when cancelling (rejecting) this order. */
   raison: string | null;
 }

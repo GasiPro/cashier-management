@@ -77,6 +77,7 @@ impl OrderService {
                 counter_username: counter_username.to_string(),
                 created_at: created_at.clone(),
                 paid_at: None,
+                observation: item.observation.clone(),
                 raison: None,
             };
             guard.next_id += 1;
