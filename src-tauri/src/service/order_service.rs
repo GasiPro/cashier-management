@@ -104,13 +104,15 @@ impl OrderService {
     }
 
     /// Caisse: refuse an entire pending order group (e.g. out of stock, client left).
-    pub fn reject_group(&self, group_id: i64) {
+    /// `raison` is an optional reason for the cancellation, recorded on each affected order.
+    pub fn reject_group(&self, group_id: i64, raison: Option<String>) {
         let mut guard = self.state.lock().unwrap();
         let mut changed = false;
 
         for order in &mut guard.orders {
             if order.group_id == group_id && order.status == OrderStatus::EnAttente {
                 order.status = OrderStatus::Rejetee;
+                order.raison = raison.clone();
                 changed = true;
             }
         }

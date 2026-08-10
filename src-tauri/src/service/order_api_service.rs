@@ -31,6 +31,10 @@ pub struct Order {
 
    pub created_at: String,
     pub paid_at: Option<String>, // 'string | null' becomes Option<String>
+
+    /// Optional reason given by the cashier when cancelling (rejecting) a pending order.
+    #[serde(default)]
+    pub raison: Option<String>,
 }
 
 pub struct OrderApi;
