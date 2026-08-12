@@ -188,6 +188,10 @@ export class Counter implements OnInit, OnDestroy {
       // Connection is live and already approved (login handled approval before navigating).
       this.wsConnected.set(true);
       this.waitingApproval.set(false);
+      // The order snapshot the server pushed right after approval was likely sent
+      // while login.ts was already unsubscribed and this component wasn't listening
+      // yet — ask for a fresh one now that we're actually ready to receive it.
+      this.ws.send({ type: 'request_orders' });
     }
   }
 

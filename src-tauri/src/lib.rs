@@ -50,6 +50,10 @@ enum ClientMessage {
     DeleteOrder { id: i64 },
     /// Comptoir: delete an entire pending order group (only while EN_ATTENTE).
     DeleteOrderGroup { group_id: i64 },
+    /// Ask the server to re-push the current order snapshot (scoped to the caller).
+    /// Used right after a WS handoff (e.g. login → counter) where the snapshot pushed
+    /// at approval time can be missed because nobody was subscribed yet to receive it.
+    RequestOrders,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -495,6 +499,21 @@ pub fn run() {
                                         &order_service_inner.get_orders(),
                                     )
                                     .await;
+                                }
+                            }
+
+                            Ok(ClientMessage::RequestOrders) => {
+                                let orders = order_service_inner.get_orders();
+                                let guard = peers_inner.lock().await;
+                                if let Some(peer) = guard.get(&addr) {
+                                    if peer.approved {
+                                        let scoped = scope_orders_for_peer(&orders, peer);
+                                        let _ = peer.tx.send(Message::Text(
+                                            serde_json::to_string(&ServerMessage::Orders { data: scoped })
+                                                .unwrap_or_default()
+                                                .into(),
+                                        ));
+                                    }
                                 }
                             }
 
