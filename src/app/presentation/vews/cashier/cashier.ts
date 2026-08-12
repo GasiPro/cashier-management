@@ -143,6 +143,12 @@ export class Cashier implements OnInit, OnDestroy {
   showRapport = false;
   showHistorique = false;
 
+  // ── Toast feedback (e.g. export success/failure) ─────────────────────────────
+  toastVisible = signal(false);
+  toastMessage = signal('');
+  /** True while the xlsx export is in progress — drives aria-busy/disabled on the export button. */
+  exportingRapport = signal(false);
+
   // ── Rapport: selected date / time-range filters ──────────────────────────────
   rapportSelectedDate = signal<string>(this.formatIsoDate(new Date()));
   showRapportDatePicker = signal(false);
@@ -681,8 +687,25 @@ export class Cashier implements OnInit, OnDestroy {
     this.showRapportTimePicker.set(false);
   }
 
+  /** Affiche un toast temporaire (auto-masqué après 3s), annoncé aux lecteurs d'écran via aria-live. */
+  private showToast(msg: string): void {
+    this.toastMessage.set(msg);
+    this.toastVisible.set(true);
+    setTimeout(() => this.toastVisible.set(false), 3000);
+  }
+
   /** Exporte le rapport du jour en cours au format Excel (.xlsx), mis en forme pour la lisibilité. */
   async exportRapportXlsx(): Promise<void> {
+    this.exportingRapport.set(true);
+    try {
+      await this.buildAndSaveRapportXlsx();
+    } finally {
+      this.exportingRapport.set(false);
+    }
+  }
+
+  /** Construit le classeur du rapport et l'enregistre à l'emplacement choisi par l'utilisateur. */
+  private async buildAndSaveRapportXlsx(): Promise<void> {
     const rows: (string | number)[][] = [];
     const currencyCells: { r: number; c: number }[] = [];
     const usernameHeaderRows: number[] = [];
@@ -799,9 +822,10 @@ export class Cashier implements OnInit, OnDestroy {
       });
     } catch (e) {
       console.error('export dialog failed', e);
+      this.showToast("Échec de l'export : impossible d'ouvrir la boîte de dialogue.");
       return;
     }
-    if (!destinationPath) return; // Annulé par l'utilisateur.
+    if (!destinationPath) return; // Annulé par l'utilisateur — pas d'erreur, pas de toast.
 
     const workbookBytes = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
     try {
@@ -809,8 +833,10 @@ export class Cashier implements OnInit, OnDestroy {
         path: destinationPath,
         data: Array.from(new Uint8Array(workbookBytes)),
       });
+      this.showToast('Rapport exporté avec succès !');
     } catch (e) {
       console.error('save_binary_file failed', e);
+      this.showToast("Échec de l'enregistrement du fichier Excel.");
     }
   }
 

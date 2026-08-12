@@ -260,13 +260,22 @@
           </div>
           <div class="flex items-center gap-1">
             <button (click)="exportRapportXlsx()"
-              class="text-gray-400 hover:text-[#1E3A5F] p-1
+              [disabled]="exportingRapport()"
+              [attr.aria-busy]="exportingRapport()"
+              class="text-gray-400 hover:text-[#1E3A5F] p-1 disabled:opacity-50 disabled:cursor-not-allowed
                      focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
-              aria-label="Exporter le rapport en Excel"
-              title="Exporter en Excel (.xlsx)">
+              [attr.aria-label]="exportingRapport() ? 'Export du rapport en cours' : 'Exporter le rapport en Excel'"
+              [attr.title]="exportingRapport() ? 'Export en cours…' : 'Exporter en Excel (.xlsx)'">
+              @if (exportingRapport()) {
+              <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              } @else {
               <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
               </svg>
+              }
             </button>
             <button (click)="showRapport = false" autofocus
               class="text-gray-400 hover:text-gray-600 p-1
@@ -989,5 +998,13 @@
         </button>
       </div>
     </div>
+  </div>
+  }
+
+  @if (toastVisible()) {
+  <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50
+                bg-[#1E3A5F] text-white text-sm font-medium px-5 py-3 rounded-lg shadow-lg"
+       role="status" aria-live="polite">
+    {{ toastMessage() }}
   </div>
   }
