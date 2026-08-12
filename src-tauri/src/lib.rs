@@ -109,6 +109,46 @@ async fn broadcast_to_approved(peers: &PeerMap, msg: &ServerMessage) {
     }
 }
 
+/// Push the order snapshot to every approved peer, scoped per recipient: the cashier
+/// needs the full picture to run the register, but a comptoir must only ever see its
+/// own orders — never another counter's history — so each counter peer gets the list
+/// filtered to its own username before it leaves the server.
+async fn broadcast_orders_to_approved(peers: &PeerMap, orders: &[Order]) {
+    let guard = peers.lock().await;
+    for (_, state) in guard.iter() {
+        if !state.approved {
+            continue;
+        }
+        let scoped: Vec<Order> = if state.is_cashier {
+            orders.to_vec()
+        } else {
+            orders
+                .iter()
+                .filter(|o| o.counter_username == state.username)
+                .cloned()
+                .collect()
+        };
+        if let Ok(json) = serde_json::to_string(&ServerMessage::Orders { data: scoped }) {
+            let _ = state.tx.send(Message::Text(json.into()));
+        }
+    }
+}
+
+/// Build the order snapshot for a single peer, scoped the same way as
+/// `broadcast_orders_to_approved`: the cashier gets everything, a comptoir gets only
+/// the orders it placed.
+fn scope_orders_for_peer(orders: &[Order], peer: &PeerState) -> Vec<Order> {
+    if peer.is_cashier {
+        orders.to_vec()
+    } else {
+        orders
+            .iter()
+            .filter(|o| o.counter_username == peer.username)
+            .cloned()
+            .collect()
+    }
+}
+
 /// Push a message to the cashier peer only.
 async fn notify_cashier(peers: &PeerMap, msg: &ServerMessage) {
     let json = match serde_json::to_string(msg) {
@@ -168,7 +208,6 @@ fn get_pricing_matrix() -> Vec<ServiceItem> {
     PRICING_MATRIX
         .iter()
         .map(|item| ServiceItem {
-            id: item.id.to_string(),
             item_type: match item.item_type {
                 config::pricing_matrix::ServiceItemType::Service => PriceCalculatorItemType::Service,
                 config::pricing_matrix::ServiceItemType::Product => PriceCalculatorItemType::Product,
@@ -198,22 +237,14 @@ fn get_paid_orders(state: State<'_, AppState>) -> Vec<Order> {
 #[tauri::command]
 async fn create_order(state: State<'_, AppState>, cart: Vec<CartItem>, counter_username: String) -> Result<(), String> {
     state.order_service.create_order(&cart, &counter_username);
-    broadcast_to_approved(
-        &state.peers,
-        &ServerMessage::Orders { data: state.order_service.get_orders() },
-    )
-    .await;
+    broadcast_orders_to_approved(&state.peers, &state.order_service.get_orders()).await;
     Ok(())
 }
 
 #[tauri::command]
 async fn mark_group_as_paid(state: State<'_, AppState>, group_id: i64) -> Result<(), String> {
     state.order_service.mark_group_as_paid(group_id);
-    broadcast_to_approved(
-        &state.peers,
-        &ServerMessage::Orders { data: state.order_service.get_orders() },
-    )
-    .await;
+    broadcast_orders_to_approved(&state.peers, &state.order_service.get_orders()).await;
     Ok(())
 }
 
@@ -222,11 +253,7 @@ async fn mark_group_as_paid(state: State<'_, AppState>, group_id: i64) -> Result
 #[tauri::command]
 async fn reject_group(state: State<'_, AppState>, group_id: i64, raison: Option<String>) -> Result<(), String> {
     state.order_service.reject_group(group_id, raison);
-    broadcast_to_approved(
-        &state.peers,
-        &ServerMessage::Orders { data: state.order_service.get_orders() },
-    )
-    .await;
+    broadcast_orders_to_approved(&state.peers, &state.order_service.get_orders()).await;
     Ok(())
 }
 
@@ -240,13 +267,14 @@ async fn approve_connection(state: State<'_, AppState>, addr: String) -> Result<
         let mut guard = state.peers.lock().await;
         if let Some(peer) = guard.get_mut(&socket_addr) {
             peer.approved = true;
+            let scoped = scope_orders_for_peer(&orders, peer);
             let _ = peer.tx.send(Message::Text(
                 serde_json::to_string(&ServerMessage::ConnectionApproved)
                     .unwrap_or_default()
                     .into(),
             ));
             let _ = peer.tx.send(Message::Text(
-                serde_json::to_string(&ServerMessage::Orders { data: orders })
+                serde_json::to_string(&ServerMessage::Orders { data: scoped })
                     .unwrap_or_default()
                     .into(),
             ));
@@ -417,11 +445,9 @@ pub fn run() {
                                 };
                                 if is_approved {
                                     order_service_inner.create_order(&cart, &counter_username);
-                                    broadcast_to_approved(
+                                    broadcast_orders_to_approved(
                                         &peers_inner,
-                                        &ServerMessage::Orders {
-                                            data: order_service_inner.get_orders(),
-                                        },
+                                        &order_service_inner.get_orders(),
                                     )
                                     .await;
                                 }
@@ -434,11 +460,9 @@ pub fn run() {
                                 };
                                 if is_approved {
                                     order_service_inner.update_order(id, quantity, unit_price);
-                                    broadcast_to_approved(
+                                    broadcast_orders_to_approved(
                                         &peers_inner,
-                                        &ServerMessage::Orders {
-                                            data: order_service_inner.get_orders(),
-                                        },
+                                        &order_service_inner.get_orders(),
                                     )
                                     .await;
                                 }
@@ -451,11 +475,9 @@ pub fn run() {
                                 };
                                 if is_approved {
                                     order_service_inner.delete_order(id);
-                                    broadcast_to_approved(
+                                    broadcast_orders_to_approved(
                                         &peers_inner,
-                                        &ServerMessage::Orders {
-                                            data: order_service_inner.get_orders(),
-                                        },
+                                        &order_service_inner.get_orders(),
                                     )
                                     .await;
                                 }
@@ -468,11 +490,9 @@ pub fn run() {
                                 };
                                 if is_approved {
                                     order_service_inner.delete_order_group(group_id);
-                                    broadcast_to_approved(
+                                    broadcast_orders_to_approved(
                                         &peers_inner,
-                                        &ServerMessage::Orders {
-                                            data: order_service_inner.get_orders(),
-                                        },
+                                        &order_service_inner.get_orders(),
                                     )
                                     .await;
                                 }
