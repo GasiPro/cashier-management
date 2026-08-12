@@ -854,10 +854,15 @@ export class Cashier implements OnInit, OnDestroy {
     return this.formatIsoDate(new Date(iso)) === this.rapportSelectedDate();
   }
 
-  /** Chiffre d'affaires encaissé sur une date ISO donnée (journée complète, sans filtre horaire). */
+  /** Chiffre d'affaires encaissé sur une date ISO donnée, en tenant compte de la plage horaire sélectionnée. */
   private revenueForDate(isoDate: string): number {
     return this._rawPaidOrders
-      .filter((o) => o.paid_at && this.formatIsoDate(new Date(o.paid_at)) === isoDate)
+      .filter(
+        (o) =>
+          o.paid_at &&
+          this.formatIsoDate(new Date(o.paid_at)) === isoDate &&
+          this.isWithinRapportTimeFilter(o.paid_at),
+      )
       .reduce((sum, o) => sum + o.quantity * o.unit_price, 0);
   }
 
