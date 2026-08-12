@@ -212,6 +212,7 @@ fn get_pricing_matrix() -> Vec<ServiceItem> {
     PRICING_MATRIX
         .iter()
         .map(|item| ServiceItem {
+            id: item.id.to_string(),
             item_type: match item.item_type {
                 config::pricing_matrix::ServiceItemType::Service => PriceCalculatorItemType::Service,
                 config::pricing_matrix::ServiceItemType::Product => PriceCalculatorItemType::Product,
