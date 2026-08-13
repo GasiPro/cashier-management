@@ -1000,42 +1000,97 @@ export class Cashier implements OnInit, OnDestroy {
 
     pushRow([]);
 
-    const headerRow = pushRow(['Catégorie', 'Service', 'Prix unitaire (Ar)', 'Quantité', 'Total (Ar)']);
+    const headerRow = pushRow([
+      'Catégorie',
+      'Service',
+      'N° Commande',
+      'Comptoir',
+      'Prix unitaire (Ar)',
+      'Prix appliqué (Ar)',
+      'Quantité',
+      'Heure commande',
+      'Heure paiement',
+      'Total (Ar)',
+    ]);
 
-    // Détail groupé par comptoir, chacun suivi de son propre sous-total.
-    const sections = this.rapportGroupsByUsername();
+    /** Heure au format HH:MM (fr-FR) à partir d'un horodatage ISO. */
+    const formatRapportTime = (iso: string): string =>
+      new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+    // Détail groupé par comptoir, une ligne par commande encaissée, chacun suivi de son propre sous-total.
+    const ordersByUsername = new Map<string, Order[]>();
+    for (const order of this.rapportPaidOrders()) {
+      const key = order.counter_username || 'Non renseigné';
+      if (!ordersByUsername.has(key)) ordersByUsername.set(key, []);
+      ordersByUsername.get(key)!.push(order);
+    }
+    const sections = Array.from(ordersByUsername.entries())
+      .map(([username, orders]) => ({
+        username,
+        orders,
+        total: orders.reduce((sum, o) => sum + o.quantity * o.unit_price, 0),
+      }))
+      .sort((a, b) => b.total - a.total);
+
     for (const section of sections) {
       const usernameRow = pushRow([section.username]);
       usernameHeaderRows.push(usernameRow);
-      for (const group of section.groups) {
-        for (const line of group.lines) {
-          const r = pushRow([group.category, line.label, line.unitPrice, line.qty, line.total]);
-          currencyCells.push({ r, c: 2 }, { r, c: 4 });
-        }
+      // Tri par catégorie puis par heure de commande, pour un détail lisible au sein de chaque comptoir.
+      const sortedOrders = [...section.orders].sort((a, b) => {
+        const [categoryA] = a.service_type.split(' — ');
+        const [categoryB] = b.service_type.split(' — ');
+        return categoryA === categoryB ? a.time.localeCompare(b.time) : categoryA.localeCompare(categoryB);
+      });
+      for (const order of sortedOrders) {
+        const [category, label] = order.service_type.split(' — ');
+        const r = pushRow([
+          category,
+          label ?? order.service_type,
+          order.group_id,
+          section.username,
+          order.original_unit_price,
+          order.unit_price,
+          order.quantity,
+          order.time,
+          order.paid_at ? formatRapportTime(order.paid_at) : '',
+          order.quantity * order.unit_price,
+        ]);
+        currencyCells.push({ r, c: 4 }, { r, c: 5 }, { r, c: 9 });
       }
-      const subtotalRow = pushRow(['', '', '', `Total ${section.username}`, section.total]);
-      currencyCells.push({ r: subtotalRow, c: 4 });
+      const subtotalRow = pushRow(['', '', '', '', '', '', '', '', `Total ${section.username}`, section.total]);
+      currencyCells.push({ r: subtotalRow, c: 9 });
       pushRow([]);
     }
 
-    const totalRow = pushRow(['', '', '', 'Total général', this.rapportRevenue()]);
-    currencyCells.push({ r: totalRow, c: 4 });
+    const totalRow = pushRow(['', '', '', '', '', '', '', '', 'Total général', this.rapportRevenue()]);
+    currencyCells.push({ r: totalRow, c: 9 });
 
     const worksheet = XLSX.utils.aoa_to_sheet(rows);
 
     // Largeurs de colonnes adaptées au contenu pour une meilleure lisibilité.
-    worksheet['!cols'] = [{ wch: 20 }, { wch: 30 }, { wch: 18 }, { wch: 12 }, { wch: 16 }];
+    worksheet['!cols'] = [
+      { wch: 18 },
+      { wch: 24 },
+      { wch: 13 },
+      { wch: 16 },
+      { wch: 17 },
+      { wch: 17 },
+      { wch: 10 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 16 },
+    ];
 
     // Fusion des lignes de titre, de date et d'en-tête de comptoir sur toute la largeur du tableau.
     worksheet['!merges'] = [
-      { s: { r: titleRow, c: 0 }, e: { r: titleRow, c: 4 } },
-      { s: { r: dateRow, c: 0 }, e: { r: dateRow, c: 4 } },
-      ...usernameHeaderRows.map((r) => ({ s: { r, c: 0 }, e: { r, c: 4 } })),
+      { s: { r: titleRow, c: 0 }, e: { r: titleRow, c: 9 } },
+      { s: { r: dateRow, c: 0 }, e: { r: dateRow, c: 9 } },
+      ...usernameHeaderRows.map((r) => ({ s: { r, c: 0 }, e: { r, c: 9 } })),
     ];
 
-    // Filtre automatique sur l'en-tête du détail par service.
+    // Filtre automatique sur l'en-tête du détail par commande.
     worksheet['!autofilter'] = {
-      ref: XLSX.utils.encode_range({ s: { r: headerRow, c: 0 }, e: { r: headerRow, c: 4 } }),
+      ref: XLSX.utils.encode_range({ s: { r: headerRow, c: 0 }, e: { r: headerRow, c: 9 } }),
     };
 
     // Format monétaire (Ar) pour les colonnes de montants.
