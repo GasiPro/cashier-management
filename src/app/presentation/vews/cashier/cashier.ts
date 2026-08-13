@@ -65,6 +65,15 @@ interface RapportCategoryGroup {
   lines: RapportLine[];
 }
 
+/** Granularité de la période couverte par le Rapport. */
+type RapportPeriod = 'jour' | 'semaine' | 'mois' | 'annee';
+
+/** Bornes (dates ISO, incluses) d'une période du Rapport. */
+interface RapportPeriodBounds {
+  start: string;
+  end: string;
+}
+
 /** Detail of the Rapport (catégorie/service), scoped to a single comptoir username. */
 interface RapportUserSection {
   username: string;
@@ -149,7 +158,9 @@ export class Cashier implements OnInit, OnDestroy {
   /** True while the xlsx export is in progress — drives aria-busy/disabled on the export button. */
   exportingRapport = signal(false);
 
-  // ── Rapport: selected date / time-range filters ──────────────────────────────
+  // ── Rapport: selected period / date / time-range filters ─────────────────────
+  /** Granularité actuellement affichée : jour, semaine (ISO, lundi–dimanche) ou année civile. */
+  rapportPeriod = signal<RapportPeriod>('jour');
   rapportSelectedDate = signal<string>(this.formatIsoDate(new Date()));
   showRapportDatePicker = signal(false);
   rapportTimeFilter = signal<{ start: string; end: string } | null>(null);
@@ -554,10 +565,12 @@ export class Cashier implements OnInit, OnDestroy {
     return { discountCount, increaseCount, netImpact };
   }
 
-  /** Compare le chiffre d'affaires du jour sélectionné (journée complète) à celui de la veille. */
+  /** Compare le chiffre d'affaires de la période sélectionnée (jour/semaine/année) à celui de la période précédente. */
   rapportRevenueTrend(): RapportRevenueTrend {
-    const previousRevenue = this.revenueForDate(this.previousRapportDate());
-    const currentRevenue = this.revenueForDate(this.rapportSelectedDate());
+    const previous = this.previousPeriodBounds(this.rapportSelectedDate(), this.rapportPeriod());
+    const current = this.rapportPeriodBounds();
+    const previousRevenue = this.revenueForPeriod(previous);
+    const currentRevenue = this.revenueForPeriod(current);
     if (previousRevenue === 0) {
       return { previousRevenue, changePercent: currentRevenue > 0 ? 100 : null };
     }
@@ -567,40 +580,245 @@ export class Cashier implements OnInit, OnDestroy {
     };
   }
 
-  /** Positionne le rapport sur la date du jour. */
-  setRapportToday(): void {
+  /** Change la granularité du rapport (jour/semaine/année) en conservant la date d'ancrage. */
+  setRapportPeriod(period: RapportPeriod): void {
+    if (this.rapportPeriod() === period) return;
+    this.rapportPeriod.set(period);
+    this.rapportTimeFilter.set(null);
+    this.showRapportDatePicker.set(false);
+    this.showRapportTimePicker.set(false);
+  }
+
+  /** Positionne le rapport sur la période courante (aujourd'hui / semaine en cours / année en cours). */
+  setRapportCurrentPeriod(): void {
     this.rapportSelectedDate.set(this.formatIsoDate(new Date()));
     this.rapportTimeFilter.set(null);
     this.showRapportDatePicker.set(false);
   }
 
-  /** Positionne le rapport sur la date d'hier. */
-  setRapportYesterday(): void {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    this.rapportSelectedDate.set(this.formatIsoDate(d));
+  /** Positionne le rapport sur la période précédant immédiatement la période courante. */
+  setRapportPreviousPeriod(): void {
+    const todayIso = this.formatIsoDate(new Date());
+    const previous = this.previousPeriodBounds(todayIso, this.rapportPeriod());
+    this.rapportSelectedDate.set(previous.start);
     this.rapportTimeFilter.set(null);
     this.showRapportDatePicker.set(false);
   }
 
-  /** True si la date sélectionnée du rapport est celle d'aujourd'hui. */
-  isRapportToday(): boolean {
-    return this.rapportSelectedDate() === this.formatIsoDate(new Date());
+  /** True si la période sélectionnée du rapport couvre la date d'aujourd'hui. */
+  isRapportCurrentPeriod(): boolean {
+    const todayIso = this.formatIsoDate(new Date());
+    const bounds = this.rapportPeriodBounds();
+    return todayIso >= bounds.start && todayIso <= bounds.end;
   }
 
-  /** True si la date sélectionnée du rapport est celle d'hier. */
-  isRapportYesterday(): boolean {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return this.rapportSelectedDate() === this.formatIsoDate(d);
+  /** True si la période sélectionnée du rapport est celle précédant immédiatement la période courante. */
+  isRapportPreviousPeriod(): boolean {
+    const todayIso = this.formatIsoDate(new Date());
+    const previous = this.previousPeriodBounds(todayIso, this.rapportPeriod());
+    const anchor = this.rapportSelectedDate();
+    return anchor >= previous.start && anchor <= previous.end;
   }
 
-  /** True si la date sélectionnée du rapport n'est ni aujourd'hui ni hier — filtre "actif" sur une date choisie manuellement. */
-  isRapportCustomDate(): boolean {
-    return !this.isRapportToday() && !this.isRapportYesterday();
+  /** True si la période sélectionnée du rapport n'est ni la période courante ni la précédente — sélection manuelle. */
+  isRapportCustomPeriod(): boolean {
+    return !this.isRapportCurrentPeriod() && !this.isRapportPreviousPeriod();
   }
 
-  /** Chiffre d'affaires du rapport (date et plage horaire sélectionnées). */
+  /** Libellé du raccourci "période courante", adapté à la granularité sélectionnée. */
+  rapportCurrentPeriodLabel(): string {
+    switch (this.rapportPeriod()) {
+      case 'semaine':
+        return 'Cette semaine';
+      case 'mois':
+        return 'Ce mois-ci';
+      case 'annee':
+        return 'Cette année';
+      default:
+        return "Aujourd'hui";
+    }
+  }
+
+  /** Libellé du raccourci "période précédente", adapté à la granularité sélectionnée. */
+  rapportPreviousPeriodLabel(): string {
+    switch (this.rapportPeriod()) {
+      case 'semaine':
+        return 'Semaine dernière';
+      case 'mois':
+        return 'Mois dernier';
+      case 'annee':
+        return 'Année dernière';
+      default:
+        return 'Hier';
+    }
+  }
+
+  /** Libellé désignant la période de comparaison ("Veille", "Semaine précédente", "Mois précédent", "Année précédente"). */
+  rapportComparisonLabel(): string {
+    switch (this.rapportPeriod()) {
+      case 'semaine':
+        return 'Semaine précédente';
+      case 'mois':
+        return 'Mois précédent';
+      case 'annee':
+        return 'Année précédente';
+      default:
+        return 'Veille';
+    }
+  }
+
+  /** Valeur "AAAA-Www" (semaine ISO) de la semaine ancrant le rapport, pour l'input[type=week]. */
+  rapportWeekInputValue(): string {
+    const { start } = this.rapportPeriodBounds();
+    return this.toIsoWeekValue(this.parseIsoDate(start));
+  }
+
+  /** Applique la semaine ISO choisie ("AAAA-Www") comme nouvelle ancre du rapport. */
+  onRapportWeekChange(value: string): void {
+    const match = /^(\d{4})-W(\d{2})$/.exec(value);
+    if (!match) return;
+    const year = Number(match[1]);
+    const week = Number(match[2]);
+    const monday = this.mondayOfIsoWeek(year, week);
+    this.rapportSelectedDate.set(this.formatIsoDate(monday));
+    this.showRapportDatePicker.set(false);
+  }
+
+  /** Valeur "AAAA-MM" du mois ancrant le rapport, pour l'input[type=month]. */
+  rapportMonthInputValue(): string {
+    const anchor = this.parseIsoDate(this.rapportSelectedDate());
+    return `${anchor.getFullYear()}-${String(anchor.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  /** Applique le mois choisi ("AAAA-MM") comme nouvelle ancre du rapport. */
+  onRapportMonthChange(value: string): void {
+    const match = /^(\d{4})-(\d{2})$/.exec(value);
+    if (!match) return;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    if (month < 1 || month > 12) return;
+    this.rapportSelectedDate.set(`${year}-${String(month).padStart(2, '0')}-01`);
+    this.showRapportDatePicker.set(false);
+  }
+
+  /** Année civile actuellement sélectionnée pour le rapport, pour l'input[type=number]. */
+  rapportYearInputValue(): number {
+    return this.parseIsoDate(this.rapportSelectedDate()).getFullYear();
+  }
+
+  /** Applique l'année civile saisie comme nouvelle ancre du rapport. */
+  onRapportYearChange(value: string): void {
+    const year = Number(value);
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) return;
+    this.rapportSelectedDate.set(`${year}-01-01`);
+    this.showRapportDatePicker.set(false);
+  }
+
+  /** Bornes [début, fin] (dates ISO incluses) de la période actuellement sélectionnée pour le rapport. */
+  private rapportPeriodBounds(): RapportPeriodBounds {
+    return this.periodBounds(this.rapportSelectedDate(), this.rapportPeriod());
+  }
+
+  /** Bornes [début, fin] de la période (jour/semaine/année) ancrée sur la date ISO donnée. */
+  private periodBounds(anchorIso: string, period: RapportPeriod): RapportPeriodBounds {
+    const anchor = this.parseIsoDate(anchorIso);
+    switch (period) {
+      case 'semaine': {
+        const start = this.startOfIsoWeek(anchor);
+        const end = new Date(start);
+        end.setDate(end.getDate() + 6);
+        return { start: this.formatIsoDate(start), end: this.formatIsoDate(end) };
+      }
+      case 'mois': {
+        const year = anchor.getFullYear();
+        const month = anchor.getMonth();
+        const lastDay = new Date(year, month + 1, 0).getDate();
+        return {
+          start: `${year}-${String(month + 1).padStart(2, '0')}-01`,
+          end: `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
+        };
+      }
+      case 'annee': {
+        const year = anchor.getFullYear();
+        return { start: `${year}-01-01`, end: `${year}-12-31` };
+      }
+      default:
+        return { start: anchorIso, end: anchorIso };
+    }
+  }
+
+  /** Bornes de la période immédiatement précédente (jour/semaine/mois/année) par rapport à une date d'ancrage donnée. */
+  private previousPeriodBounds(anchorIso: string, period: RapportPeriod): RapportPeriodBounds {
+    const anchor = this.parseIsoDate(anchorIso);
+    switch (period) {
+      case 'semaine': {
+        const prevAnchor = new Date(anchor);
+        prevAnchor.setDate(prevAnchor.getDate() - 7);
+        return this.periodBounds(this.formatIsoDate(prevAnchor), period);
+      }
+      case 'mois': {
+        const prevAnchor = new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1);
+        return this.periodBounds(this.formatIsoDate(prevAnchor), period);
+      }
+      case 'annee': {
+        const prevAnchor = new Date(anchor.getFullYear() - 1, 0, 1);
+        return this.periodBounds(this.formatIsoDate(prevAnchor), period);
+      }
+      default: {
+        const d = new Date(anchor);
+        d.setDate(d.getDate() - 1);
+        const iso = this.formatIsoDate(d);
+        return { start: iso, end: iso };
+      }
+    }
+  }
+
+  /** Lundi (ISO) de la semaine contenant la date donnée. */
+  private startOfIsoWeek(d: Date): Date {
+    const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const day = date.getDay(); // 0 = dimanche
+    const diff = day === 0 ? -6 : 1 - day;
+    date.setDate(date.getDate() + diff);
+    return date;
+  }
+
+  /** Convertit une date en valeur "AAAA-Www" (semaine ISO 8601) pour l'input[type=week]. */
+  private toIsoWeekValue(d: Date): string {
+    const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const dayNumber = (target.getDay() + 6) % 7; // 0 = lundi
+    target.setDate(target.getDate() - dayNumber + 3); // jeudi de la semaine ISO
+    const firstThursday = new Date(target.getFullYear(), 0, 4);
+    const firstThursdayDay = (firstThursday.getDay() + 6) % 7;
+    firstThursday.setDate(firstThursday.getDate() - firstThursdayDay + 3);
+    const week = 1 + Math.round((target.getTime() - firstThursday.getTime()) / (7 * 86400000));
+    return `${target.getFullYear()}-W${String(week).padStart(2, '0')}`;
+  }
+
+  /** Reconstruit le lundi de la semaine ISO 8601 "année/numéro de semaine" donnée. */
+  private mondayOfIsoWeek(year: number, week: number): Date {
+    const jan4 = new Date(year, 0, 4);
+    const jan4Day = (jan4.getDay() + 6) % 7; // 0 = lundi
+    const week1Monday = new Date(jan4);
+    week1Monday.setDate(jan4.getDate() - jan4Day);
+    const target = new Date(week1Monday);
+    target.setDate(week1Monday.getDate() + (week - 1) * 7);
+    return target;
+  }
+
+  /** Chiffre d'affaires encaissé sur une période [début, fin] donnée (dates ISO incluses). */
+  private revenueForPeriod(bounds: RapportPeriodBounds): number {
+    return this._rawPaidOrders
+      .filter((o) => o.paid_at && this.isWithinRapportPeriod(o.paid_at, bounds))
+      .reduce((sum, o) => sum + o.quantity * o.unit_price, 0);
+  }
+
+  /** True si la date ISO (issue d'un timestamp) tombe dans les bornes [début, fin] données. */
+  private isWithinRapportPeriod(iso: string, bounds: RapportPeriodBounds): boolean {
+    const day = this.formatIsoDate(new Date(iso));
+    return day >= bounds.start && day <= bounds.end;
+  }
+
+  /** Chiffre d'affaires du rapport (période et, pour un jour, plage horaire sélectionnées). */
   rapportRevenue(): number {
     return this.rapportPaidOrders().reduce((sum, o) => sum + o.quantity * o.unit_price, 0);
   }
@@ -610,17 +828,73 @@ export class Cashier implements OnInit, OnDestroy {
     return new Set(this.rapportPaidOrders().map((o) => o.group_id)).size;
   }
 
-  /** Date du rapport, ex. "mardi 4 août 2026" — jour, mois et année en toutes lettres. */
+  /**
+   * Libellé de la période du rapport, adapté à la granularité sélectionnée :
+   * jour ("mardi 4 août 2026"), semaine ("Semaine du 4 au 10 août 2026") ou année ("Année 2026").
+   */
   rapportDateLabel(): string {
-    return this.parseIsoDate(this.rapportSelectedDate()).toLocaleDateString('fr-FR', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
+    const anchor = this.parseIsoDate(this.rapportSelectedDate());
+    switch (this.rapportPeriod()) {
+      case 'semaine': {
+        const { start, end } = this.rapportPeriodBounds();
+        const startLabel = this.parseIsoDate(start).toLocaleDateString('fr-FR', {
+          day: 'numeric',
+          month: 'long',
+        });
+        const endLabel = this.parseIsoDate(end).toLocaleDateString('fr-FR', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        });
+        return `Semaine du ${startLabel} au ${endLabel}`;
+      }
+      case 'mois': {
+        const label = anchor.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        return label.charAt(0).toUpperCase() + label.slice(1);
+      }
+      case 'annee':
+        return `Année ${anchor.getFullYear()}`;
+      default:
+        return anchor.toLocaleDateString('fr-FR', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        });
+    }
   }
 
-  /** Plage horaire couverte par le rapport : la sélection manuelle si définie, sinon la plage réelle des commandes. */
+  /** Titre du rapport tel qu'exporté, adapté à la granularité sélectionnée. */
+  rapportTitle(): string {
+    switch (this.rapportPeriod()) {
+      case 'semaine':
+        return 'Rapport de la semaine';
+      case 'mois':
+        return 'Rapport du mois';
+      case 'annee':
+        return "Rapport de l'année";
+      default:
+        return 'Rapport du jour';
+    }
+  }
+
+  /** Nom de fichier par défaut proposé lors de l'export, adapté à la granularité sélectionnée. */
+  private rapportDefaultFileName(): string {
+    switch (this.rapportPeriod()) {
+      case 'semaine': {
+        const { start, end } = this.rapportPeriodBounds();
+        return `rapport_semaine_${start}_au_${end}.xlsx`;
+      }
+      case 'mois':
+        return `rapport_mois_${this.rapportMonthInputValue()}.xlsx`;
+      case 'annee':
+        return `rapport_annee_${this.rapportYearInputValue()}.xlsx`;
+      default:
+        return `rapport_du_jour_${this.rapportSelectedDate()}.xlsx`;
+    }
+  }
+
+  /** Plage horaire couverte par le rapport (période "jour" uniquement) : la sélection manuelle si définie, sinon la plage réelle des commandes. */
   rapportTimeRange(): string {
     const filter = this.rapportTimeFilter();
     if (filter) return `${filter.start} – ${filter.end}`;
@@ -715,7 +989,7 @@ export class Cashier implements OnInit, OnDestroy {
       return rows.length - 1;
     };
 
-    const titleRow = pushRow(['Rapport du jour']);
+    const titleRow = pushRow([this.rapportTitle()]);
     const dateRow = pushRow([this.rapportDateLabel()]);
     pushRow([]);
 
@@ -723,10 +997,11 @@ export class Cashier implements OnInit, OnDestroy {
     currencyCells.push({ r: revenueRow, c: 1 });
 
     const trend = this.rapportRevenueTrend();
-    const previousRevenueRow = pushRow(['Chiffre d\'affaires (veille)', trend.previousRevenue]);
+    const comparisonLabel = this.rapportComparisonLabel();
+    const previousRevenueRow = pushRow([`Chiffre d'affaires (${comparisonLabel.toLowerCase()})`, trend.previousRevenue]);
     currencyCells.push({ r: previousRevenueRow, c: 1 });
     if (trend.changePercent !== null) {
-      pushRow(['Évolution vs veille', `${trend.changePercent >= 0 ? '+' : ''}${trend.changePercent}%`]);
+      pushRow([`Évolution vs ${comparisonLabel.toLowerCase()}`, `${trend.changePercent >= 0 ? '+' : ''}${trend.changePercent}%`]);
     }
 
     pushRow(['Clients servis', this.rapportClientsCount()]);
@@ -736,7 +1011,7 @@ export class Cashier implements OnInit, OnDestroy {
 
     pushRow(['Articles vendus', this.rapportItemsCount()]);
 
-    if (this.rapportTimeRange()) {
+    if (this.rapportPeriod() === 'jour' && this.rapportTimeRange()) {
       pushRow(['Plage horaire', this.rapportTimeRange()]);
     }
 
@@ -810,8 +1085,7 @@ export class Cashier implements OnInit, OnDestroy {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Rapport');
 
-    const isoDate = this.rapportSelectedDate();
-    const defaultFileName = `rapport_du_jour_${isoDate}.xlsx`;
+    const defaultFileName = this.rapportDefaultFileName();
 
     // Laisse l'utilisateur choisir le dossier de destination et le nom du fichier.
     let destinationPath: string | null;
@@ -840,40 +1114,22 @@ export class Cashier implements OnInit, OnDestroy {
     }
   }
 
-  /** Commandes payées appartenant à la date sélectionnée et, le cas échéant, à la plage horaire choisie — seule base du rapport. */
+  /**
+   * Commandes payées appartenant à la période sélectionnée (jour/semaine/année) et, uniquement en
+   * mode "jour", à la plage horaire choisie — seule base du rapport.
+   */
   private rapportPaidOrders(): Order[] {
+    const bounds = this.rapportPeriodBounds();
     return this._rawPaidOrders.filter(
       (o) =>
         o.paid_at &&
-        this.isSelectedRapportDate(o.paid_at) &&
+        this.isWithinRapportPeriod(o.paid_at, bounds) &&
         this.isWithinRapportTimeFilter(o.paid_at),
     );
   }
 
-  private isSelectedRapportDate(iso: string): boolean {
-    return this.formatIsoDate(new Date(iso)) === this.rapportSelectedDate();
-  }
-
-  /** Chiffre d'affaires encaissé sur une date ISO donnée, en tenant compte de la plage horaire sélectionnée. */
-  private revenueForDate(isoDate: string): number {
-    return this._rawPaidOrders
-      .filter(
-        (o) =>
-          o.paid_at &&
-          this.formatIsoDate(new Date(o.paid_at)) === isoDate &&
-          this.isWithinRapportTimeFilter(o.paid_at),
-      )
-      .reduce((sum, o) => sum + o.quantity * o.unit_price, 0);
-  }
-
-  /** Date ISO du jour précédant celui actuellement sélectionné dans le rapport. */
-  private previousRapportDate(): string {
-    const d = this.parseIsoDate(this.rapportSelectedDate());
-    d.setDate(d.getDate() - 1);
-    return this.formatIsoDate(d);
-  }
-
   private isWithinRapportTimeFilter(iso: string): boolean {
+    if (this.rapportPeriod() !== 'jour') return true;
     const filter = this.rapportTimeFilter();
     if (!filter) return true;
     const date = new Date(iso);

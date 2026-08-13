@@ -232,12 +232,12 @@
         <div class="flex items-center justify-between">
           <div class="relative">
             <h2 id="rapport-heading" class="text-base font-semibold text-[#1A1A1A]">Rapport</h2>
-            <button (click)="toggleRapportDatePicker()" [attr.aria-pressed]="isRapportCustomDate()"
-              [class]="isRapportCustomDate() ? 'text-[#1E3A5F] font-semibold' : 'text-gray-400 hover:text-[#1E3A5F]'"
+            <button (click)="toggleRapportDatePicker()" [attr.aria-pressed]="isRapportCustomPeriod()"
+              [class]="isRapportCustomPeriod() ? 'text-[#1E3A5F] font-semibold' : 'text-gray-400 hover:text-[#1E3A5F]'"
               class="flex items-center gap-1 text-xs mt-0.5 capitalize
                      focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
               aria-haspopup="dialog" [attr.aria-expanded]="showRapportDatePicker()"
-              title="Choisir une date">
+              title="Choisir une période">
               <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round"/>
                 <path stroke-linecap="round" stroke-linejoin="round" d="M16 2v4M8 2v4M3 10h18"/>
@@ -248,6 +248,7 @@
             @if (showRapportDatePicker()) {
             <div class="absolute left-0 top-full mt-1 z-10 bg-white border border-gray-200 rounded-lg shadow-lg p-3"
                  (click)="$event.stopPropagation()">
+              @if (rapportPeriod() === 'jour') {
               <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5" for="rapport-date-input">
                 Choisir une date
               </label>
@@ -255,6 +256,31 @@
                 (change)="onRapportDateChange($any($event.target).value)"
                 class="text-sm border border-gray-200 rounded-md px-2 py-1.5 text-gray-700
                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]" />
+              } @else if (rapportPeriod() === 'semaine') {
+              <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5" for="rapport-week-input">
+                Choisir une semaine
+              </label>
+              <input id="rapport-week-input" type="week" [value]="rapportWeekInputValue()"
+                (change)="onRapportWeekChange($any($event.target).value)"
+                class="text-sm border border-gray-200 rounded-md px-2 py-1.5 text-gray-700
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]" />
+              } @else if (rapportPeriod() === 'mois') {
+              <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5" for="rapport-month-input">
+                Choisir un mois
+              </label>
+              <input id="rapport-month-input" type="month" [value]="rapportMonthInputValue()"
+                (change)="onRapportMonthChange($any($event.target).value)"
+                class="text-sm border border-gray-200 rounded-md px-2 py-1.5 text-gray-700
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]" />
+              } @else {
+              <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5" for="rapport-year-input">
+                Choisir une année
+              </label>
+              <input id="rapport-year-input" type="number" min="2000" max="2100" [value]="rapportYearInputValue()"
+                (change)="onRapportYearChange($any($event.target).value)"
+                class="text-sm border border-gray-200 rounded-md px-2 py-1.5 text-gray-700 w-24
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]" />
+              }
             </div>
             }
           </div>
@@ -288,24 +314,60 @@
           </div>
         </div>
 
-        <!-- Quick date presets: the "single click" a cashier reaches for at open/close of shift, -->
-        <!-- rather than hunting through the date picker every time — POS-report convention. -->
-        <div class="flex items-center gap-1.5 mt-3" role="group" aria-label="Raccourcis de date du rapport">
-          <button (click)="setRapportToday()" [attr.aria-pressed]="isRapportToday()"
-            [class]="isRapportToday()
+        <!-- Period selector: jour / semaine / année — determines the granularity of every figure below. -->
+        <div class="flex items-center gap-1.5 mt-3" role="group" aria-label="Granularité du rapport">
+          <button (click)="setRapportPeriod('jour')" [attr.aria-pressed]="rapportPeriod() === 'jour'"
+            [class]="rapportPeriod() === 'jour'
               ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]'
               : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
             class="text-xs font-medium px-2.5 py-1 rounded-full border transition-colors
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-            Aujourd'hui
+            Jour
           </button>
-          <button (click)="setRapportYesterday()" [attr.aria-pressed]="isRapportYesterday()"
-            [class]="isRapportYesterday()
+          <button (click)="setRapportPeriod('semaine')" [attr.aria-pressed]="rapportPeriod() === 'semaine'"
+            [class]="rapportPeriod() === 'semaine'
               ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]'
               : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
             class="text-xs font-medium px-2.5 py-1 rounded-full border transition-colors
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-            Hier
+            Semaine
+          </button>
+          <button (click)="setRapportPeriod('mois')" [attr.aria-pressed]="rapportPeriod() === 'mois'"
+            [class]="rapportPeriod() === 'mois'
+              ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]'
+              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
+            class="text-xs font-medium px-2.5 py-1 rounded-full border transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            Mois
+          </button>
+          <button (click)="setRapportPeriod('annee')" [attr.aria-pressed]="rapportPeriod() === 'annee'"
+            [class]="rapportPeriod() === 'annee'
+              ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]'
+              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
+            class="text-xs font-medium px-2.5 py-1 rounded-full border transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            Année
+          </button>
+        </div>
+
+        <!-- Quick period presets: the "single click" a cashier reaches for at open/close of shift, -->
+        <!-- rather than hunting through the date picker every time — POS-report convention. -->
+        <div class="flex items-center gap-1.5 mt-1.5" role="group" aria-label="Raccourcis de période du rapport">
+          <button (click)="setRapportCurrentPeriod()" [attr.aria-pressed]="isRapportCurrentPeriod()"
+            [class]="isRapportCurrentPeriod()
+              ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]'
+              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
+            class="text-xs font-medium px-2.5 py-1 rounded-full border transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            {{ rapportCurrentPeriodLabel() }}
+          </button>
+          <button (click)="setRapportPreviousPeriod()" [attr.aria-pressed]="isRapportPreviousPeriod()"
+            [class]="isRapportPreviousPeriod()
+              ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]'
+              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
+            class="text-xs font-medium px-2.5 py-1 rounded-full border transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            {{ rapportPreviousPeriodLabel() }}
           </button>
         </div>
       </div>
@@ -322,14 +384,14 @@
                 ? 'bg-emerald-400/20 text-emerald-300'
                 : 'bg-red-400/20 text-red-300'"
               class="text-[11px] font-semibold px-2 py-0.5 rounded-full tabular-nums"
-              title="Comparé à la veille">
+              [title]="'Comparé à : ' + rapportComparisonLabel().toLowerCase()">
               {{ (rapportRevenueTrend().changePercent ?? 0) >= 0 ? '+' : '' }}{{ rapportRevenueTrend().changePercent }}%
             </span>
             }
           </div>
           <p class="text-3xl font-bold tabular-nums leading-tight">{{ rapportRevenue() | number:'1.0-0' }} Ar</p>
           <p class="text-xs text-white/60 mt-1">
-            Veille : {{ rapportRevenueTrend().previousRevenue | number:'1.0-0' }} Ar
+            {{ rapportComparisonLabel() }} : {{ rapportRevenueTrend().previousRevenue | number:'1.0-0' }} Ar
           </p>
         </div>
 
@@ -353,6 +415,8 @@
           </div>
         </div>
 
+        <!-- Time-of-day filter only makes sense within a single day. -->
+        @if (rapportPeriod() === 'jour') {
         <div class="relative flex justify-between items-center py-3 border-b border-gray-100 mb-1">
           <span class="text-sm text-gray-600">Plage horaire</span>
           <button (click)="toggleRapportTimePicker()"
@@ -427,6 +491,7 @@
           </div>
           }
         </div>
+        }
 
         <!-- Per-comptoir breakdown: an aggregate a cashier can't get from Historique, which only -->
         <!-- lets you filter one comptoir's raw transaction list at a time. -->
