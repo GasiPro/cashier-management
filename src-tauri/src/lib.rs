@@ -193,18 +193,21 @@ async fn get_connected_devices_list(peers: &PeerMap) -> Vec<ConnectedDevice> {
 
 // ── Tauri Commands ────────────────────────────────────────────────────────────
 
-/// Returns the local LAN WebSocket address for this machine (e.g. ws://192.168.1.5:8080).
+/// Returns the local LAN address for this machine (e.g. 192.168.1.5:8080).
+///
+/// Deliberately scheme-less: this is shown/copied straight into the UI, and
+/// "ws://" is implementation detail that isn't meaningful to end users.
 #[tauri::command]
 fn get_ws_address() -> String {
     use std::net::UdpSocket;
     if let Ok(s) = UdpSocket::bind("0.0.0.0:0") {
         if s.connect("8.8.8.8:80").is_ok() {
             if let Ok(addr) = s.local_addr() {
-                return format!("ws://{}:8080", addr.ip());
+                return format!("{}:8080", addr.ip());
             }
         }
     }
-    "ws://127.0.0.1:8080".to_string()
+    "127.0.0.1:8080".to_string()
 }
 
 #[tauri::command]

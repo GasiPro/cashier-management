@@ -41,6 +41,9 @@ export class LoginComponent implements OnInit, OnDestroy {
   loadingWsAddress = signal(false);
   counterError = signal('');
 
+  /** Result of probing counterWsUrl for a running server, shown as a hint/warning. */
+  addressCheck = signal<'idle' | 'checking' | 'reachable' | 'unreachable'>('idle');
+
   private clockInterval: ReturnType<typeof setInterval> | null = null;
   private wsSubscription?: Subscription;
   private openSubscription?: Subscription;
@@ -101,7 +104,7 @@ export class LoginComponent implements OnInit, OnDestroy {
       const addr = await invoke<string>('get_ws_address');
       this.wsAddress.set(addr);
     } catch {
-      this.wsAddress.set('ws://127.0.0.1:8080');
+      this.wsAddress.set(DEFAULT_WS);
     } finally {
       this.loadingWsAddress.set(false);
     }
@@ -121,6 +124,26 @@ export class LoginComponent implements OnInit, OnDestroy {
   }
 
   // ── Counter flow ───────────────────────────────────────────────────────────
+
+  /** Resets the address check hint — called whenever the address field is edited. */
+  onCounterWsUrlChanged(): void {
+    this.addressCheck.set('idle');
+  }
+
+  /** Probes counterWsUrl for a running server and updates addressCheck accordingly. */
+  async checkCounterWsUrl(): Promise<void> {
+    const raw = this.counterWsUrl.trim();
+    if (!raw) {
+      this.addressCheck.set('idle');
+      return;
+    }
+    this.addressCheck.set('checking');
+    const fullUrl = raw.startsWith('ws://') ? raw : `ws://${raw}`;
+    const reachable = await this.ws.checkAddress(fullUrl);
+    // Ignore a stale result if the field changed while we were checking.
+    if (this.counterWsUrl.trim() !== raw) return;
+    this.addressCheck.set(reachable ? 'reachable' : 'unreachable');
+  }
 
   connectAsCounter(): void {
     if (!this.counterUsername.trim() || !this.counterWsUrl.trim()) return;
@@ -169,6 +192,7 @@ export class LoginComponent implements OnInit, OnDestroy {
   retryConnection(): void {
     this.step.set('counter-setup');
     this.counterError.set('');
+    this.addressCheck.set('idle');
   }
 
   goBack(): void {

@@ -226,7 +226,7 @@ export class Cashier implements OnInit, OnDestroy {
     // Load WS address for display in header
     invoke<string>('get_ws_address')
       .then((addr) => this.wsAddress.set(addr))
-      .catch(() => this.wsAddress.set('ws://127.0.0.1:8080'));
+      .catch(() => this.wsAddress.set('127.0.0.1:8080'));
 
     // Subscribe to messages
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {

@@ -87,6 +87,42 @@ export class WebsocketService implements OnDestroy {
     return this.socket?.readyState === WebSocket.OPEN;
   }
 
+  /**
+   * Probe whether a WS server is reachable at the given address, without
+   * touching the main connection. Opens a throwaway socket and resolves
+   * `true` if it connects before `timeoutMs`, `false` otherwise.
+   */
+  checkAddress(url: string, timeoutMs = 3000): Promise<boolean> {
+    return new Promise((resolve) => {
+      let settled = false;
+      let probe: WebSocket;
+
+      const finish = (result: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        probe.onopen = null;
+        probe.onerror = null;
+        probe.onclose = null;
+        probe.close();
+        resolve(result);
+      };
+
+      const timer = setTimeout(() => finish(false), timeoutMs);
+
+      try {
+        probe = new WebSocket(url);
+      } catch {
+        clearTimeout(timer);
+        resolve(false);
+        return;
+      }
+
+      probe.onopen = () => finish(true);
+      probe.onerror = () => finish(false);
+    });
+  }
+
   /** Send a JSON-serializable payload. Silently dropped if not connected. */
   send(payload: unknown): void {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {

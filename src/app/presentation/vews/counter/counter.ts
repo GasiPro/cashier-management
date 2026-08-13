@@ -148,6 +148,8 @@ export class Counter implements OnInit, OnDestroy {
   showServerPanel = false;
   showHistoriquePanel = false;
   newCashierHost = '';
+  /** Result of probing newCashierHost for a running server, shown as a hint/warning. */
+  newCashierAddressCheck = signal<'idle' | 'checking' | 'reachable' | 'unreachable'>('idle');
 
   // ── Cart line notes ──────────────────────────────────────────────────────────
   /** ids of cart items whose observation field is expanded. */
@@ -250,11 +252,32 @@ export class Counter implements OnInit, OnDestroy {
     this.router.navigate(['/login']);
   }
 
+  /** Resets the address check hint — called whenever the field is edited. */
+  onNewCashierHostChanged(): void {
+    this.newCashierAddressCheck.set('idle');
+  }
+
+  /** Probes newCashierHost for a running server and updates newCashierAddressCheck. */
+  async checkNewCashierHost(): Promise<void> {
+    const raw = this.newCashierHost.trim();
+    if (!raw) {
+      this.newCashierAddressCheck.set('idle');
+      return;
+    }
+    this.newCashierAddressCheck.set('checking');
+    const fullUrl = raw.startsWith('ws://') ? raw : `ws://${raw}`;
+    const reachable = await this.ws.checkAddress(fullUrl);
+    // Ignore a stale result if the field changed while we were checking.
+    if (this.newCashierHost.trim() !== raw) return;
+    this.newCashierAddressCheck.set(reachable ? 'reachable' : 'unreachable');
+  }
+
   connectToNewCashier(): void {
     const host = this.newCashierHost.trim();
     if (!host) return;
 
     this.showServerPanel = false;
+    this.newCashierAddressCheck.set('idle');
     this.cashierHost = host;
     localStorage.setItem(LS_CASHIER_URL, host);
 
