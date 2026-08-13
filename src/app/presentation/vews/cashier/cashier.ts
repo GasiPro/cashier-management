@@ -158,16 +158,11 @@ export class Cashier implements OnInit, OnDestroy {
   /** True while the xlsx export is in progress — drives aria-busy/disabled on the export button. */
   exportingRapport = signal(false);
 
-  // ── Rapport: selected period / date / time-range filters ─────────────────────
-  /** Granularité actuellement affichée : jour, semaine (ISO, lundi–dimanche) ou année civile. */
+  // ── Rapport: selected period / date ───────────────────────────────────────────
+  /** Granularité actuellement affichée : jour, semaine (lundi–samedi), mois civil ou année civile. */
   rapportPeriod = signal<RapportPeriod>('jour');
   rapportSelectedDate = signal<string>(this.formatIsoDate(new Date()));
   showRapportDatePicker = signal(false);
-  rapportTimeFilter = signal<{ start: string; end: string } | null>(null);
-  rapportTimeFilterDraft = signal<{ start: string; end: string }>({ start: '', end: '' });
-  /** Mode choisi dans le sélecteur de plage horaire : 'all' = toute la journée (bornes déduites des commandes), 'range' = plage saisie manuellement. */
-  rapportTimeFilterMode = signal<'all' | 'range'>('all');
-  showRapportTimePicker = signal(false);
   wsAddress = signal('');
   /** Order group currently shown in the full-detail modal, if any. */
   selectedGroup = signal<OrderGroup | null>(null);
@@ -584,15 +579,12 @@ export class Cashier implements OnInit, OnDestroy {
   setRapportPeriod(period: RapportPeriod): void {
     if (this.rapportPeriod() === period) return;
     this.rapportPeriod.set(period);
-    this.rapportTimeFilter.set(null);
     this.showRapportDatePicker.set(false);
-    this.showRapportTimePicker.set(false);
   }
 
   /** Positionne le rapport sur la période courante (aujourd'hui / semaine en cours / année en cours). */
   setRapportCurrentPeriod(): void {
     this.rapportSelectedDate.set(this.formatIsoDate(new Date()));
-    this.rapportTimeFilter.set(null);
     this.showRapportDatePicker.set(false);
   }
 
@@ -601,7 +593,6 @@ export class Cashier implements OnInit, OnDestroy {
     const todayIso = this.formatIsoDate(new Date());
     const previous = this.previousPeriodBounds(todayIso, this.rapportPeriod());
     this.rapportSelectedDate.set(previous.start);
-    this.rapportTimeFilter.set(null);
     this.showRapportDatePicker.set(false);
   }
 
@@ -724,9 +715,10 @@ export class Cashier implements OnInit, OnDestroy {
     const anchor = this.parseIsoDate(anchorIso);
     switch (period) {
       case 'semaine': {
+        // Semaine commerciale : du lundi au samedi (pas de dimanche).
         const start = this.startOfIsoWeek(anchor);
         const end = new Date(start);
-        end.setDate(end.getDate() + 6);
+        end.setDate(end.getDate() + 5);
         return { start: this.formatIsoDate(start), end: this.formatIsoDate(end) };
       }
       case 'mois': {
@@ -829,31 +821,46 @@ export class Cashier implements OnInit, OnDestroy {
   }
 
   /**
-   * Libellé de la période du rapport, adapté à la granularité sélectionnée :
-   * jour ("mardi 4 août 2026"), semaine ("Semaine du 4 au 10 août 2026") ou année ("Année 2026").
+   * Bornes [début, fin] réellement couvertes par les commandes du rapport : du jour de la première
+   * à celui de la dernière commande encaissée dans les bornes calendaires données. À défaut de
+   * commande, retombe sur les bornes calendaires elles-mêmes.
+   */
+  private rapportOrdersDateBounds(bounds: RapportPeriodBounds): RapportPeriodBounds {
+    const days = this._rawPaidOrders
+      .filter((o) => o.paid_at && this.isWithinRapportPeriod(o.paid_at, bounds))
+      .map((o) => this.formatIsoDate(new Date(o.paid_at as string)))
+      .sort();
+    if (days.length === 0) return bounds;
+    return { start: days[0], end: days[days.length - 1] };
+  }
+
+  /** Libellé "4 au 10 août 2026" (ou date unique si début = fin) pour des bornes de dates ISO données. */
+  private rapportRangeLabel(bounds: RapportPeriodBounds): string {
+    const startLabel = this.parseIsoDate(bounds.start).toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+    });
+    const endLabel = this.parseIsoDate(bounds.end).toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+    return bounds.start === bounds.end ? endLabel : `${startLabel} au ${endLabel}`;
+  }
+
+  /**
+   * Libellé de la période du rapport, adapté à la granularité sélectionnée : jour ("mardi 4 août
+   * 2026"), ou, pour semaine/mois/année, le jour de la première à la dernière commande encaissée
+   * dans la période ("Semaine du 4 au 8 août 2026", "4 au 29 août 2026", "3 janvier au 20 décembre 2026").
    */
   rapportDateLabel(): string {
     const anchor = this.parseIsoDate(this.rapportSelectedDate());
     switch (this.rapportPeriod()) {
-      case 'semaine': {
-        const { start, end } = this.rapportPeriodBounds();
-        const startLabel = this.parseIsoDate(start).toLocaleDateString('fr-FR', {
-          day: 'numeric',
-          month: 'long',
-        });
-        const endLabel = this.parseIsoDate(end).toLocaleDateString('fr-FR', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-        });
-        return `Semaine du ${startLabel} au ${endLabel}`;
-      }
-      case 'mois': {
-        const label = anchor.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-        return label.charAt(0).toUpperCase() + label.slice(1);
-      }
+      case 'semaine':
+        return `Semaine du ${this.rapportRangeLabel(this.rapportOrdersDateBounds(this.rapportPeriodBounds()))}`;
+      case 'mois':
       case 'annee':
-        return `Année ${anchor.getFullYear()}`;
+        return this.rapportRangeLabel(this.rapportOrdersDateBounds(this.rapportPeriodBounds()));
       default:
         return anchor.toLocaleDateString('fr-FR', {
           weekday: 'long',
@@ -894,10 +901,8 @@ export class Cashier implements OnInit, OnDestroy {
     }
   }
 
-  /** Plage horaire couverte par le rapport (période "jour" uniquement) : la sélection manuelle si définie, sinon la plage réelle des commandes. */
+  /** Plage horaire couverte par le rapport (période "jour" uniquement) : de la première à la dernière commande encaissée ce jour-là. */
   rapportTimeRange(): string {
-    const filter = this.rapportTimeFilter();
-    if (filter) return `${filter.start} – ${filter.end}`;
     const orders = this.rapportPaidOrders();
     if (orders.length === 0) return '';
     const timestamps = orders
@@ -911,7 +916,6 @@ export class Cashier implements OnInit, OnDestroy {
   /** Ouvre/ferme le sélecteur de date du rapport. */
   toggleRapportDatePicker(): void {
     this.showRapportDatePicker.update((v) => !v);
-    this.showRapportTimePicker.set(false);
   }
 
   /** Applique la date choisie dans le sélecteur du rapport. */
@@ -919,46 +923,6 @@ export class Cashier implements OnInit, OnDestroy {
     if (!value) return;
     this.rapportSelectedDate.set(value);
     this.showRapportDatePicker.set(false);
-  }
-
-  /** Ouvre/ferme le sélecteur de plage horaire du rapport. */
-  toggleRapportTimePicker(): void {
-    const current = this.rapportTimeFilter();
-    this.rapportTimeFilterDraft.set(current ? { ...current } : { start: '', end: '' });
-    this.rapportTimeFilterMode.set(current ? 'range' : 'all');
-    this.showRapportTimePicker.update((v) => !v);
-    this.showRapportDatePicker.set(false);
-  }
-
-  /** Sélectionne le mode du filtre horaire : toute la journée (bornes calculées) ou plage spécifique. */
-  setRapportTimeFilterMode(mode: 'all' | 'range'): void {
-    this.rapportTimeFilterMode.set(mode);
-  }
-
-  /** Met à jour l'heure de début ou de fin en cours de saisie dans le sélecteur de plage horaire. */
-  updateRapportTimeDraft(field: 'start' | 'end', value: string): void {
-    this.rapportTimeFilterDraft.update((d) => ({ ...d, [field]: value }));
-  }
-
-  /** Valide le mode choisi dans le sélecteur (toute la journée ou plage saisie) et l'applique au rapport. */
-  applyRapportTimeFilter(): void {
-    if (this.rapportTimeFilterMode() === 'all') {
-      this.clearRapportTimeFilter();
-      return;
-    }
-    const { start, end } = this.rapportTimeFilterDraft();
-    if (start && end) {
-      this.rapportTimeFilter.set({ start, end });
-    }
-    this.showRapportTimePicker.set(false);
-  }
-
-  /** Retire le filtre de plage horaire du rapport (affiche à nouveau toute la journée, bornes déduites des commandes). */
-  clearRapportTimeFilter(): void {
-    this.rapportTimeFilter.set(null);
-    this.rapportTimeFilterDraft.set({ start: '', end: '' });
-    this.rapportTimeFilterMode.set('all');
-    this.showRapportTimePicker.set(false);
   }
 
   /** Affiche un toast temporaire (auto-masqué après 3s), annoncé aux lecteurs d'écran via aria-live. */
@@ -1114,28 +1078,10 @@ export class Cashier implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * Commandes payées appartenant à la période sélectionnée (jour/semaine/année) et, uniquement en
-   * mode "jour", à la plage horaire choisie — seule base du rapport.
-   */
+  /** Commandes payées appartenant à la période sélectionnée (jour/semaine/mois/année) — seule base du rapport. */
   private rapportPaidOrders(): Order[] {
     const bounds = this.rapportPeriodBounds();
-    return this._rawPaidOrders.filter(
-      (o) =>
-        o.paid_at &&
-        this.isWithinRapportPeriod(o.paid_at, bounds) &&
-        this.isWithinRapportTimeFilter(o.paid_at),
-    );
-  }
-
-  private isWithinRapportTimeFilter(iso: string): boolean {
-    if (this.rapportPeriod() !== 'jour') return true;
-    const filter = this.rapportTimeFilter();
-    if (!filter) return true;
-    const date = new Date(iso);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const time = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-    return time >= filter.start && time <= filter.end;
+    return this._rawPaidOrders.filter((o) => o.paid_at && this.isWithinRapportPeriod(o.paid_at, bounds));
   }
 
   /** Formate une date locale en "AAAA-MM-JJ", utilisable dans un input[type=date]. */
