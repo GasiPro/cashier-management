@@ -1004,7 +1004,7 @@ export class Cashier implements OnInit, OnDestroy {
       pushRow([`Évolution vs ${comparisonLabel.toLowerCase()}`, `${trend.changePercent >= 0 ? '+' : ''}${trend.changePercent}%`]);
     }
 
-    pushRow(['Clients servis', this.rapportClientsCount()]);
+    pushRow(['Transactions', this.rapportClientsCount()]);
 
     const avgBasketRow = pushRow(['Panier moyen', this.rapportAverageBasket()]);
     currencyCells.push({ r: avgBasketRow, c: 1 });
@@ -1018,7 +1018,7 @@ export class Cashier implements OnInit, OnDestroy {
     const counters = this.rapportByCounter();
     if (counters.length > 1) {
       pushRow([]);
-      pushRow(['Comptoir', 'Clients', 'Total (Ar)']);
+      pushRow(['Comptoir', 'Transactions', 'Total (Ar)']);
       for (const counter of counters) {
         const r = pushRow([counter.username, counter.clients, counter.total]);
         currencyCells.push({ r, c: 2 });
