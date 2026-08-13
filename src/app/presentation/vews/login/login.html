@@ -121,7 +121,7 @@
           <!-- WS address -->
           <div>
             <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
-              Adresse WS à partager aux comptoirs
+              Adresse à partager aux comptoirs
             </label>
             @if (loadingWsAddress()) {
             <div class="flex items-center gap-2 py-3 px-4 border border-gray-100 rounded-lg bg-gray-50">
@@ -203,19 +203,49 @@
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
-              Adresse de la caisse (WS)
+            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5" id="counter-ws-url-label">
+              Adresse de la caisse
             </label>
             <input
               type="text"
               [(ngModel)]="counterWsUrl"
+              (input)="onCounterWsUrlChanged()"
+              (blur)="checkCounterWsUrl()"
               (keydown.enter)="connectAsCounter()"
               placeholder="ex : 192.168.1.5:8080"
+              autocomplete="off"
+              spellcheck="false"
+              aria-labelledby="counter-ws-url-label"
+              aria-describedby="counter-ws-url-hint"
               class="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm font-mono text-[#1A1A1A]
                      focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
-            <p class="text-xs text-gray-400 mt-1.5">
-              Obtenez cette adresse depuis la page de configuration du caissier.
-            </p>
+            <div id="counter-ws-url-hint" aria-live="polite">
+              @if (addressCheck() === 'checking') {
+              <p class="text-xs text-gray-400 mt-1.5 flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full border-2 border-gray-300 border-t-transparent animate-spin inline-block"></span>
+                Vérification de l'adresse…
+              </p>
+              } @else if (addressCheck() === 'unreachable') {
+              <p class="text-xs text-amber-600 mt-1.5 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-8.94 3.94h.008v.008h-.008v-.008z" />
+                </svg>
+                Aucun serveur trouvé à cette adresse. Vérifiez-la avant de continuer.
+              </p>
+              } @else if (addressCheck() === 'reachable') {
+              <p class="text-xs text-emerald-600 mt-1.5 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+                Serveur détecté à cette adresse.
+              </p>
+              } @else {
+              <p class="text-xs text-gray-400 mt-1.5">
+                Obtenez cette adresse depuis la page de configuration du caissier.
+              </p>
+              }
+            </div>
           </div>
 
           <button
