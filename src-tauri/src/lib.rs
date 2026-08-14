@@ -489,6 +489,58 @@ async fn update_cashier_account(
     Ok(updated)
 }
 
+/// Suspend a cashier account: a reversible block. The account and its order
+/// history are left untouched on disk — it's only flagged so it can no
+/// longer be used to log in until an admin reactivates it. Distinct from
+/// `delete_cashier_account`, which is permanent. Called from the Réglages UI
+/// via invoke().
+#[tauri::command]
+async fn suspend_cashier_account(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    username: String,
+) -> Result<accounts::CashierAccountView, String> {
+    let mut guard = state.cashier_accounts.lock().unwrap();
+    let account =
+        accounts::find_account_mut(&mut guard, &username).ok_or_else(|| "Compte introuvable.".to_string())?;
+    accounts::suspend(account);
+    let updated = accounts::CashierAccountView::from(&*account);
+    accounts::save(&app, &guard)?;
+    Ok(updated)
+}
+
+/// Reactivate a previously suspended cashier account, restoring its access.
+/// Called from the Réglages UI via invoke().
+#[tauri::command]
+async fn reactivate_cashier_account(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    username: String,
+) -> Result<accounts::CashierAccountView, String> {
+    let mut guard = state.cashier_accounts.lock().unwrap();
+    let account =
+        accounts::find_account_mut(&mut guard, &username).ok_or_else(|| "Compte introuvable.".to_string())?;
+    accounts::reactivate(account);
+    let updated = accounts::CashierAccountView::from(&*account);
+    accounts::save(&app, &guard)?;
+    Ok(updated)
+}
+
+/// Permanently delete a cashier account. Unlike suspension this is
+/// irreversible — the account is dropped from the list for good, with no
+/// "undo". The frontend is expected to gate this behind an explicit
+/// confirmation step before calling it. Called from the Réglages UI via
+/// invoke().
+#[tauri::command]
+async fn delete_cashier_account(app: tauri::AppHandle, state: State<'_, AppState>, username: String) -> Result<(), String> {
+    let mut guard = state.cashier_accounts.lock().unwrap();
+    if !accounts::remove_account(&mut guard, &username) {
+        return Err("Compte introuvable.".to_string());
+    }
+    accounts::save(&app, &guard)?;
+    Ok(())
+}
+
 /// Write raw bytes to an absolute path chosen by the user (e.g. via a save dialog).
 /// Used by the cashier UI to export the daily report (rapport du jour) as an Excel file.
 #[tauri::command]
@@ -776,6 +828,9 @@ pub fn run() {
             create_cashier_account,
             list_cashier_accounts,
             update_cashier_account,
+            suspend_cashier_account,
+            reactivate_cashier_account,
+            delete_cashier_account,
             save_binary_file,
         ])
         .run(tauri::generate_context!())

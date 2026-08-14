@@ -148,7 +148,8 @@
           </h2>
           <p class="text-xs text-gray-400 mt-0.5">
             Créez un compte pour un poste caisse. Le nom d'utilisateur ne pourra plus être modifié une fois le
-            compte créé ; le nom affiché et le mot de passe, eux, peuvent l'être à tout moment.
+            compte créé ; le nom affiché et le mot de passe, eux, peuvent l'être à tout moment. Un compte peut être
+            suspendu (temporaire, réversible) ou supprimé définitivement (irréversible).
           </p>
         </div>
 
@@ -165,16 +166,27 @@
           <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg"
             [attr.aria-label]="accounts().length + ' compte(s) caissier créé(s)'">
             @for (account of accounts(); track account.username) {
-            <li class="px-3 py-2.5">
+            <li class="px-3 py-2.5" [class.bg-gray-50]="account.status === 'suspended'">
               <div class="flex items-center gap-3">
                 <div class="w-8 h-8 rounded-full bg-[#1E3A5F]/10 text-[#1E3A5F] text-xs font-semibold
-                            flex items-center justify-center flex-shrink-0 uppercase" aria-hidden="true">
+                            flex items-center justify-center flex-shrink-0 uppercase"
+                  [class.opacity-50]="account.status === 'suspended'" aria-hidden="true">
                   {{ (account.display_name || account.username).charAt(0) }}
                 </div>
                 <div class="min-w-0 flex-1">
-                  <p class="text-sm font-medium text-[#1A1A1A] truncate">
-                    {{ account.display_name || account.username }}
-                  </p>
+                  <div class="flex items-center gap-2">
+                    <p class="text-sm font-medium text-[#1A1A1A] truncate"
+                      [class.text-gray-400]="account.status === 'suspended'">
+                      {{ account.display_name || account.username }}
+                    </p>
+                    @if (account.status === 'suspended') {
+                    <span class="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide
+                                 text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5
+                                 flex-shrink-0">
+                      Suspendu
+                    </span>
+                    }
+                  </div>
                   @if (account.display_name) {
                   <p class="text-xs text-gray-400 truncate">{{ account.username }}</p>
                   } @else {
@@ -182,19 +194,99 @@
                   }
                   <p class="text-xs text-gray-400">Créé le {{ formatAccountDate(account.created_at) }}</p>
                 </div>
-                <button type="button" [id]="'account-edit-btn-' + account.username"
-                  (click)="editingUsername() === account.username ? cancelEditAccount() : startEditAccount(account)"
-                  [attr.aria-expanded]="editingUsername() === account.username"
-                  [attr.aria-controls]="'account-edit-panel-' + account.username"
-                  [attr.aria-label]="(editingUsername() === account.username ? 'Fermer la modification du compte ' : 'Modifier le compte ') + (account.display_name || account.username)"
-                  class="flex-shrink-0 text-gray-400 hover:text-[#1E3A5F] p-2 rounded-md transition-colors
-                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z" />
-                  </svg>
-                </button>
+                <div class="flex items-center flex-shrink-0 gap-0.5">
+                  @if (account.status === 'suspended') {
+                  <button type="button" [id]="'account-suspend-toggle-' + account.username"
+                    (click)="reactivateAccount(account)"
+                    [disabled]="togglingStatusUsername() === account.username"
+                    [attr.aria-busy]="togglingStatusUsername() === account.username"
+                    [attr.aria-label]="'Réactiver le compte ' + (account.display_name || account.username)"
+                    class="text-gray-400 hover:text-emerald-600 p-2 rounded-md transition-colors
+                           disabled:opacity-40
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                    </svg>
+                  </button>
+                  } @else {
+                  <button type="button" [id]="'account-suspend-toggle-' + account.username"
+                    (click)="suspendAccount(account)"
+                    [disabled]="togglingStatusUsername() === account.username"
+                    [attr.aria-busy]="togglingStatusUsername() === account.username"
+                    [attr.aria-label]="'Suspendre le compte ' + (account.display_name || account.username)"
+                    class="text-gray-400 hover:text-amber-600 p-2 rounded-md transition-colors
+                           disabled:opacity-40
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+                    </svg>
+                  </button>
+                  }
+                  <button type="button" [id]="'account-edit-btn-' + account.username"
+                    (click)="editingUsername() === account.username ? cancelEditAccount() : startEditAccount(account)"
+                    [attr.aria-expanded]="editingUsername() === account.username"
+                    [attr.aria-controls]="'account-edit-panel-' + account.username"
+                    [attr.aria-label]="(editingUsername() === account.username ? 'Fermer la modification du compte ' : 'Modifier le compte ') + (account.display_name || account.username)"
+                    class="text-gray-400 hover:text-[#1E3A5F] p-2 rounded-md transition-colors
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z" />
+                    </svg>
+                  </button>
+                  <button type="button" [id]="'account-delete-btn-' + account.username"
+                    (click)="confirmingDeleteUsername() === account.username ? cancelDeleteAccount() : requestDeleteAccount(account)"
+                    [attr.aria-expanded]="confirmingDeleteUsername() === account.username"
+                    [attr.aria-controls]="'account-delete-panel-' + account.username"
+                    [attr.aria-label]="'Supprimer définitivement le compte ' + (account.display_name || account.username)"
+                    class="text-gray-400 hover:text-red-600 p-2 rounded-md transition-colors
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                    </svg>
+                  </button>
+                </div>
               </div>
+
+              @if (confirmingDeleteUsername() === account.username) {
+              <div [id]="'account-delete-panel-' + account.username" role="group"
+                [attr.aria-label]="'Confirmer la suppression du compte ' + account.username"
+                (keydown.escape)="cancelDeleteAccount()"
+                class="mt-3 pl-11">
+                <div class="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p class="text-xs text-red-800">
+                    Supprimer définitivement le compte « {{ account.username }} » ? Cette action est
+                    <strong>irréversible</strong> — contrairement à la suspension, le compte ne pourra pas être
+                    restauré. Si vous souhaitez seulement le rendre inutilisable temporairement, préférez
+                    « Suspendre ».
+                  </p>
+                  @if (deleteAccountError()) {
+                  <p role="alert" aria-live="assertive" class="text-xs text-red-700 font-medium mt-2">
+                    {{ deleteAccountError() }}
+                  </p>
+                  }
+                  <div class="flex items-center gap-2 mt-3">
+                    <button type="button" [id]="'account-delete-confirm-btn-' + account.username"
+                      (click)="confirmDeleteAccount(account)"
+                      [disabled]="deletingAccount()"
+                      [attr.aria-busy]="deletingAccount()"
+                      class="bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-md
+                             hover:bg-red-700 active:scale-95 transition-all
+                             disabled:opacity-40 disabled:hover:bg-red-600 disabled:active:scale-100
+                             focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600">
+                      {{ deletingAccount() ? 'Suppression…' : 'Supprimer définitivement' }}
+                    </button>
+                    <button type="button" (click)="cancelDeleteAccount()"
+                      [disabled]="deletingAccount()"
+                      class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
+                             focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              </div>
+              }
 
               @if (editingUsername() === account.username) {
               <div [id]="'account-edit-panel-' + account.username" role="group"

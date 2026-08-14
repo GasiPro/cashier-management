@@ -14,11 +14,15 @@ const MAX_USERNAME_LEN = 32;
 const MIN_PASSWORD_LEN = 6;
 const MAX_DISPLAY_NAME_LEN = 40;
 
+/** Mirrors `AccountStatus` in src-tauri/src/config/accounts.rs. */
+type AccountStatus = 'active' | 'suspended';
+
 /** Mirrors `CashierAccountView` returned by the Tauri backend — never carries a password. */
 interface CashierAccountView {
   username: string;
   display_name: string;
   created_at: string;
+  status: AccountStatus;
 }
 
 @Component({
@@ -292,6 +296,7 @@ export class Setting implements OnInit {
   });
 
   startEditAccount(account: CashierAccountView): void {
+    this.confirmingDeleteUsername.set(null);
     this.editingUsername.set(account.username);
     this.editDisplayName.set(account.display_name);
     this.editPassword.set('');
@@ -366,6 +371,106 @@ export class Setting implements OnInit {
       this.editAccountError.set(message);
     } finally {
       this.savingEditAccount.set(false);
+    }
+  }
+
+  // ── Cashier accounts: delete (suspend / permanent) ──────────────────────────
+
+  /** Username currently mid-flight on a suspend/reactivate call — disables that
+   *  row's toggle button so a slow round trip can't be double-fired. */
+  togglingStatusUsername = signal<string | null>(null);
+
+  /** Username currently showing the "permanently delete?" confirmation step, or
+   *  null if none. Only one row confirms at a time, and it closes the edit panel
+   *  (and vice versa) so the two destructive/edit flows never overlap. */
+  confirmingDeleteUsername = signal<string | null>(null);
+  deletingAccount = signal(false);
+  /** Inline error for the delete confirmation, announced via aria-live. */
+  deleteAccountError = signal('');
+
+  /** Reversibly blocks an account from logging in. Kept separate from
+   *  permanent deletion so an admin can temporarily take a cashier offline
+   *  (e.g. between shifts) without losing the account or its history. */
+  async suspendAccount(account: CashierAccountView): Promise<void> {
+    if (this.togglingStatusUsername()) return;
+    this.togglingStatusUsername.set(account.username);
+    this.setAccountStatus('', false);
+    try {
+      const updated = await invoke<CashierAccountView>('suspend_cashier_account', {
+        username: account.username,
+      });
+      this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
+      this.setAccountStatus(`Compte « ${updated.username} » suspendu.`, false);
+    } catch (e) {
+      console.error('suspend_cashier_account failed', e);
+      const message = typeof e === 'string' ? e : 'Échec de la suspension du compte. Réessayez.';
+      this.setAccountStatus(message, true);
+    } finally {
+      this.togglingStatusUsername.set(null);
+    }
+  }
+
+  /** Lifts a suspension applied by `suspendAccount`, restoring the account's access. */
+  async reactivateAccount(account: CashierAccountView): Promise<void> {
+    if (this.togglingStatusUsername()) return;
+    this.togglingStatusUsername.set(account.username);
+    this.setAccountStatus('', false);
+    try {
+      const updated = await invoke<CashierAccountView>('reactivate_cashier_account', {
+        username: account.username,
+      });
+      this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
+      this.setAccountStatus(`Compte « ${updated.username} » réactivé.`, false);
+    } catch (e) {
+      console.error('reactivate_cashier_account failed', e);
+      const message = typeof e === 'string' ? e : 'Échec de la réactivation du compte. Réessayez.';
+      this.setAccountStatus(message, true);
+    } finally {
+      this.togglingStatusUsername.set(null);
+    }
+  }
+
+  /** Opens the inline "are you sure?" step for a permanent delete — deliberately
+   *  not a native browser confirm(), so the request stays keyboard- and
+   *  screen-reader-accessible and consistent with the rest of the panel. */
+  requestDeleteAccount(account: CashierAccountView): void {
+    this.editingUsername.set(null);
+    this.confirmingDeleteUsername.set(account.username);
+    this.deleteAccountError.set('');
+    setTimeout(() => {
+      document.getElementById(`account-delete-confirm-btn-${account.username}`)?.focus();
+    });
+  }
+
+  /** Closes the confirmation step and returns focus to the row's delete button. */
+  cancelDeleteAccount(): void {
+    const username = this.confirmingDeleteUsername();
+    this.confirmingDeleteUsername.set(null);
+    this.deleteAccountError.set('');
+    if (username) {
+      document.getElementById(`account-delete-btn-${username}`)?.focus();
+    }
+  }
+
+  /** Permanently removes the account — irreversible, unlike `suspendAccount`. Only
+   *  reachable after `requestDeleteAccount`'s confirmation step. */
+  async confirmDeleteAccount(account: CashierAccountView): Promise<void> {
+    if (this.deletingAccount()) return;
+    this.deletingAccount.set(true);
+    this.deleteAccountError.set('');
+    try {
+      await invoke<void>('delete_cashier_account', { username: account.username });
+      this.accounts.update((list) => list.filter((a) => a.username !== account.username));
+      this.confirmingDeleteUsername.set(null);
+      this.setAccountStatus(`Compte « ${account.username} » supprimé définitivement.`, false);
+      // Ready for the next entry, same as after creating an account.
+      this.newAccountUsernameInput?.nativeElement.focus();
+    } catch (e) {
+      console.error('delete_cashier_account failed', e);
+      const message = typeof e === 'string' ? e : 'Échec de la suppression du compte. Réessayez.';
+      this.deleteAccountError.set(message);
+    } finally {
+      this.deletingAccount.set(false);
     }
   }
 

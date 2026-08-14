@@ -5,13 +5,25 @@
 //! changes. Passwords are never stored, logged, or sent back to the frontend
 //! in plain text — only an Argon2 hash ever touches disk.
 //!
-//! This module currently supports creating, listing, and modifying accounts.
-//! Usernames are immutable by design: there is deliberately no "rename"
-//! function, since the rest of the app (the login flow's `LS_USERNAME`
-//! identity) treats the username as a stable identifier. The display name and
-//! password, on the other hand, can both be changed after creation — see
-//! `find_account_mut`, used by the "modify" command to locate an account by
-//! its (unchanging) username before updating the rest of it.
+//! This module currently supports creating, listing, modifying, suspending,
+//! reactivating and permanently deleting accounts. Usernames are immutable by
+//! design: there is deliberately no "rename" function, since the rest of the
+//! app (the login flow's `LS_USERNAME` identity) treats the username as a
+//! stable identifier. The display name and password, on the other hand, can
+//! both be changed after creation — see `find_account_mut`, used by the
+//! "modify", "suspend"/"reactivate" and "delete" commands to locate an
+//! account by its (unchanging) username.
+//!
+//! Deleting an account comes in two distinct forms, and the difference
+//! matters enough to be worth spelling out here:
+//! - **Suspend** (`suspend`/`reactivate`) is reversible. The account and its
+//!   history stay on disk; it's just flagged as unable to log in until
+//!   reactivated. This is the right choice for e.g. a cashier who's
+//!   temporarily off rotation.
+//! - **Permanently delete** (`remove_account`) is irreversible. The account
+//!   is dropped from the list entirely — there is no "undo" or "trash" to
+//!   recover it from. Callers (the Tauri command layer) are expected to gate
+//!   this behind an explicit confirmation step in the UI.
 
 use argon2::password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use argon2::Argon2;
@@ -30,6 +42,24 @@ pub const MAX_DISPLAY_NAME_LEN: usize = 40;
 
 const ACCOUNTS_FILE_NAME: &str = "cashier_accounts.json";
 
+/// Whether a cashier account can currently be used. `Suspended` is a
+/// reversible block — the account and its history are kept, just unable to
+/// log in until an admin reactivates it — as opposed to permanent deletion,
+/// which removes the account from the list entirely and has no equivalent
+/// status (a deleted account simply isn't in the list anymore).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AccountStatus {
+    Active,
+    Suspended,
+}
+
+impl Default for AccountStatus {
+    fn default() -> Self {
+        AccountStatus::Active
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CashierAccount {
     /// Immutable once created — the same identifier used by the existing
@@ -44,6 +74,10 @@ pub struct CashierAccount {
     pub display_name: String,
     pub password_hash: String,
     pub created_at: String,
+    /// `#[serde(default)]` keeps accounts persisted before this field
+    /// existed loading correctly as `Active`.
+    #[serde(default)]
+    pub status: AccountStatus,
 }
 
 /// Public view of an account — the only shape ever sent across the Tauri IPC
@@ -53,6 +87,7 @@ pub struct CashierAccountView {
     pub username: String,
     pub display_name: String,
     pub created_at: String,
+    pub status: AccountStatus,
 }
 
 impl From<&CashierAccount> for CashierAccountView {
@@ -61,6 +96,7 @@ impl From<&CashierAccount> for CashierAccountView {
             username: account.username.clone(),
             display_name: account.display_name.clone(),
             created_at: account.created_at.clone(),
+            status: account.status,
         }
     }
 }
@@ -172,4 +208,29 @@ pub fn username_exists(accounts: &[CashierAccount], username: &str) -> bool {
 /// account, not its username) once the request has already been validated.
 pub fn find_account_mut<'a>(accounts: &'a mut [CashierAccount], username: &str) -> Option<&'a mut CashierAccount> {
     accounts.iter_mut().find(|a| a.username.eq_ignore_ascii_case(username))
+}
+
+/// Flags an account as suspended. Reversible via `reactivate` — the account
+/// and its history are left untouched on disk, it's just blocked from
+/// logging in until an admin lifts the suspension. Idempotent: suspending an
+/// already-suspended account is a no-op.
+pub fn suspend(account: &mut CashierAccount) {
+    account.status = AccountStatus::Suspended;
+}
+
+/// Lifts a suspension previously applied by `suspend`, restoring normal
+/// access. Idempotent: reactivating an already-active account is a no-op.
+pub fn reactivate(account: &mut CashierAccount) {
+    account.status = AccountStatus::Active;
+}
+
+/// Permanently removes an account from the list — unlike `suspend`, there is
+/// no way back from this short of recreating the account from scratch under
+/// the same username. Returns `true` if a matching account was found and
+/// removed (case-insensitive, same matching rule as `username_exists`), or
+/// `false` if no account with that username existed.
+pub fn remove_account(accounts: &mut Vec<CashierAccount>, username: &str) -> bool {
+    let len_before = accounts.len();
+    accounts.retain(|a| !a.username.eq_ignore_ascii_case(username));
+    accounts.len() != len_before
 }
