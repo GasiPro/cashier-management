@@ -1,11 +1,10 @@
-
 // src/app/presentation/vews/counter/counter.ts
 import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { invoke } from '@tauri-apps/api/core';
-import { WebsocketService, WsMessage } from '../../../core/service/websocket.service';
+import { WebsocketService, WsMessage, isValidHostPort, stripWsScheme } from '../../../core/service/websocket.service';
 import { Subscription } from 'rxjs';
 
 export interface ServiceItem {
@@ -166,8 +165,20 @@ export class Counter implements OnInit, OnDestroy {
   showServerPanel = false;
   showHistoriquePanel = false;
   newCashierHost = '';
-  /** Result of probing newCashierHost for a running server, shown as a hint/warning. */
-  newCashierAddressCheck = signal<'idle' | 'checking' | 'reachable' | 'unreachable'>('idle');
+  /** Result of probing newCashierHost for a running server, shown as a hint/warning.
+   *  'invalid_format' is a synchronous check (bad IP/port shape) and never touches
+   *  the network; 'unreachable' means the shape is fine but nothing answered there
+   *  (server down, or the address doesn't exist). */
+  newCashierAddressCheck = signal<'idle' | 'checking' | 'reachable' | 'unreachable' | 'invalid_format'>('idle');
+  /** Set when a manual "Changer de serveur" attempt never manages to open a socket
+   *  at all (server down / address doesn't exist). Shown inline in the server panel
+   *  in addition to the toast, since the toast auto-dismisses but the panel may stay
+   *  open longer — and the underlying service keeps retrying quietly in the background. */
+  serverConnectError = signal('');
+  /** True from the moment a connect is kicked off (initial load or manual switch)
+   *  until the socket opens — lets the very first failure be reported once, without
+   *  re-showing an error on every background auto-reconnect retry after that. */
+  private awaitingConnectResult = false;
 
   // ── Cart line notes ──────────────────────────────────────────────────────────
   /** ids of cart items whose observation field is expanded. */
@@ -202,10 +213,12 @@ export class Counter implements OnInit, OnDestroy {
     this.setupWsListeners();
 
     const fullUrl = `ws://${this.cashierHost}`;
+    this.awaitingConnectResult = true;
     this.ws.connect(fullUrl);
 
     // If the socket is already open (handed off from login), don't wait for onopen.
     if (this.ws.isOpen()) {
+      this.awaitingConnectResult = false;
       // Connection is live and already approved (login handled approval before navigating).
       this.wsConnected.set(true);
       this.waitingApproval.set(false);
@@ -248,6 +261,11 @@ export class Counter implements OnInit, OnDestroy {
   private setupWsListeners(): void {
     // Handle reconnect: re-send request_connection, show waiting overlay.
     this.openSubscription = this.ws.onOpened().subscribe(() => {
+      // The socket reached the server, so any pending "server down / not found"
+      // error no longer applies.
+      this.awaitingConnectResult = false;
+      this.serverConnectError.set('');
+
       // Credentials are checked locally before request_connection is ever sent,
       // whether this open event is a drop/reconnect or a manual server switch.
       const formError = this.validateCredentials(this.username, this.password);
@@ -269,6 +287,18 @@ export class Counter implements OnInit, OnDestroy {
     this.closeSubscription = this.ws.onClosed().subscribe(() => {
       this.wsConnected.set(false);
       this.waitingApproval.set(false);
+
+      // The socket closed without ever opening: the server is down, unreachable,
+      // or the address doesn't exist. Report it once — the underlying service
+      // keeps retrying quietly every few seconds, so we don't want to re-toast
+      // on every one of those background attempts.
+      if (this.awaitingConnectResult) {
+        this.awaitingConnectResult = false;
+        const message = `Impossible de joindre le serveur à l'adresse ${this.cashierHost} : ` +
+          'il est peut-être éteint ou l\'adresse est incorrecte.';
+        this.serverConnectError.set(message);
+        this.showToast(message);
+      }
     });
 
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
@@ -311,15 +341,23 @@ export class Counter implements OnInit, OnDestroy {
     this.newCashierAddressCheck.set('idle');
   }
 
-  /** Probes newCashierHost for a running server and updates newCashierAddressCheck. */
+  /**
+   * Checks newCashierHost and updates newCashierAddressCheck: first a synchronous
+   * IP/port shape check (catches typos immediately, no network round trip), then —
+   * only if that passes — a probe for a server actually answering there.
+   */
   async checkNewCashierHost(): Promise<void> {
     const raw = this.newCashierHost.trim();
     if (!raw) {
       this.newCashierAddressCheck.set('idle');
       return;
     }
+    if (!isValidHostPort(raw)) {
+      this.newCashierAddressCheck.set('invalid_format');
+      return;
+    }
     this.newCashierAddressCheck.set('checking');
-    const fullUrl = raw.startsWith('ws://') ? raw : `ws://${raw}`;
+    const fullUrl = `ws://${stripWsScheme(raw)}`;
     const reachable = await this.ws.checkAddress(fullUrl);
     // Ignore a stale result if the field changed while we were checking.
     if (this.newCashierHost.trim() !== raw) return;
@@ -327,11 +365,22 @@ export class Counter implements OnInit, OnDestroy {
   }
 
   connectToNewCashier(): void {
-    const host = this.newCashierHost.trim();
-    if (!host) return;
+    const raw = this.newCashierHost.trim();
+    if (!raw) return;
+
+    // Never send a request for an address that's already known to be malformed —
+    // whether the operator never blurred the field to trigger checkNewCashierHost,
+    // or edited it back to something invalid after a prior check.
+    if (!isValidHostPort(raw)) {
+      this.newCashierAddressCheck.set('invalid_format');
+      this.showToast("Adresse invalide : utilisez le format IP:port, par exemple 192.168.1.5:8080.");
+      return;
+    }
+    const host = stripWsScheme(raw);
 
     this.showServerPanel = false;
     this.newCashierAddressCheck.set('idle');
+    this.serverConnectError.set('');
     this.cashierHost = host;
     localStorage.setItem(LS_CASHIER_URL, host);
 
@@ -341,6 +390,7 @@ export class Counter implements OnInit, OnDestroy {
     // Give the socket a tick to close before reconnecting.
     setTimeout(() => {
       const fullUrl = `ws://${host}`;
+      this.awaitingConnectResult = true;
       this.ws.connect(fullUrl);
       this.waitingApproval.set(true);
     }, 100);
