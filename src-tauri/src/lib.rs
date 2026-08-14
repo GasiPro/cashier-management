@@ -52,8 +52,11 @@ pub struct AppState {
 enum ClientMessage {
     /// Cashier registers itself — sent once on WS open from the cashier device.
     CashierRegister { username: String },
-    /// Counter requests to join — must be approved by cashier.
-    RequestConnection { username: String },
+    /// Counter requests to join — credentials are checked against the accounts
+    /// stored on the cashier before the request is even queued for manual
+    /// approval; a request that fails that check is rejected immediately and
+    /// never reaches the pending list.
+    RequestConnection { username: String, password: String },
     /// Counter sends its cart to the cashier for processing.
     CreateOrder { cart: Vec<CartItem> },
     /// Comptoir: edit a single pending order line (only while EN_ATTENTE).
@@ -463,6 +466,7 @@ async fn create_cashier_account(
         display_name: String::new(),
         password_hash,
         created_at: chrono::Local::now().to_rfc3339(),
+        status: accounts::AccountStatus::Active,
     };
     guard.push(account);
     accounts::save(&app, &guard)?;
@@ -599,6 +603,7 @@ pub fn run() {
     let ws_order_service = order_service.clone();
     let ws_peers = peers.clone();
     let ws_max_connected_devices = max_connected_devices.clone();
+    let ws_cashier_accounts = cashier_accounts.clone();
     tauri::async_runtime::spawn(async move {
         let listener = TcpListener::bind("0.0.0.0:8080")
             .await
@@ -608,6 +613,7 @@ pub fn run() {
             let peers_inner = ws_peers.clone();
             let order_service_inner = ws_order_service.clone();
             let max_connected_devices_inner = ws_max_connected_devices.clone();
+            let cashier_accounts_inner = ws_cashier_accounts.clone();
 
             tauri::async_runtime::spawn(async move {
                 let ws_stream = match accept_async(stream).await {
@@ -671,31 +677,53 @@ pub fn run() {
                                 .await;
                             }
 
-                            Ok(ClientMessage::RequestConnection { username }) => {
-                                // Enforce the connected-devices cap up front: a device turned
-                                // away here never shows up as a pending request the cashier
-                                // could approve anyway, which would just be a dead end.
-                                let at_capacity = is_at_connected_devices_capacity(
-                                    &peers_inner,
-                                    &max_connected_devices_inner,
-                                )
-                                .await;
+                            Ok(ClientMessage::RequestConnection { username, password }) => {
+                                // Check the credentials against the accounts stored on the
+                                // cashier *before* the request is queued for manual approval:
+                                // format/length (mirrors the comptoir's own pre-flight check),
+                                // then existence + password match + active status. A request
+                                // that fails any of this is rejected immediately and never
+                                // becomes a pending entry the cashier would have to manually
+                                // turn away.
+                                let format_ok = accounts::validate_username(&username).is_ok()
+                                    && accounts::validate_password(&password).is_ok();
+                                let credentials_ok = format_ok && {
+                                    let guard = cashier_accounts_inner.lock().unwrap();
+                                    guard.iter().any(|a| {
+                                        a.username.eq_ignore_ascii_case(username.trim())
+                                            && a.status == accounts::AccountStatus::Active
+                                            && accounts::verify_password(&password, &a.password_hash)
+                                    })
+                                };
 
-                                if at_capacity {
+                                if !credentials_ok {
                                     send_to_addr(&peers_inner, addr, &ServerMessage::ConnectionRejected).await;
                                 } else {
-                                    {
-                                        let mut guard = peers_inner.lock().await;
-                                        if let Some(state) = guard.get_mut(&addr) {
-                                            state.username = username;
-                                        }
-                                    }
-                                    let pending = get_pending_requests_list(&peers_inner).await;
-                                    notify_cashier(
+                                    // Enforce the connected-devices cap up front: a device turned
+                                    // away here never shows up as a pending request the cashier
+                                    // could approve anyway, which would just be a dead end.
+                                    let at_capacity = is_at_connected_devices_capacity(
                                         &peers_inner,
-                                        &ServerMessage::ConnectionRequests { data: pending },
+                                        &max_connected_devices_inner,
                                     )
                                     .await;
+
+                                    if at_capacity {
+                                        send_to_addr(&peers_inner, addr, &ServerMessage::ConnectionRejected).await;
+                                    } else {
+                                        {
+                                            let mut guard = peers_inner.lock().await;
+                                            if let Some(state) = guard.get_mut(&addr) {
+                                                state.username = username;
+                                            }
+                                        }
+                                        let pending = get_pending_requests_list(&peers_inner).await;
+                                        notify_cashier(
+                                            &peers_inner,
+                                            &ServerMessage::ConnectionRequests { data: pending },
+                                        )
+                                        .await;
+                                    }
                                 }
                             }
 

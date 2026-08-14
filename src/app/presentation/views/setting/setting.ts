@@ -1,5 +1,5 @@
-// src/app/presentation/vews/setting/setting.ts
-import { Component, ElementRef, OnInit, signal, computed, ViewChild } from '@angular/core';
+// src/app/presentation/views/setting/setting.ts
+import { Component, ElementRef, OnInit, OnDestroy, signal, computed, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -7,6 +7,11 @@ import { invoke } from '@tauri-apps/api/core';
 
 /** Kept in sync with `MAX_ALLOWED_CONNECTED_DEVICES` in src-tauri/src/config/settings.rs. */
 const MAX_ALLOWED_CONNECTED_DEVICES = 50;
+/** How often the "currently connected" count is refreshed while this page is open — a
+ *  device can connect/disconnect elsewhere (from the cashier's own "Appareils" panel, or
+ *  simply by dropping off the network) while this page is sitting open, and the capacity
+ *  warning above the limit input is only useful if that number stays current. */
+const CONNECTED_DEVICES_POLL_MS = 5000;
 
 /** Kept in sync with the bounds in src-tauri/src/config/accounts.rs. */
 const MIN_USERNAME_LEN = 3;
@@ -36,7 +41,7 @@ interface CashierAccountView {
   templateUrl: './setting.html',
   styleUrl: './setting.css',
 })
-export class Setting implements OnInit {
+export class Setting implements OnInit, OnDestroy {
   readonly maxAllowedConnectedDevices = MAX_ALLOWED_CONNECTED_DEVICES;
   readonly minUsernameLen = MIN_USERNAME_LEN;
   readonly maxUsernameLen = MAX_USERNAME_LEN;
@@ -101,11 +106,35 @@ export class Setting implements OnInit {
     );
   });
 
+  private connectedDevicesPollId: ReturnType<typeof setInterval> | null = null;
+
   constructor(private router: Router) {}
 
   ngOnInit(): void {
     this.loadDevicesSetting();
     this.loadAccounts();
+    // Keep the "currently connected" count fresh while this page is open — it can
+    // change from elsewhere (a comptoir connecting/dropping) at any time.
+    this.connectedDevicesPollId = setInterval(() => this.refreshConnectedDevicesCount(), CONNECTED_DEVICES_POLL_MS);
+  }
+
+  ngOnDestroy(): void {
+    if (this.connectedDevicesPollId !== null) {
+      clearInterval(this.connectedDevicesPollId);
+      this.connectedDevicesPollId = null;
+    }
+  }
+
+  /** Re-fetches just the connected-devices count (not the configured limit, which this
+   *  page itself owns) — used by the background poll started in `ngOnInit`. Silently
+   *  ignored on failure so a transient IPC hiccup doesn't spam the status region. */
+  private async refreshConnectedDevicesCount(): Promise<void> {
+    try {
+      const connected = await invoke<number>('get_connected_devices_count');
+      this.connectedDevicesCount.set(connected);
+    } catch (e) {
+      console.error('failed to refresh connected devices count', e);
+    }
   }
 
   private async loadDevicesSetting(): Promise<void> {
