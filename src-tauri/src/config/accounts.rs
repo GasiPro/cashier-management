@@ -5,10 +5,13 @@
 //! changes. Passwords are never stored, logged, or sent back to the frontend
 //! in plain text — only an Argon2 hash ever touches disk.
 //!
-//! This module currently only supports creating and listing accounts.
+//! This module currently supports creating, listing, and modifying accounts.
 //! Usernames are immutable by design: there is deliberately no "rename"
 //! function, since the rest of the app (the login flow's `LS_USERNAME`
-//! identity) treats the username as a stable identifier.
+//! identity) treats the username as a stable identifier. The display name and
+//! password, on the other hand, can both be changed after creation — see
+//! `find_account_mut`, used by the "modify" command to locate an account by
+//! its (unchanging) username before updating the rest of it.
 
 use argon2::password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use argon2::Argon2;
@@ -22,6 +25,8 @@ pub const MAX_USERNAME_LEN: usize = 32;
 /// Minimum password length. Not a strength requirement — just a floor
 /// against trivially guessable one-character passwords.
 pub const MIN_PASSWORD_LEN: usize = 6;
+/// Maximum length for the optional display name.
+pub const MAX_DISPLAY_NAME_LEN: usize = 40;
 
 const ACCOUNTS_FILE_NAME: &str = "cashier_accounts.json";
 
@@ -30,6 +35,13 @@ pub struct CashierAccount {
     /// Immutable once created — the same identifier used by the existing
     /// username-based login/identity flow (`LS_USERNAME` on the frontend).
     pub username: String,
+    /// Friendlier label shown in place of the raw username where that helps
+    /// (e.g. account lists). Empty by default: the counter operating this
+    /// account is expected to fill it in, and an admin can set or correct it
+    /// later from Réglages. `#[serde(default)]` keeps accounts persisted
+    /// before this field existed loading correctly as `""`.
+    #[serde(default)]
+    pub display_name: String,
     pub password_hash: String,
     pub created_at: String,
 }
@@ -39,6 +51,7 @@ pub struct CashierAccount {
 #[derive(Debug, Clone, Serialize)]
 pub struct CashierAccountView {
     pub username: String,
+    pub display_name: String,
     pub created_at: String,
 }
 
@@ -46,6 +59,7 @@ impl From<&CashierAccount> for CashierAccountView {
     fn from(account: &CashierAccount) -> Self {
         Self {
             username: account.username.clone(),
+            display_name: account.display_name.clone(),
             created_at: account.created_at.clone(),
         }
     }
@@ -132,9 +146,30 @@ pub fn validate_password(password: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Validates and normalizes a candidate display name (trims surrounding
+/// whitespace, checks the max length). Unlike the username, an empty display
+/// name is valid — it just means the account doesn't have one set yet.
+pub fn validate_display_name(display_name: &str) -> Result<String, String> {
+    let trimmed = display_name.trim();
+    if trimmed.chars().count() > MAX_DISPLAY_NAME_LEN {
+        return Err(format!(
+            "Le nom affiché ne peut pas dépasser {MAX_DISPLAY_NAME_LEN} caractères."
+        ));
+    }
+    Ok(trimmed.to_string())
+}
+
 /// `true` if `username` is already taken by an existing account. Compared
 /// case-insensitively, since the existing username-based login/identity flow
 /// treats e.g. "Caisse1" and "caisse1" as the same identity.
 pub fn username_exists(accounts: &[CashierAccount], username: &str) -> bool {
     accounts.iter().any(|a| a.username.eq_ignore_ascii_case(username))
+}
+
+/// Locates a mutable reference to an account by username, compared the same
+/// case-insensitive way as `username_exists`. Used to apply a "modify" (never
+/// a rename — the caller only ever changes the fields on the returned
+/// account, not its username) once the request has already been validated.
+pub fn find_account_mut<'a>(accounts: &'a mut [CashierAccount], username: &str) -> Option<&'a mut CashierAccount> {
+    accounts.iter_mut().find(|a| a.username.eq_ignore_ascii_case(username))
 }
