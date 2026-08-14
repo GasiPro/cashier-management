@@ -1,9 +1,9 @@
 import { Component, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { LoginComponent } from "./presentation/vews/login/login";
-import { Cashier } from "./presentation/vews/cashier/cashier";
-import { Counter } from "./presentation/vews/counter/counter";
-import { Setting } from "./presentation/vews/setting/setting";
+import { LoginComponent } from "./presentation/views/login/login";
+import { Cashier } from "./presentation/views/cashier/cashier";
+import { Counter } from "./presentation/views/counter/counter";
+import { Setting } from "./presentation/views/setting/setting";
 
 @Component({
   selector: 'app-root',

@@ -1,8 +1,8 @@
 import { Routes } from '@angular/router';
-import { Cashier } from './presentation/vews/cashier/cashier';
-import { Counter } from './presentation/vews/counter/counter';
-import { LoginComponent } from './presentation/vews/login/login';
-import { Setting } from './presentation/vews/setting/setting';
+import { Cashier } from './presentation/views/cashier/cashier';
+import { Counter } from './presentation/views/counter/counter';
+import { LoginComponent } from './presentation/views/login/login';
+import { Setting } from './presentation/views/setting/setting';
 
 export const routes: Routes = [
     { path: '', redirectTo: 'login', pathMatch: 'full' },
