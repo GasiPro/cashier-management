@@ -1,3 +1,4 @@
+
 // src/app/core/service/websocket.service.ts
 import { Injectable, OnDestroy } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
@@ -26,6 +27,13 @@ export class WebsocketService implements OnDestroy {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private url = '';
   private manuallyClosed = false;
+  /**
+   * Comptoir credentials, kept in memory only (never persisted) so the same
+   * `request_connection` flow can re-authenticate on a reconnect or a manual
+   * server switch without asking the operator to retype the password. Set
+   * once by the login flow and cleared on disconnect.
+   */
+  private counterCredentials: { username: string; password: string } | null = null;
 
   /**
    * Connect (or reconnect) to a given ws:// address.
@@ -121,6 +129,21 @@ export class WebsocketService implements OnDestroy {
       probe.onopen = () => finish(true);
       probe.onerror = () => finish(false);
     });
+  }
+
+  /** Stores the comptoir's credentials in memory for reuse on reconnect. */
+  setCounterCredentials(username: string, password: string): void {
+    this.counterCredentials = { username, password };
+  }
+
+  /** Last credentials set via {@link setCounterCredentials}, if any. */
+  getCounterCredentials(): { username: string; password: string } | null {
+    return this.counterCredentials;
+  }
+
+  /** Drops any stored credentials — call on logout/disconnect. */
+  clearCounterCredentials(): void {
+    this.counterCredentials = null;
   }
 
   /** Send a JSON-serializable payload. Silently dropped if not connected. */

@@ -1,3 +1,4 @@
+
 // src/app/presentation/vews/login/login.ts
 import { Component, OnInit, OnDestroy, signal } from '@angular/core';
 import { Router } from '@angular/router';
@@ -54,7 +55,10 @@ export class LoginComponent implements OnInit, OnDestroy {
 
   // Counter fields
   counterUsername = '';
+  counterPassword = '';
   counterWsUrl = '';
+  /** Toggles the counter password field between masked and plain text. */
+  showCounterPassword = signal(false);
 
   // State flags
   loadingWsAddress = signal(false);
@@ -117,6 +121,9 @@ export class LoginComponent implements OnInit, OnDestroy {
   }
 
   selectCounter(): void {
+    this.counterPassword = '';
+    this.showCounterPassword.set(false);
+    this.counterError.set('');
     this.step.set('counter-setup');
   }
 
@@ -140,10 +147,12 @@ export class LoginComponent implements OnInit, OnDestroy {
 
   /** Client-side check, mirroring the server-side validation in accounts.rs, so
    *  an obviously invalid entry gets immediate feedback instead of waiting on a
-   *  round trip. The real authoritative check — including whether the account
-   *  actually exists and the password matches — still happens server-side in
-   *  `authenticate_cashier`. Returns a message, or '' if the form looks valid. */
-  private validateCashierCredentials(username: string, password: string): string {
+   *  round trip. Shared by the cashier login form and the comptoir connection
+   *  form, since both authenticate against the same cashier account store.
+   *  The real authoritative check — including whether the account actually
+   *  exists and the password matches — still happens server-side. Returns a
+   *  message, or '' if the form looks valid. */
+  private validateCredentials(username: string, password: string): string {
     if (username.length < MIN_USERNAME_LEN) {
       return `Le nom d'utilisateur doit contenir au moins ${MIN_USERNAME_LEN} caractères.`;
     }
@@ -165,7 +174,7 @@ export class LoginComponent implements OnInit, OnDestroy {
     const username = this.cashierUsername.trim();
     const password = this.cashierPassword;
 
-    const formError = this.validateCashierCredentials(username, password);
+    const formError = this.validateCredentials(username, password);
     if (formError) {
       this.cashierError.set(formError);
       return;
@@ -194,6 +203,10 @@ export class LoginComponent implements OnInit, OnDestroy {
 
   // ── Counter flow ───────────────────────────────────────────────────────────
 
+  toggleCounterPasswordVisibility(): void {
+    this.showCounterPassword.update((v) => !v);
+  }
+
   /** Resets the address check hint — called whenever the address field is edited. */
   onCounterWsUrlChanged(): void {
     this.addressCheck.set('idle');
@@ -215,14 +228,29 @@ export class LoginComponent implements OnInit, OnDestroy {
   }
 
   connectAsCounter(): void {
-    if (!this.counterUsername.trim() || !this.counterWsUrl.trim()) return;
+    if (!this.counterUsername.trim() || !this.counterWsUrl.trim() || !this.counterPassword) return;
 
+    const username = this.counterUsername.trim();
+    const password = this.counterPassword;
+
+    // Credentials are checked locally — format, length, and the "word + number"
+    // rule — before the socket connects and request_connection is sent. The
+    // real authoritative check (does the account exist, does the password
+    // match) happens on the cashier side once it receives the request.
+    const formError = this.validateCredentials(username, password);
+    if (formError) {
+      this.counterError.set(formError);
+      return;
+    }
     this.counterError.set('');
     this.step.set('counter-waiting');
 
-    const username = this.counterUsername.trim();
     const wsUrl = this.counterWsUrl.trim();
     const fullUrl = wsUrl.startsWith('ws://') ? wsUrl : `ws://${wsUrl}`;
+
+    // Kept in memory (not persisted) so a later reconnect from the comptoir
+    // view can re-send the same credentials without asking again.
+    this.ws.setCounterCredentials(username, password);
 
     // Connect to cashier WS
     this.ws.connect(fullUrl);
@@ -239,13 +267,18 @@ export class LoginComponent implements OnInit, OnDestroy {
       } else if (msg.type === 'connection_rejected') {
         this.wsSubscription?.unsubscribe();
         this.ws.disconnect();
+        this.ws.clearCounterCredentials();
+        // Wrong username/password and a manual refusal by the cashier both
+        // arrive as the same event, so the message covers both cases.
+        this.counterError.set("Nom d'utilisateur ou mot de passe incorrect, ou connexion refusée par la caisse.");
+        this.counterPassword = '';
         this.step.set('counter-rejected');
       }
     });
 
     // Send request_connection once the socket opens
     const sendRequest = () => {
-      this.ws.send({ type: 'request_connection', username });
+      this.ws.send({ type: 'request_connection', username, password });
     };
 
     if (this.ws.isOpen()) {
@@ -270,6 +303,8 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.ws.disconnect();
     this.cashierPassword = '';
     this.cashierError.set('');
+    this.counterPassword = '';
+    this.counterError.set('');
     this.step.set('role');
   }
 }
