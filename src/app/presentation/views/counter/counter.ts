@@ -1,3 +1,4 @@
+
 // src/app/presentation/vews/counter/counter.ts
 import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -64,6 +65,15 @@ const LS_CASHIER_URL = 'gasipro:cashierWsUrl';
 const DEFAULT_WS_HOST = '127.0.0.1:8080';
 const HISTORIQUE_ALL_STATUSES = 'TOUS';
 
+/** Kept in sync with the bounds in src-tauri/src/config/accounts.rs. */
+const MIN_USERNAME_LEN = 3;
+const MAX_USERNAME_LEN = 32;
+const MIN_PASSWORD_LEN = 8;
+/** Password must contain at least one letter and one digit ("word + number"),
+ *  mirroring the format check in `accounts::validate_password`. */
+const PASSWORD_HAS_LETTER = /[A-Za-z]/;
+const PASSWORD_HAS_DIGIT = /\d/;
+
 @Component({
   selector: 'app-counter',
   standalone: true,
@@ -74,6 +84,10 @@ export class Counter implements OnInit, OnDestroy {
   // ── Identity ────────────────────────────────────────────────────────────────
   username = localStorage.getItem(LS_USERNAME) ?? 'Comptoir';
   cashierHost = localStorage.getItem(LS_CASHIER_URL) ?? DEFAULT_WS_HOST;
+  /** Kept in memory only (never persisted) — carried over from the login flow via
+   *  `WebsocketService`, and re-sent on reconnect / server switch. Populated in
+   *  `ngOnInit` since it depends on the injected `ws` service. */
+  private password = '';
 
   // ── Catalogue ───────────────────────────────────────────────────────────────
   allServices = signal<ServiceItem[]>([]);
@@ -142,6 +156,10 @@ export class Counter implements OnInit, OnDestroy {
   waitingApproval = signal(false);
   /** True once the cashier has blocked this device — no auto-reconnect. */
   blocked = signal(false);
+  /** Set when stored credentials fail the local format/length check on a
+   *  reconnect attempt, so `request_connection` is never sent with an
+   *  obviously invalid username or password. */
+  credentialsError = signal('');
 
   // ── Menu / panels ────────────────────────────────────────────────────────────
   showMenu = false;
@@ -178,6 +196,7 @@ export class Counter implements OnInit, OnDestroy {
     this.clockId = setInterval(() => this.updateClock(), 60_000);
     await this.loadCatalogue();
 
+    this.password = this.ws.getCounterCredentials()?.password ?? '';
     this.newCashierHost = this.cashierHost;
 
     this.setupWsListeners();
@@ -207,12 +226,43 @@ export class Counter implements OnInit, OnDestroy {
 
   // ── WS lifecycle ──────────────────────────────────────────────────────────────
 
+  /** Client-side check, mirroring the server-side validation in accounts.rs —
+   *  format, length, and the "word + number" rule. Returns a message, or ''
+   *  if the credentials look valid. */
+  private validateCredentials(username: string, password: string): string {
+    if (username.length < MIN_USERNAME_LEN) {
+      return `Le nom d'utilisateur doit contenir au moins ${MIN_USERNAME_LEN} caractères.`;
+    }
+    if (username.length > MAX_USERNAME_LEN) {
+      return `Le nom d'utilisateur ne peut pas dépasser ${MAX_USERNAME_LEN} caractères.`;
+    }
+    if (password.length < MIN_PASSWORD_LEN) {
+      return `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LEN} caractères.`;
+    }
+    if (!PASSWORD_HAS_LETTER.test(password) || !PASSWORD_HAS_DIGIT.test(password)) {
+      return 'Le mot de passe doit contenir au moins une lettre et un chiffre.';
+    }
+    return '';
+  }
+
   private setupWsListeners(): void {
     // Handle reconnect: re-send request_connection, show waiting overlay.
     this.openSubscription = this.ws.onOpened().subscribe(() => {
+      // Credentials are checked locally before request_connection is ever sent,
+      // whether this open event is a drop/reconnect or a manual server switch.
+      const formError = this.validateCredentials(this.username, this.password);
+      if (formError) {
+        this.credentialsError.set(formError);
+        this.wsConnected.set(false);
+        this.waitingApproval.set(false);
+        this.ws.disconnect();
+        this.showToast(formError);
+        return;
+      }
+      this.credentialsError.set('');
       this.wsConnected.set(false);
       this.waitingApproval.set(true);
-      this.ws.send({ type: 'request_connection', username: this.username });
+      this.ws.send({ type: 'request_connection', username: this.username, password: this.password });
     });
 
     // Handle drop: show "disconnected" state.
@@ -229,7 +279,10 @@ export class Counter implements OnInit, OnDestroy {
         this.wsConnected.set(false);
         this.waitingApproval.set(false);
         this.ws.disconnect();
-        this.showToast('Connexion refusée par la caisse.');
+        this.ws.clearCounterCredentials();
+        // Wrong username/password and a manual refusal by the cashier both
+        // arrive as the same event, so the message covers both cases.
+        this.showToast("Connexion refusée : identifiant ou mot de passe incorrect, ou accès refusé par la caisse.");
       } else if (msg.type === 'connection_blocked') {
         this.wsConnected.set(false);
         this.waitingApproval.set(false);
@@ -249,6 +302,7 @@ export class Counter implements OnInit, OnDestroy {
 
   disconnectFromCashier(): void {
     this.ws.disconnect();
+    this.ws.clearCounterCredentials();
     this.router.navigate(['/login']);
   }
 

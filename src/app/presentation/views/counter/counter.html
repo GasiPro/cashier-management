@@ -1,3 +1,4 @@
+
 <div class="bg-[#FAFAFA] min-h-screen flex flex-col">
 
   <header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sticky top-0 z-20">
@@ -460,7 +461,11 @@
         </svg>
       </div>
       <h2 class="text-lg font-semibold text-[#1A1A1A] mb-1">Connexion perdue</h2>
+      @if (credentialsError()) {
+      <p role="alert" aria-live="assertive" class="text-sm text-red-600 mb-6">{{ credentialsError() }}</p>
+      } @else {
       <p class="text-sm text-gray-500 mb-6">La connexion avec la caisse a été interrompue. Reconnexion en cours…</p>
+      }
       <button (click)="showServerPanel = true"
         class="text-sm text-[#1E3A5F] font-medium border border-[#1E3A5F]/30 px-4 py-2 rounded-lg
                hover:bg-[#EFF4FA] transition-colors">
