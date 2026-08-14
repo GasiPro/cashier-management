@@ -866,8 +866,11 @@ pub fn run() {
             *setup_max_connected_devices.lock().unwrap() = loaded_settings.max_connected_devices;
 
             // Load persisted cashier accounts (falls back to an empty list if
-            // there's no accounts file yet, or it can't be read).
-            *setup_cashier_accounts.lock().unwrap() = config::accounts::load(app.handle());
+            // there's no accounts file yet, or it can't be read), bootstrapping
+            // a default `admin` / `admin123` account on first launch if none
+            // exist yet — Réglages, where accounts are normally created, is
+            // itself reachable only after cashier login.
+            *setup_cashier_accounts.lock().unwrap() = config::accounts::load_or_bootstrap(app.handle());
 
             Ok(())
         })
