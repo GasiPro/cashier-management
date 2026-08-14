@@ -19,6 +19,15 @@ const LS_USERNAME = 'gasipro:username';
 const LS_CASHIER_URL = 'gasipro:cashierWsUrl';
 const DEFAULT_WS = '127.0.0.1:8080';
 
+/** Kept in sync with the bounds in src-tauri/src/config/accounts.rs. */
+const MIN_USERNAME_LEN = 3;
+const MAX_USERNAME_LEN = 32;
+const MIN_PASSWORD_LEN = 8;
+/** Password must contain at least one letter and one digit ("word + number"),
+ *  mirroring the format check in `accounts::validate_password`. */
+const PASSWORD_HAS_LETTER = /[A-Za-z]/;
+const PASSWORD_HAS_DIGIT = /\d/;
+
 @Component({
   selector: 'app-login',
   standalone: true,
@@ -31,7 +40,17 @@ export class LoginComponent implements OnInit, OnDestroy {
 
   // Cashier fields
   cashierUsername = '';
+  cashierPassword = '';
   wsAddress = signal('');
+
+  /** Toggles the cashier password field between masked and plain text. */
+  showCashierPassword = signal(false);
+  /** True while a login attempt is in flight — disables the form to prevent a
+   *  double submit on a slow round trip. */
+  authenticatingCashier = signal(false);
+  /** Inline validation or server error for the cashier login form, announced
+   *  via aria-live. */
+  cashierError = signal('');
 
   // Counter fields
   counterUsername = '';
@@ -90,6 +109,9 @@ export class LoginComponent implements OnInit, OnDestroy {
   // ── Role selection ─────────────────────────────────────────────────────────
 
   selectCashier(): void {
+    this.cashierPassword = '';
+    this.showCashierPassword.set(false);
+    this.cashierError.set('');
     this.step.set('cashier-setup');
     this.loadCashierWsAddress();
   }
@@ -112,11 +134,58 @@ export class LoginComponent implements OnInit, OnDestroy {
 
   // ── Cashier flow ───────────────────────────────────────────────────────────
 
-  enterAsCashier(): void {
-    if (!this.cashierUsername.trim()) return;
+  toggleCashierPasswordVisibility(): void {
+    this.showCashierPassword.update((v) => !v);
+  }
+
+  /** Client-side check, mirroring the server-side validation in accounts.rs, so
+   *  an obviously invalid entry gets immediate feedback instead of waiting on a
+   *  round trip. The real authoritative check — including whether the account
+   *  actually exists and the password matches — still happens server-side in
+   *  `authenticate_cashier`. Returns a message, or '' if the form looks valid. */
+  private validateCashierCredentials(username: string, password: string): string {
+    if (username.length < MIN_USERNAME_LEN) {
+      return `Le nom d'utilisateur doit contenir au moins ${MIN_USERNAME_LEN} caractères.`;
+    }
+    if (username.length > MAX_USERNAME_LEN) {
+      return `Le nom d'utilisateur ne peut pas dépasser ${MAX_USERNAME_LEN} caractères.`;
+    }
+    if (password.length < MIN_PASSWORD_LEN) {
+      return `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LEN} caractères.`;
+    }
+    if (!PASSWORD_HAS_LETTER.test(password) || !PASSWORD_HAS_DIGIT.test(password)) {
+      return 'Le mot de passe doit contenir au moins une lettre et un chiffre.';
+    }
+    return '';
+  }
+
+  async enterAsCashier(): Promise<void> {
+    if (this.authenticatingCashier()) return;
+
     const username = this.cashierUsername.trim();
-    localStorage.setItem(LS_USERNAME, username);
-    this.router.navigate(['/caissier']);
+    const password = this.cashierPassword;
+
+    const formError = this.validateCashierCredentials(username, password);
+    if (formError) {
+      this.cashierError.set(formError);
+      return;
+    }
+    this.cashierError.set('');
+
+    this.authenticatingCashier.set(true);
+    try {
+      await invoke('authenticate_cashier', { username, password });
+      localStorage.setItem(LS_USERNAME, username);
+      this.router.navigate(['/caissier']);
+    } catch (e) {
+      console.error('authenticate_cashier failed', e);
+      // Wrong username/password, account format, and suspended-account errors
+      // all come back as plain strings from the Tauri command.
+      const message = typeof e === 'string' ? e : 'Échec de la connexion. Réessayez.';
+      this.cashierError.set(message);
+    } finally {
+      this.authenticatingCashier.set(false);
+    }
   }
 
   copyWsAddress(): void {
@@ -199,6 +268,8 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     this.ws.disconnect();
+    this.cashierPassword = '';
+    this.cashierError.set('');
     this.step.set('role');
   }
 }

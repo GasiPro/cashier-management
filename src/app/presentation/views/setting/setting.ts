@@ -11,8 +11,12 @@ const MAX_ALLOWED_CONNECTED_DEVICES = 50;
 /** Kept in sync with the bounds in src-tauri/src/config/accounts.rs. */
 const MIN_USERNAME_LEN = 3;
 const MAX_USERNAME_LEN = 32;
-const MIN_PASSWORD_LEN = 6;
+const MIN_PASSWORD_LEN = 8;
 const MAX_DISPLAY_NAME_LEN = 40;
+/** Password must contain at least one letter and one digit ("word + number"),
+ *  mirroring the format check in `accounts::validate_password`. */
+const PASSWORD_HAS_LETTER = /[A-Za-z]/;
+const PASSWORD_HAS_DIGIT = /\d/;
 
 /** Mirrors `AccountStatus` in src-tauri/src/config/accounts.rs. */
 type AccountStatus = 'active' | 'suspended';
@@ -90,6 +94,8 @@ export class Setting implements OnInit {
       username.length >= this.minUsernameLen &&
       username.length <= this.maxUsernameLen &&
       password.length >= this.minPasswordLen &&
+      PASSWORD_HAS_LETTER.test(password) &&
+      PASSWORD_HAS_DIGIT.test(password) &&
       password === confirm &&
       !this.creatingAccount()
     );
@@ -208,6 +214,9 @@ export class Setting implements OnInit {
     if (this.newAccountPassword().length < this.minPasswordLen) {
       return `Le mot de passe doit contenir au moins ${this.minPasswordLen} caractères.`;
     }
+    if (!PASSWORD_HAS_LETTER.test(this.newAccountPassword()) || !PASSWORD_HAS_DIGIT.test(this.newAccountPassword())) {
+      return 'Le mot de passe doit contenir au moins une lettre et un chiffre.';
+    }
     if (this.newAccountPassword() !== this.newAccountPasswordConfirm()) {
       return 'Les mots de passe ne correspondent pas.';
     }
@@ -292,7 +301,12 @@ export class Setting implements OnInit {
     const password = this.editPassword();
     const confirm = this.editPasswordConfirm();
     if (password.length === 0 && confirm.length === 0) return true;
-    return password.length >= this.minPasswordLen && password === confirm;
+    return (
+      password.length >= this.minPasswordLen &&
+      PASSWORD_HAS_LETTER.test(password) &&
+      PASSWORD_HAS_DIGIT.test(password) &&
+      password === confirm
+    );
   });
 
   startEditAccount(account: CashierAccountView): void {
@@ -333,6 +347,9 @@ export class Setting implements OnInit {
     if (password.length > 0 || confirm.length > 0) {
       if (password.length < this.minPasswordLen) {
         return `Le mot de passe doit contenir au moins ${this.minPasswordLen} caractères.`;
+      }
+      if (!PASSWORD_HAS_LETTER.test(password) || !PASSWORD_HAS_DIGIT.test(password)) {
+        return 'Le mot de passe doit contenir au moins une lettre et un chiffre.';
       }
       if (password !== confirm) {
         return 'Les mots de passe ne correspondent pas.';

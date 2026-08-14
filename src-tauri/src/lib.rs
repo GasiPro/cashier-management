@@ -401,6 +401,40 @@ async fn set_max_connected_devices(app: tauri::AppHandle, state: State<'_, AppSt
     Ok(clamped)
 }
 
+/// Authenticate a cashier login attempt against the persisted accounts.
+/// Called from the login UI via invoke() as part of the existing
+/// username-based cashier flow — it doesn't replace that identity
+/// (`LS_USERNAME` on the frontend), it just gates entry into it with a
+/// password check. Wrong username and wrong password are reported with the
+/// same generic message so a failed attempt can't be used to probe which
+/// usernames exist; a suspended account gets its own, more specific
+/// message, since — unlike a wrong username/password — knowing that an
+/// account exists but is blocked isn't sensitive for the person trying to
+/// log into it.
+#[tauri::command]
+fn authenticate_cashier(
+    state: State<'_, AppState>,
+    username: String,
+    password: String,
+) -> Result<accounts::CashierAccountView, String> {
+    let username = accounts::validate_username(&username)?;
+    accounts::validate_password(&password)?;
+
+    let guard = state.cashier_accounts.lock().unwrap();
+    let account = guard.iter().find(|a| a.username.eq_ignore_ascii_case(&username));
+
+    let account = match account {
+        Some(a) if accounts::verify_password(&password, &a.password_hash) => a,
+        _ => return Err("Nom d'utilisateur ou mot de passe incorrect.".to_string()),
+    };
+
+    if account.status == accounts::AccountStatus::Suspended {
+        return Err("Ce compte a été suspendu. Contactez un administrateur.".to_string());
+    }
+
+    Ok(accounts::CashierAccountView::from(account))
+}
+
 /// Create a new cashier account. The username is validated, checked for
 /// uniqueness (case-insensitive) against every existing account, and — once
 /// created — is never changed: there is deliberately no "rename" command,
@@ -825,6 +859,7 @@ pub fn run() {
             get_max_connected_devices,
             get_connected_devices_count,
             set_max_connected_devices,
+            authenticate_cashier,
             create_cashier_account,
             list_cashier_accounts,
             update_cashier_account,
