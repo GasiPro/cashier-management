@@ -44,6 +44,14 @@ pub const MAX_DISPLAY_NAME_LEN: usize = 40;
 
 const ACCOUNTS_FILE_NAME: &str = "cashier_accounts.json";
 
+/// Username and password for the cashier account automatically created by
+/// `load_or_bootstrap` on a fresh installation (no accounts file, or an
+/// empty account list). This is the only place the plaintext default
+/// password appears — it is hashed immediately via `hash_password` before
+/// the account is ever persisted, so it never reaches disk in plain text.
+const DEFAULT_USERNAME: &str = "admin";
+const DEFAULT_PASSWORD: &str = "admin123";
+
 /// Whether a cashier account can currently be used. `Suspended` is a
 /// reversible block — the account and its history are kept, just unable to
 /// log in until an admin reactivates it — as opposed to permanent deletion,
@@ -128,6 +136,43 @@ pub fn save(app: &AppHandle, accounts: &[CashierAccount]) -> Result<(), String> 
     let path = accounts_file_path(app)?;
     let raw = serde_json::to_string_pretty(accounts).map_err(|e| e.to_string())?;
     std::fs::write(&path, raw).map_err(|e| e.to_string())
+}
+
+/// Loads persisted accounts the same way `load` does, but also handles the
+/// very first launch: if there are zero existing accounts (no accounts file
+/// yet, or one that persisted an empty list), a single default account
+/// (`admin` / `admin123`) is created, hashed with `hash_password` and
+/// persisted via `save`, so Réglages — itself reachable only after cashier
+/// login — is never permanently locked behind an account that can't yet
+/// exist. If at least one account already exists, this is equivalent to
+/// plain `load` and never touches disk or the existing accounts. Intended to
+/// be called once, at app setup, before the login screen is reachable.
+pub fn load_or_bootstrap(app: &AppHandle) -> Vec<CashierAccount> {
+    let accounts = load(app);
+    if !accounts.is_empty() {
+        return accounts;
+    }
+
+    let default_account = match hash_password(DEFAULT_PASSWORD) {
+        Ok(password_hash) => CashierAccount {
+            username: DEFAULT_USERNAME.to_string(),
+            display_name: String::new(),
+            password_hash,
+            created_at: chrono::Local::now().to_rfc3339(),
+            status: AccountStatus::Active,
+        },
+        // Hashing failures are effectively unreachable (Argon2 with a
+        // freshly generated salt), but if it ever happens, fall back to no
+        // accounts rather than risk anything unhashed touching disk.
+        Err(_) => return accounts,
+    };
+
+    let accounts = vec![default_account];
+    // A failed write here still leaves the default account usable for this
+    // session (login checks the in-memory list); it will simply be
+    // recreated on the next launch, same as any other unwritable-disk case.
+    let _ = save(app, &accounts);
+    accounts
 }
 
 /// Hashes a password with a freshly generated random salt. The returned
