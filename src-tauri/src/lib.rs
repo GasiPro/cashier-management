@@ -14,6 +14,7 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 
+use config::accounts;
 use config::pricing_matrix::PRICING_MATRIX;
 use config::settings;
 use domain::order::price_calculator::{CartItem, ServiceItem, ServiceItemType as PriceCalculatorItemType};
@@ -34,11 +35,15 @@ type PeerMap = Arc<Mutex<HashMap<SocketAddr, PeerState>>>;
 /// Shared with the WebSocket accept loop so a change made from Réglages takes
 /// effect immediately, without restarting the server.
 type MaxConnectedDevices = Arc<SyncMutex<u32>>;
+/// Persisted cashier accounts, shared so a creation from Réglages is
+/// immediately reflected everywhere that reads the list.
+type CashierAccounts = Arc<SyncMutex<Vec<accounts::CashierAccount>>>;
 
 pub struct AppState {
     pub order_service: Arc<OrderService>,
     pub peers: PeerMap,
     pub max_connected_devices: MaxConnectedDevices,
+    pub cashier_accounts: CashierAccounts,
 }
 
 // Messages a WS client can send to the server.
@@ -396,6 +401,54 @@ async fn set_max_connected_devices(app: tauri::AppHandle, state: State<'_, AppSt
     Ok(clamped)
 }
 
+/// Create a new cashier account. The username is validated, checked for
+/// uniqueness (case-insensitive) against every existing account, and — once
+/// created — is never changed: there is deliberately no "rename" command,
+/// since the rest of the app treats the username as a stable identity (the
+/// same one used by the existing username-based login flow). The password is
+/// hashed with Argon2 before it is persisted; the raw value never reaches
+/// disk. Called from the Réglages UI via invoke().
+#[tauri::command]
+async fn create_cashier_account(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    username: String,
+    password: String,
+) -> Result<accounts::CashierAccountView, String> {
+    let username = accounts::validate_username(&username)?;
+    accounts::validate_password(&password)?;
+
+    let mut guard = state.cashier_accounts.lock().unwrap();
+    if accounts::username_exists(&guard, &username) {
+        return Err("Ce nom d'utilisateur est déjà utilisé.".to_string());
+    }
+
+    let password_hash = accounts::hash_password(&password)?;
+    let account = accounts::CashierAccount {
+        username,
+        password_hash,
+        created_at: chrono::Local::now().to_rfc3339(),
+    };
+    guard.push(account);
+    accounts::save(&app, &guard)?;
+
+    Ok(accounts::CashierAccountView::from(guard.last().expect("account was just pushed")))
+}
+
+/// List existing cashier accounts (username + creation date only — password
+/// hashes never cross the Tauri IPC boundary). Called from the Réglages UI
+/// via invoke() to populate the account list.
+#[tauri::command]
+fn list_cashier_accounts(state: State<'_, AppState>) -> Vec<accounts::CashierAccountView> {
+    state
+        .cashier_accounts
+        .lock()
+        .unwrap()
+        .iter()
+        .map(accounts::CashierAccountView::from)
+        .collect()
+}
+
 /// Write raw bytes to an absolute path chosen by the user (e.g. via a save dialog).
 /// Used by the cashier UI to export the daily report (rapport du jour) as an Excel file.
 #[tauri::command]
@@ -412,6 +465,9 @@ pub fn run() {
     // Real value is loaded from disk (or defaulted) in `.setup()` below, once an
     // AppHandle is available to resolve the app's config directory.
     let max_connected_devices: MaxConnectedDevices = Arc::new(SyncMutex::new(settings::DEFAULT_MAX_CONNECTED_DEVICES));
+    // Same deal as `max_connected_devices`: the real list is loaded from disk in
+    // `.setup()` below.
+    let cashier_accounts: CashierAccounts = Arc::new(SyncMutex::new(Vec::new()));
 
     // ── WebSocket server (0.0.0.0 → reachable on LAN) ────────────────────────
     let ws_order_service = order_service.clone();
@@ -637,6 +693,7 @@ pub fn run() {
     });
 
     let setup_max_connected_devices = max_connected_devices.clone();
+    let setup_cashier_accounts = cashier_accounts.clone();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -654,9 +711,13 @@ pub fn run() {
             let loaded_settings = config::settings::load(app.handle());
             *setup_max_connected_devices.lock().unwrap() = loaded_settings.max_connected_devices;
 
+            // Load persisted cashier accounts (falls back to an empty list if
+            // there's no accounts file yet, or it can't be read).
+            *setup_cashier_accounts.lock().unwrap() = config::accounts::load(app.handle());
+
             Ok(())
         })
-        .manage(AppState { order_service, peers, max_connected_devices })
+        .manage(AppState { order_service, peers, max_connected_devices, cashier_accounts })
         .invoke_handler(tauri::generate_handler![
             get_ws_address,
             get_pricing_matrix,
@@ -672,6 +733,8 @@ pub fn run() {
             get_max_connected_devices,
             get_connected_devices_count,
             set_max_connected_devices,
+            create_cashier_account,
+            list_cashier_accounts,
             save_binary_file,
         ])
         .run(tauri::generate_context!())
