@@ -146,6 +146,12 @@ export class Cashier implements OnInit, OnDestroy {
   pendingRequests = signal<ConnectionRequest[]>([]);
   connectedDevices = signal<ConnectedDevice[]>([]);
   showDevicesPanel = false;
+  /** Cap configured from Réglages (0 = illimité). Loaded on init; editing happens on the Réglages page. */
+  maxConnectedDevices = signal<number>(0);
+  /** True once the configured cap is already reached — mirrors the check the server applies. */
+  atDeviceCapacity = computed(
+    () => this.maxConnectedDevices() > 0 && this.connectedDevices().length >= this.maxConnectedDevices(),
+  );
 
   // ── UI ──────────────────────────────────────────────────────────────────────
   showMenu = false;
@@ -228,6 +234,11 @@ export class Cashier implements OnInit, OnDestroy {
       .then((addr) => this.wsAddress.set(addr))
       .catch(() => this.wsAddress.set('127.0.0.1:8080'));
 
+    // Load the connected-devices cap for display here; it's edited from Réglages.
+    invoke<number>('get_max_connected_devices')
+      .then((max) => this.maxConnectedDevices.set(max))
+      .catch(() => {});
+
     // Subscribe to messages
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
       this.wsConnected.set(true);
@@ -272,6 +283,7 @@ export class Cashier implements OnInit, OnDestroy {
       await invoke('approve_connection', { addr });
     } catch (e) {
       console.error('approve_connection failed', e);
+      this.showToast(typeof e === 'string' ? e : "Impossible d'approuver cet appareil.");
     }
   }
 
@@ -334,6 +346,12 @@ export class Cashier implements OnInit, OnDestroy {
 
   goBack(): void {
     this.router.navigate(['/']);
+  }
+
+  goToSettings(): void {
+    this.showMenu = false;
+    this.showDevicesPanel = false;
+    this.router.navigate(['/reglages']);
   }
 
   // ── Order detail modal ────────────────────────────────────────────────────────

@@ -1,0 +1,146 @@
+<div class="bg-[#FAFAFA] min-h-screen flex flex-col">
+
+  <header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sticky top-0 z-20">
+    <div class="max-w-3xl mx-auto flex items-center gap-3">
+      <button (click)="goBack()" aria-label="Retour"
+        class="text-gray-400 hover:text-gray-600 transition-colors
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
+      <div class="flex items-center gap-2">
+        <div class="w-6 h-6 bg-[#1E3A5F] rounded-sm flex items-center justify-center">
+          <span class="text-white text-[10px] font-bold">G</span>
+        </div>
+        <span class="text-sm font-semibold text-gray-800">GasiPro</span>
+        <span class="text-gray-300">/</span>
+        <h1 class="text-sm text-gray-500">Réglages</h1>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 px-4 sm:px-6 py-6">
+    <div class="max-w-3xl mx-auto space-y-6">
+
+      <section aria-labelledby="devices-setting-heading"
+        class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
+        <div class="mb-1">
+          <h2 id="devices-setting-heading" class="text-base font-semibold text-[#1A1A1A]">
+            Appareils connectés
+          </h2>
+          <p class="text-xs text-gray-400 mt-0.5">
+            Limite le nombre de comptoirs pouvant être connectés à la caisse en même temps.
+          </p>
+        </div>
+
+        @if (loadingDevicesSetting()) {
+        <p class="text-sm text-gray-400 italic py-4">Chargement…</p>
+        } @else {
+
+        <!-- Current usage -->
+        <div class="flex items-center gap-2 mt-4 mb-5">
+          <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            Actuellement connectés
+          </span>
+          <span class="text-xs bg-gray-100 text-gray-700 font-semibold px-1.5 py-0.5 rounded-full">
+            {{ connectedDevicesCount() }}{{ maxConnectedDevices() > 0 ? ' / ' + maxConnectedDevices() : '' }}
+          </span>
+        </div>
+
+        @if (atDevicesCapacity()) {
+        <div role="status" class="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-5">
+          <svg class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+          <p class="text-xs text-amber-800">
+            La limite est atteinte : les nouvelles demandes de connexion seront automatiquement refusées
+            tant qu'un appareil ne se déconnecte pas ou que la limite n'est pas augmentée.
+          </p>
+        </div>
+        }
+
+        <!-- Editable limit -->
+        <div>
+          <label for="max-connected-devices-input"
+            class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Nombre maximum d'appareils connectés
+          </label>
+
+          <div class="flex items-center gap-2">
+            <button type="button" (click)="decrementMaxConnectedDevices()"
+              [disabled]="maxConnectedDevicesDraft() <= 0"
+              aria-label="Diminuer le nombre maximum d'appareils"
+              class="w-9 h-9 flex items-center justify-center rounded-md border border-gray-200 text-gray-600
+                     hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent transition-colors
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
+              </svg>
+            </button>
+
+            <input id="max-connected-devices-input" type="number" inputmode="numeric"
+              min="0" [attr.max]="maxAllowedConnectedDevices"
+              [value]="maxConnectedDevicesDraft()"
+              (input)="onMaxConnectedDevicesInput($any($event.target).value)"
+              aria-describedby="max-connected-devices-help"
+              class="w-20 text-center font-semibold text-[#1A1A1A] border border-gray-200 rounded-md py-1.5
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]" />
+
+            <button type="button" (click)="incrementMaxConnectedDevices()"
+              [disabled]="maxConnectedDevicesDraft() >= maxAllowedConnectedDevices"
+              aria-label="Augmenter le nombre maximum d'appareils"
+              class="w-9 h-9 flex items-center justify-center rounded-md border border-gray-200 text-gray-600
+                     hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent transition-colors
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
+
+            <span class="text-sm text-gray-400 ml-1">
+              {{ maxConnectedDevicesDraft() === 0 ? 'Illimité' : 'appareil(s)' }}
+            </span>
+          </div>
+
+          <p id="max-connected-devices-help" class="text-xs text-gray-400 mt-2">
+            0 = illimité. Un appareil déjà connecté n'est pas déconnecté si vous baissez la limite —
+            elle s'applique seulement aux nouvelles connexions.
+          </p>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center gap-2 mt-5">
+          <button type="button" (click)="saveMaxConnectedDevices()"
+            [disabled]="!devicesSettingDirty() || savingDevicesSetting()"
+            [attr.aria-busy]="savingDevicesSetting()"
+            class="bg-[#1E3A5F] text-white text-sm font-semibold px-4 py-2 rounded-md
+                   hover:bg-[#16304f] active:scale-95 transition-all
+                   disabled:opacity-40 disabled:hover:bg-[#1E3A5F] disabled:active:scale-100
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            {{ savingDevicesSetting() ? 'Enregistrement…' : 'Enregistrer' }}
+          </button>
+          @if (devicesSettingDirty()) {
+          <button type="button" (click)="resetMaxConnectedDevicesDraft()"
+            [disabled]="savingDevicesSetting()"
+            class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            Annuler
+          </button>
+          }
+        </div>
+
+        <p role="status" aria-live="polite"
+          class="text-xs mt-3"
+          [class.text-red-600]="statusIsError()"
+          [class.text-emerald-600]="!statusIsError() && statusMessage()">
+          {{ statusMessage() }}
+        </p>
+
+        }
+      </section>
+
+    </div>
+  </main>
+
+</div>
