@@ -34,9 +34,11 @@ use tauri::{AppHandle, Manager};
 /// Username length bounds, enforced both client- and server-side.
 pub const MIN_USERNAME_LEN: usize = 3;
 pub const MAX_USERNAME_LEN: usize = 32;
-/// Minimum password length. Not a strength requirement — just a floor
-/// against trivially guessable one-character passwords.
-pub const MIN_PASSWORD_LEN: usize = 6;
+/// Minimum password length. Combined with the letter+digit requirement in
+/// `validate_password`, this enforces the app's baseline password policy —
+/// applied identically whether the account is created/edited from Réglages
+/// or the password is checked at cashier login.
+pub const MIN_PASSWORD_LEN: usize = 8;
 /// Maximum length for the optional display name.
 pub const MAX_DISPLAY_NAME_LEN: usize = 40;
 
@@ -139,11 +141,9 @@ pub fn hash_password(password: &str) -> Result<String, String> {
         .map_err(|e| e.to_string())
 }
 
-/// Verifies a plain-text password against a previously hashed one. Reserved
-/// for the login flow — not wired up yet, since account-based authentication
-/// isn't part of this step, but kept alongside `hash_password` so the two
-/// stay in sync.
-#[allow(dead_code)]
+/// Verifies a plain-text password against a previously hashed one. Used by
+/// the cashier login flow's `authenticate_cashier` command, kept alongside
+/// `hash_password` so the two stay in sync.
 pub fn verify_password(password: &str, hash: &str) -> bool {
     let Ok(parsed_hash) = PasswordHash::new(hash) else {
         return false;
@@ -171,13 +171,21 @@ pub fn validate_username(username: &str) -> Result<String, String> {
     Ok(trimmed.to_string())
 }
 
-/// Validates a candidate password's length. Never logs or persists the raw
-/// value beyond this check.
+/// Validates a candidate password's length and format (at least one letter
+/// and one digit, i.e. "word + number"). Never logs or persists the raw
+/// value beyond this check. Applied identically to account creation/edit
+/// (Réglages) and to the password submitted at cashier login, so the two
+/// can never drift apart.
 pub fn validate_password(password: &str) -> Result<(), String> {
     if password.chars().count() < MIN_PASSWORD_LEN {
         return Err(format!(
             "Le mot de passe doit contenir au moins {MIN_PASSWORD_LEN} caractères."
         ));
+    }
+    let has_letter = password.chars().any(|c| c.is_alphabetic());
+    let has_digit = password.chars().any(|c| c.is_ascii_digit());
+    if !has_letter || !has_digit {
+        return Err("Le mot de passe doit contenir au moins une lettre et un chiffre.".to_string());
     }
     Ok(())
 }
