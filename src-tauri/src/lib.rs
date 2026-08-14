@@ -426,6 +426,7 @@ async fn create_cashier_account(
     let password_hash = accounts::hash_password(&password)?;
     let account = accounts::CashierAccount {
         username,
+        display_name: String::new(),
         password_hash,
         created_at: chrono::Local::now().to_rfc3339(),
     };
@@ -447,6 +448,45 @@ fn list_cashier_accounts(state: State<'_, AppState>) -> Vec<accounts::CashierAcc
         .iter()
         .map(accounts::CashierAccountView::from)
         .collect()
+}
+
+/// Modify an existing cashier account's display name and/or password. The
+/// username is immutable and only used to locate the account (see
+/// `accounts.rs`) — there is deliberately no way to change it here. Pass
+/// `password` as `null`/`None` to leave the current password unchanged.
+/// Called from the Réglages UI via invoke().
+#[tauri::command]
+async fn update_cashier_account(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    username: String,
+    display_name: String,
+    password: Option<String>,
+) -> Result<accounts::CashierAccountView, String> {
+    let display_name = accounts::validate_display_name(&display_name)?;
+    if let Some(ref pwd) = password {
+        accounts::validate_password(pwd)?;
+    }
+    // Hash before touching the account so a hashing failure never leaves the
+    // in-memory list mutated without a matching write to disk.
+    let new_password_hash = match password {
+        Some(pwd) => Some(accounts::hash_password(&pwd)?),
+        None => None,
+    };
+
+    let mut guard = state.cashier_accounts.lock().unwrap();
+    let account = accounts::find_account_mut(&mut guard, &username)
+        .ok_or_else(|| "Compte introuvable.".to_string())?;
+
+    account.display_name = display_name;
+    if let Some(hash) = new_password_hash {
+        account.password_hash = hash;
+    }
+
+    let updated = accounts::CashierAccountView::from(&*account);
+    accounts::save(&app, &guard)?;
+
+    Ok(updated)
 }
 
 /// Write raw bytes to an absolute path chosen by the user (e.g. via a save dialog).
@@ -735,6 +775,7 @@ pub fn run() {
             set_max_connected_devices,
             create_cashier_account,
             list_cashier_accounts,
+            update_cashier_account,
             save_binary_file,
         ])
         .run(tauri::generate_context!())

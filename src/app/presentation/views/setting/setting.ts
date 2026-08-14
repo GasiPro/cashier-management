@@ -12,10 +12,12 @@ const MAX_ALLOWED_CONNECTED_DEVICES = 50;
 const MIN_USERNAME_LEN = 3;
 const MAX_USERNAME_LEN = 32;
 const MIN_PASSWORD_LEN = 6;
+const MAX_DISPLAY_NAME_LEN = 40;
 
 /** Mirrors `CashierAccountView` returned by the Tauri backend — never carries a password. */
 interface CashierAccountView {
   username: string;
+  display_name: string;
   created_at: string;
 }
 
@@ -31,6 +33,7 @@ export class Setting implements OnInit {
   readonly minUsernameLen = MIN_USERNAME_LEN;
   readonly maxUsernameLen = MAX_USERNAME_LEN;
   readonly minPasswordLen = MIN_PASSWORD_LEN;
+  readonly maxDisplayNameLen = MAX_DISPLAY_NAME_LEN;
 
   @ViewChild('newAccountUsernameInput') private newAccountUsernameInput?: ElementRef<HTMLInputElement>;
 
@@ -262,6 +265,108 @@ export class Setting implements OnInit {
   private setAccountStatus(message: string, isError: boolean): void {
     this.accountStatusMessage.set(message);
     this.accountStatusIsError.set(isError);
+  }
+
+  // ── Cashier accounts: modify (display name / password) ─────────────────────
+
+  /** Username of the account currently being edited, or null if none — only one
+   *  row is editable at a time so the form and its validation stay unambiguous. */
+  editingUsername = signal<string | null>(null);
+  editDisplayName = signal('');
+  editPassword = signal('');
+  editPasswordConfirm = signal('');
+  /** Toggles the edit password/confirm fields between masked and plain text. */
+  showEditPassword = signal(false);
+  savingEditAccount = signal(false);
+  /** Inline validation or server error for the edit form, announced via aria-live. */
+  editAccountError = signal('');
+
+  /** An empty new-password pair is valid — it means "leave the password unchanged". */
+  canSubmitEditAccount = computed(() => {
+    if (this.savingEditAccount()) return false;
+    if (this.editDisplayName().trim().length > this.maxDisplayNameLen) return false;
+    const password = this.editPassword();
+    const confirm = this.editPasswordConfirm();
+    if (password.length === 0 && confirm.length === 0) return true;
+    return password.length >= this.minPasswordLen && password === confirm;
+  });
+
+  startEditAccount(account: CashierAccountView): void {
+    this.editingUsername.set(account.username);
+    this.editDisplayName.set(account.display_name);
+    this.editPassword.set('');
+    this.editPasswordConfirm.set('');
+    this.showEditPassword.set(false);
+    this.editAccountError.set('');
+    // Move focus into the panel once it's rendered, so keyboard/screen-reader
+    // users land straight on the first editable field instead of the button.
+    setTimeout(() => {
+      document.getElementById(`edit-display-name-${account.username}`)?.focus();
+    });
+  }
+
+  /** Closes the edit panel and returns focus to the row's "Modifier" button. */
+  cancelEditAccount(): void {
+    const username = this.editingUsername();
+    this.editingUsername.set(null);
+    if (username) {
+      document.getElementById(`account-edit-btn-${username}`)?.focus();
+    }
+  }
+
+  toggleEditPasswordVisibility(): void {
+    this.showEditPassword.update((v) => !v);
+  }
+
+  /** Client-side check, mirroring the server-side validation in accounts.rs. */
+  private validateEditAccountForm(): string {
+    if (this.editDisplayName().trim().length > this.maxDisplayNameLen) {
+      return `Le nom affiché ne peut pas dépasser ${this.maxDisplayNameLen} caractères.`;
+    }
+    const password = this.editPassword();
+    const confirm = this.editPasswordConfirm();
+    if (password.length > 0 || confirm.length > 0) {
+      if (password.length < this.minPasswordLen) {
+        return `Le mot de passe doit contenir au moins ${this.minPasswordLen} caractères.`;
+      }
+      if (password !== confirm) {
+        return 'Les mots de passe ne correspondent pas.';
+      }
+    }
+    return '';
+  }
+
+  async saveEditAccount(): Promise<void> {
+    const username = this.editingUsername();
+    if (!username || this.savingEditAccount()) return;
+
+    const formError = this.validateEditAccountForm();
+    if (formError) {
+      this.editAccountError.set(formError);
+      return;
+    }
+    this.editAccountError.set('');
+
+    this.savingEditAccount.set(true);
+    try {
+      const displayName = this.editDisplayName().trim();
+      const password = this.editPassword().length > 0 ? this.editPassword() : null;
+      const updated = await invoke<CashierAccountView>('update_cashier_account', {
+        username,
+        displayName,
+        password,
+      });
+      this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
+      this.editingUsername.set(null);
+      this.setAccountStatus(`Compte « ${updated.username} » mis à jour.`, false);
+      document.getElementById(`account-edit-btn-${updated.username}`)?.focus();
+    } catch (e) {
+      console.error('update_cashier_account failed', e);
+      const message = typeof e === 'string' ? e : 'Échec de la mise à jour du compte. Réessayez.';
+      this.editAccountError.set(message);
+    } finally {
+      this.savingEditAccount.set(false);
+    }
   }
 
   goBack(): void {
