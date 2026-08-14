@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::sync::Mutex as SyncMutex;
 use tauri::State;
 use tokio::net::TcpListener;
 use tokio::sync::{mpsc, Mutex};
@@ -14,6 +15,7 @@ use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 
 use config::pricing_matrix::PRICING_MATRIX;
+use config::settings;
 use domain::order::price_calculator::{CartItem, ServiceItem, ServiceItemType as PriceCalculatorItemType};
 use service::order_api_service::Order;
 use service::order_service::OrderService;
@@ -28,10 +30,15 @@ pub struct PeerState {
 }
 
 type PeerMap = Arc<Mutex<HashMap<SocketAddr, PeerState>>>;
+/// Maximum number of connected comptoir (counter) devices. `0` means unlimited.
+/// Shared with the WebSocket accept loop so a change made from Réglages takes
+/// effect immediately, without restarting the server.
+type MaxConnectedDevices = Arc<SyncMutex<u32>>;
 
 pub struct AppState {
     pub order_service: Arc<OrderService>,
     pub peers: PeerMap,
+    pub max_connected_devices: MaxConnectedDevices,
 }
 
 // Messages a WS client can send to the server.
@@ -82,7 +89,8 @@ enum ServerMessage {
     ConnectedDevices { data: Vec<ConnectedDevice> },
     /// Sent to a counter when the cashier approves its connection.
     ConnectionApproved,
-    /// Sent to a counter when the cashier rejects its connection.
+    /// Sent to a counter when the cashier rejects its connection, or when the
+    /// cashier's connected-devices limit is already reached.
     ConnectionRejected,
     /// Sent to a counter when the cashier blocks (force-disconnects) its connection.
     ConnectionBlocked,
@@ -191,6 +199,13 @@ async fn get_connected_devices_list(peers: &PeerMap) -> Vec<ConnectedDevice> {
         .collect()
 }
 
+/// `true` once the configured connected-devices limit has been reached (`0` on the
+/// limit means unlimited, so it never reports full).
+async fn is_at_connected_devices_capacity(peers: &PeerMap, max_connected_devices: &MaxConnectedDevices) -> bool {
+    let max = *max_connected_devices.lock().unwrap();
+    max > 0 && get_connected_devices_list(peers).await.len() >= max as usize
+}
+
 // ── Tauri Commands ────────────────────────────────────────────────────────────
 
 /// Returns the local LAN address for this machine (e.g. 192.168.1.5:8080).
@@ -269,6 +284,14 @@ async fn reject_group(state: State<'_, AppState>, group_id: i64, raison: Option<
 #[tauri::command]
 async fn approve_connection(state: State<'_, AppState>, addr: String) -> Result<(), String> {
     let socket_addr: SocketAddr = addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
+
+    if is_at_connected_devices_capacity(&state.peers, &state.max_connected_devices).await {
+        let max = *state.max_connected_devices.lock().unwrap();
+        return Err(format!(
+            "Limite de {max} appareil(s) connecté(s) atteinte. Déconnectez un appareil ou augmentez la limite dans Réglages."
+        ));
+    }
+
     let orders = state.order_service.get_orders();
 
     {
@@ -340,6 +363,39 @@ async fn disconnect_device(state: State<'_, AppState>, addr: String) -> Result<(
     Ok(())
 }
 
+/// Current cap on connected comptoir devices (`0` = unlimited). Called from the
+/// Réglages UI via invoke().
+#[tauri::command]
+fn get_max_connected_devices(state: State<'_, AppState>) -> u32 {
+    *state.max_connected_devices.lock().unwrap()
+}
+
+/// How many comptoir devices are connected right now — shown alongside the limit in
+/// Réglages, using the same peer bookkeeping as the cashier's "Appareils" panel.
+#[tauri::command]
+async fn get_connected_devices_count(state: State<'_, AppState>) -> Result<usize, String> {
+    Ok(get_connected_devices_list(&state.peers).await.len())
+}
+
+/// Update the cap on connected comptoir devices. Persists to disk and takes effect
+/// immediately for new connection requests; already-connected devices are left
+/// untouched. Returns the value actually applied (clamped to a sane range).
+#[tauri::command]
+async fn set_max_connected_devices(app: tauri::AppHandle, state: State<'_, AppState>, value: u32) -> Result<u32, String> {
+    let clamped = settings::clamp_max_connected_devices(value);
+    {
+        let mut guard = state.max_connected_devices.lock().unwrap();
+        *guard = clamped;
+    }
+    settings::save(
+        &app,
+        &settings::AppSettings {
+            max_connected_devices: clamped,
+        },
+    )?;
+    Ok(clamped)
+}
+
 /// Write raw bytes to an absolute path chosen by the user (e.g. via a save dialog).
 /// Used by the cashier UI to export the daily report (rapport du jour) as an Excel file.
 #[tauri::command]
@@ -353,10 +409,14 @@ fn save_binary_file(path: String, data: Vec<u8>) -> Result<(), String> {
 pub fn run() {
     let order_service = Arc::new(OrderService::new());
     let peers: PeerMap = Arc::new(Mutex::new(HashMap::new()));
+    // Real value is loaded from disk (or defaulted) in `.setup()` below, once an
+    // AppHandle is available to resolve the app's config directory.
+    let max_connected_devices: MaxConnectedDevices = Arc::new(SyncMutex::new(settings::DEFAULT_MAX_CONNECTED_DEVICES));
 
     // ── WebSocket server (0.0.0.0 → reachable on LAN) ────────────────────────
     let ws_order_service = order_service.clone();
     let ws_peers = peers.clone();
+    let ws_max_connected_devices = max_connected_devices.clone();
     tauri::async_runtime::spawn(async move {
         let listener = TcpListener::bind("0.0.0.0:8080")
             .await
@@ -365,6 +425,7 @@ pub fn run() {
         while let Ok((stream, addr)) = listener.accept().await {
             let peers_inner = ws_peers.clone();
             let order_service_inner = ws_order_service.clone();
+            let max_connected_devices_inner = ws_max_connected_devices.clone();
 
             tauri::async_runtime::spawn(async move {
                 let ws_stream = match accept_async(stream).await {
@@ -429,18 +490,31 @@ pub fn run() {
                             }
 
                             Ok(ClientMessage::RequestConnection { username }) => {
-                                {
-                                    let mut guard = peers_inner.lock().await;
-                                    if let Some(state) = guard.get_mut(&addr) {
-                                        state.username = username;
-                                    }
-                                }
-                                let pending = get_pending_requests_list(&peers_inner).await;
-                                notify_cashier(
+                                // Enforce the connected-devices cap up front: a device turned
+                                // away here never shows up as a pending request the cashier
+                                // could approve anyway, which would just be a dead end.
+                                let at_capacity = is_at_connected_devices_capacity(
                                     &peers_inner,
-                                    &ServerMessage::ConnectionRequests { data: pending },
+                                    &max_connected_devices_inner,
                                 )
                                 .await;
+
+                                if at_capacity {
+                                    send_to_addr(&peers_inner, addr, &ServerMessage::ConnectionRejected).await;
+                                } else {
+                                    {
+                                        let mut guard = peers_inner.lock().await;
+                                        if let Some(state) = guard.get_mut(&addr) {
+                                            state.username = username;
+                                        }
+                                    }
+                                    let pending = get_pending_requests_list(&peers_inner).await;
+                                    notify_cashier(
+                                        &peers_inner,
+                                        &ServerMessage::ConnectionRequests { data: pending },
+                                    )
+                                    .await;
+                                }
                             }
 
                             Ok(ClientMessage::CreateOrder { cart }) => {
@@ -562,9 +636,11 @@ pub fn run() {
         }
     });
 
+    let setup_max_connected_devices = max_connected_devices.clone();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .setup(|app| {
+        .setup(move |app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -572,9 +648,15 @@ pub fn run() {
                         .build(),
                 )?;
             }
+
+            // Load the persisted connected-devices cap (falls back to the default
+            // set above if there's no settings file yet, or it can't be read).
+            let loaded_settings = config::settings::load(app.handle());
+            *setup_max_connected_devices.lock().unwrap() = loaded_settings.max_connected_devices;
+
             Ok(())
         })
-        .manage(AppState { order_service, peers })
+        .manage(AppState { order_service, peers, max_connected_devices })
         .invoke_handler(tauri::generate_handler![
             get_ws_address,
             get_pricing_matrix,
@@ -587,6 +669,9 @@ pub fn run() {
             approve_connection,
             reject_connection,
             disconnect_device,
+            get_max_connected_devices,
+            get_connected_devices_count,
+            set_max_connected_devices,
             save_binary_file,
         ])
         .run(tauri::generate_context!())
