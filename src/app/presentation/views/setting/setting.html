@@ -140,6 +140,161 @@
         }
       </section>
 
+      <section aria-labelledby="cashier-accounts-heading"
+        class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
+        <div class="mb-1">
+          <h2 id="cashier-accounts-heading" class="text-base font-semibold text-[#1A1A1A]">
+            Comptes caissier
+          </h2>
+          <p class="text-xs text-gray-400 mt-0.5">
+            Créez un compte pour un poste caisse. Le nom d'utilisateur ne pourra plus être modifié une fois le
+            compte créé.
+          </p>
+        </div>
+
+        <!-- Existing accounts -->
+        <div class="mt-4 mb-6">
+          <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Comptes existants
+          </h3>
+          @if (loadingAccounts()) {
+          <p class="text-sm text-gray-400 italic py-2">Chargement…</p>
+          } @else if (accounts().length === 0) {
+          <p class="text-sm text-gray-400 py-2">Aucun compte caissier créé pour le moment.</p>
+          } @else {
+          <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg"
+            [attr.aria-label]="accounts().length + ' compte(s) caissier créé(s)'">
+            @for (account of accounts(); track account.username) {
+            <li class="flex items-center gap-3 px-3 py-2.5">
+              <div class="w-8 h-8 rounded-full bg-[#1E3A5F]/10 text-[#1E3A5F] text-xs font-semibold
+                          flex items-center justify-center flex-shrink-0 uppercase" aria-hidden="true">
+                {{ account.username.charAt(0) }}
+              </div>
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-[#1A1A1A] truncate">{{ account.username }}</p>
+                <p class="text-xs text-gray-400">Créé le {{ formatAccountDate(account.created_at) }}</p>
+              </div>
+            </li>
+            }
+          </ul>
+          }
+        </div>
+
+        <!-- Create account form -->
+        <form (ngSubmit)="createAccount()" novalidate>
+          <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Nouveau compte
+          </h3>
+
+          <div class="space-y-4">
+            <!-- Username -->
+            <div>
+              <label for="new-account-username"
+                class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Nom d'utilisateur
+              </label>
+              <input #newAccountUsernameInput id="new-account-username" type="text"
+                name="newAccountUsername"
+                [ngModel]="newAccountUsername()"
+                (ngModelChange)="newAccountUsername.set($event)"
+                autocomplete="username"
+                spellcheck="false"
+                required
+                [attr.minlength]="minUsernameLen"
+                [attr.maxlength]="maxUsernameLen"
+                aria-describedby="new-account-username-help"
+                placeholder="ex : Caisse 2"
+                class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-[#1A1A1A]
+                       focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+              <p id="new-account-username-help" class="text-xs text-gray-400 mt-1.5">
+                Définitif une fois créé — choisissez un nom que vous reconnaîtrez facilement.
+              </p>
+            </div>
+
+            <!-- Password -->
+            <div>
+              <label for="new-account-password"
+                class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Mot de passe
+              </label>
+              <div class="flex items-center gap-2">
+                <input id="new-account-password" [type]="showAccountPassword() ? 'text' : 'password'"
+                  name="newAccountPassword"
+                  [ngModel]="newAccountPassword()"
+                  (ngModelChange)="newAccountPassword.set($event)"
+                  autocomplete="new-password"
+                  required
+                  [attr.minlength]="minPasswordLen"
+                  aria-describedby="new-account-password-help"
+                  placeholder="••••••••"
+                  class="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-[#1A1A1A]
+                         focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+                <button type="button" (click)="toggleAccountPasswordVisibility()"
+                  [attr.aria-pressed]="showAccountPassword()"
+                  [attr.aria-label]="showAccountPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'"
+                  class="flex-shrink-0 border border-gray-200 bg-white rounded-lg p-2.5
+                         hover:bg-gray-50 transition-colors
+                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                  @if (showAccountPassword()) {
+                  <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.243 4.243L9.88 9.88" />
+                  </svg>
+                  } @else {
+                  <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  }
+                </button>
+              </div>
+              <p id="new-account-password-help" class="text-xs text-gray-400 mt-1.5">
+                Au moins {{ minPasswordLen }} caractères.
+              </p>
+            </div>
+
+            <!-- Confirm password -->
+            <div>
+              <label for="new-account-password-confirm"
+                class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Confirmer le mot de passe
+              </label>
+              <input id="new-account-password-confirm" [type]="showAccountPassword() ? 'text' : 'password'"
+                name="newAccountPasswordConfirm"
+                [ngModel]="newAccountPasswordConfirm()"
+                (ngModelChange)="newAccountPasswordConfirm.set($event)"
+                autocomplete="new-password"
+                required
+                placeholder="••••••••"
+                class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-[#1A1A1A]
+                       focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+            </div>
+          </div>
+
+          <p role="alert" aria-live="assertive" class="text-xs text-red-600 mt-3">
+            {{ accountFormError() }}
+          </p>
+
+          <div class="flex items-center gap-2 mt-2">
+            <button type="submit"
+              [disabled]="!canSubmitAccount()"
+              [attr.aria-busy]="creatingAccount()"
+              class="bg-[#1E3A5F] text-white text-sm font-semibold px-4 py-2 rounded-md
+                     hover:bg-[#16304f] active:scale-95 transition-all
+                     disabled:opacity-40 disabled:hover:bg-[#1E3A5F] disabled:active:scale-100
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+              {{ creatingAccount() ? 'Création…' : 'Créer le compte' }}
+            </button>
+          </div>
+
+          <p role="status" aria-live="polite"
+            class="text-xs mt-3"
+            [class.text-red-600]="accountStatusIsError()"
+            [class.text-emerald-600]="!accountStatusIsError() && accountStatusMessage()">
+            {{ accountStatusMessage() }}
+          </p>
+        </form>
+      </section>
+
     </div>
   </main>
 
