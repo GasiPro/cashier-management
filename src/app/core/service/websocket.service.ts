@@ -1,4 +1,3 @@
-
 // src/app/core/service/websocket.service.ts
 import { Injectable, OnDestroy } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
@@ -6,6 +5,39 @@ import { Observable, Subject } from 'rxjs';
 export interface WsMessage<T = any> {
   type: string;
   data: T;
+}
+
+const IPV4_OCTET = '(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)';
+const IPV4_REGEX = new RegExp(`^${IPV4_OCTET}(\\.${IPV4_OCTET}){3}$`);
+/** Bare hostnames (e.g. "localhost") — kept permissive since the cashier's LAN
+ *  address is normally an IPv4 literal, but a hostname is still valid input. */
+const HOSTNAME_REGEX = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*$/;
+
+/** Strips a leading "ws://" or "wss://" scheme, if present, before validating/using an address. */
+export function stripWsScheme(address: string): string {
+  return address.trim().replace(/^wss?:\/\//i, '');
+}
+
+/**
+ * Validates a "host:port" address (e.g. "192.168.1.5:8080") *before* it is ever
+ * used to open a socket — catches malformed IPs/ports (missing/extra octets,
+ * out-of-range numbers, missing port, non-numeric port) with an immediate,
+ * synchronous answer, distinct from `checkAddress`'s "is anything listening
+ * there" network probe.
+ */
+export function isValidHostPort(address: string): boolean {
+  const trimmed = stripWsScheme(address);
+  const separatorIndex = trimmed.lastIndexOf(':');
+  if (separatorIndex <= 0 || separatorIndex === trimmed.length - 1) return false;
+
+  const host = trimmed.slice(0, separatorIndex);
+  const portStr = trimmed.slice(separatorIndex + 1);
+  if (!/^\d+$/.test(portStr)) return false;
+
+  const port = Number(portStr);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return false;
+
+  return IPV4_REGEX.test(host) || HOSTNAME_REGEX.test(host);
 }
 
 /**
