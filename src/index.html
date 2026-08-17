@@ -4,10 +4,85 @@
   <meta charset="utf-8">
   <title>GasiPro</title>
   <base href="/">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <style>
+    :root {
+      color-scheme: light;
+    }
+
+    html, body {
+      height: 100%;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Roboto, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+      -webkit-tap-highlight-color: transparent;
+      cursor: default;
+    }
+
+    /* Native apps don't let you drag-select arbitrary chrome (menus, labels,
+       buttons) the way a web page does — but text you'd actually want to
+       copy (inputs, numbers, editable content) still behaves normally. */
+    body {
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    input, textarea,
+    [contenteditable="true"],
+    .selectable {
+      -webkit-user-select: text;
+      user-select: text;
+      cursor: text;
+    }
+
+    button, a, [role="button"], [role="menuitem"] {
+      cursor: default;
+    }
+
+    img, svg {
+      -webkit-user-drag: none;
+      user-drag: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* Thin, unobtrusive scrollbar instead of the bulky default browser one */
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background-color: rgba(0, 0, 0, 0.18);
+      border-radius: 999px;
+      border: 2px solid transparent;
+      background-clip: padding-box;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background-color: rgba(0, 0, 0, 0.32);
+      background-clip: padding-box;
+    }
+
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+    }
+  </style>
 </head>
-<body>
+<body oncontextmenu="return false;">
   <app-root></app-root>
 </body>
 </html>
