@@ -1,8 +1,6 @@
 <div class="bg-[#FAFAFA] min-h-screen flex flex-col">
-
   <header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sticky top-0 z-20">
     <div class="max-w-5xl mx-auto flex items-center justify-between gap-4">
-
       <div class="flex items-center gap-3">
         <button (click)="goBack()" aria-label="Retour" class="text-gray-400 hover:text-gray-600 transition-colors
                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
@@ -19,21 +17,18 @@
           <span class="text-sm text-gray-500 hidden sm:block">Caisse · {{ username }}</span>
         </div>
       </div>
-
       <div class="flex items-center gap-2 sm:gap-3">
         <div class="hidden sm:flex items-center gap-4 text-sm">
           <div class="text-right">
             <p class="text-xs text-gray-400">Encaissé</p>
-            <p class="font-semibold text-[#1A1A1A] tabular-nums">{{ todaysRevenue() | number:'1.0-0' }} Ar</p>
+            <p class="font-semibold text-[#1A1A1A] tabular-nums selectable">{{ todaysRevenue() | number:'1.0-0' }} Ar</p>
           </div>
           <div class="w-px h-8 bg-gray-200"></div>
           <div class="text-right">
             <p class="text-xs text-gray-400">Transactions</p>
-            <p class="font-semibold text-[#1A1A1A]">{{ todaysPaidGroups().length }}</p>
+            <p class="font-semibold text-[#1A1A1A] selectable">{{ todaysPaidGroups().length }}</p>
           </div>
         </div>
-
-        <!-- Menu button: Rapport / Historique / Appareils -->
         <div class="relative">
           <button (click)="showMenu = !showMenu" [attr.aria-expanded]="showMenu" aria-haspopup="menu"
                   aria-controls="cashier-menu" aria-label="Menu"
@@ -51,7 +46,6 @@
             </span>
             }
           </button>
-
           @if (showMenu) {
           <div class="fixed inset-0 z-40" (click)="showMenu = false" (keydown.escape)="showMenu = false"></div>
           <div id="cashier-menu" role="menu" aria-label="Menu principal"
@@ -102,15 +96,12 @@
       <span class="text-xs text-gray-400">{{ currentTime() }}</span>
     </div>
   </header>
-
-  <!-- ── Devices panel ───────────────────────────────────────────────────────── -->
   @if (showDevicesPanel) {
   <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showDevicesPanel = false">
     <div class="absolute inset-0 bg-black/20"></div>
     <div class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-y-auto
                 flex flex-col"
          (click)="$event.stopPropagation()">
-
       <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
         <div>
           <h2 class="text-base font-semibold text-[#1A1A1A]">Appareils connectés</h2>
@@ -125,10 +116,7 @@
           </svg>
         </button>
       </div>
-
       <div class="flex-1 px-6 py-4 space-y-6">
-
-        <!-- WS address card -->
         <div class="bg-[#EFF4FA] border border-[#1E3A5F]/20 rounded-lg p-4">
           <p class="text-xs font-medium text-[#1E3A5F] uppercase tracking-wide mb-2">Adresse à partager</p>
           <div class="flex items-center gap-2">
@@ -142,8 +130,6 @@
             </button>
           </div>
         </div>
-
-        <!-- Pending requests -->
         <div>
           <div class="flex items-center gap-2 mb-3">
             <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">En attente d'approbation</p>
@@ -153,11 +139,9 @@
             </span>
             }
           </div>
-
           @if (pendingRequests().length === 0) {
           <p class="text-sm text-gray-400 italic py-2">Aucune demande en attente.</p>
           }
-
           <div class="space-y-2">
             @for (req of pendingRequests(); track req.addr) {
             <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
@@ -188,8 +172,6 @@
             }
           </div>
         </div>
-
-        <!-- Connected devices -->
         <div>
           <div class="flex items-center gap-2 mb-1">
             <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide flex-1">Comptoirs connectés</p>
@@ -206,17 +188,14 @@
               Réglages
             </button>
           </div>
-
           @if (atDeviceCapacity()) {
           <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5 mb-3">
             Limite atteinte : les nouvelles demandes de connexion seront refusées automatiquement.
           </p>
           }
-
           @if (connectedDevices().length === 0) {
           <p class="text-sm text-gray-400 italic py-2">Aucun appareil connecté.</p>
           }
-
           <div class="space-y-2">
             @for (dev of connectedDevices(); track dev.addr) {
             <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-center justify-between">
@@ -235,12 +214,10 @@
             }
           </div>
         </div>
-
       </div>
     </div>
   </div>
   }
-
   <!-- ── Rapport panel ───────────────────────────────────────────────────────── -->
   @if (showRapport) {
   <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showRapport = false"
@@ -266,7 +243,6 @@
               </svg>
               <span class="underline decoration-dotted underline-offset-2">{{ rapportDateLabel() }}</span>
             </button>
-
             @if (showRapportDatePicker()) {
             <div class="absolute left-0 top-full mt-1 z-10 bg-white border border-gray-200 rounded-lg shadow-lg p-3"
                  (click)="$event.stopPropagation()">
@@ -335,8 +311,6 @@
             </button>
           </div>
         </div>
-
-        <!-- Period selector: jour / semaine / année — determines the granularity of every figure below. -->
         <div class="flex items-center gap-1.5 mt-3" role="group" aria-label="Granularité du rapport">
           <button (click)="setRapportPeriod('jour')" [attr.aria-pressed]="rapportPeriod() === 'jour'"
             [class]="rapportPeriod() === 'jour'
@@ -371,9 +345,6 @@
             Année
           </button>
         </div>
-
-        <!-- Quick period presets: the "single click" a cashier reaches for at open/close of shift, -->
-        <!-- rather than hunting through the date picker every time — POS-report convention. -->
         <div class="flex items-center gap-1.5 mt-1.5" role="group" aria-label="Raccourcis de période du rapport">
           <button (click)="setRapportCurrentPeriod()" [attr.aria-pressed]="isRapportCurrentPeriod()"
             [class]="isRapportCurrentPeriod()
@@ -394,10 +365,6 @@
         </div>
       </div>
       <div class="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-4">
-
-        <!-- Headline figure: the number a cashier hands off at end of shift, with an at-a-glance -->
-        <!-- trend vs the previous day — the "match POS expectation" reason this panel exists -->
-        <!-- instead of just reading totals off the raw Historique feed. -->
         <div class="bg-[#1E3A5F] rounded-xl px-5 py-4 text-white mb-4">
           <div class="flex items-center justify-between mb-1">
             <span class="text-xs font-medium text-white/70 uppercase tracking-wide">Chiffre d'affaires</span>
@@ -416,8 +383,6 @@
             {{ rapportComparisonLabel() }} : {{ rapportRevenueTrend().previousRevenue | number:'1.0-0' }} Ar
           </p>
         </div>
-
-        <!-- Secondary stat grid: scannable at a glance, unlike the flat row list this replaces. -->
         <div class="grid grid-cols-2 gap-2 mb-4">
           <div class="bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5">
             <p class="text-[11px] text-gray-400 uppercase tracking-wide">Transactions</p>
@@ -436,9 +401,6 @@
             <p class="text-lg font-semibold text-[#1A1A1A] tabular-nums">{{ pendingGroups().length }}</p>
           </div>
         </div>
-
-        <!-- Time-of-day range only makes sense within a single day. Read-only: it always reflects -->
-        <!-- the first-to-last paid order that day, so there's nothing to pick — just to read. -->
         @if (rapportPeriod() === 'jour') {
         <div class="flex justify-between items-center py-3 border-b border-gray-100 mb-1">
           <span id="rapport-time-range-label" class="text-sm text-gray-600">Plage horaire</span>
@@ -448,9 +410,6 @@
           </span>
         </div>
         }
-
-        <!-- Per-comptoir breakdown: an aggregate a cashier can't get from Historique, which only -->
-        <!-- lets you filter one comptoir's raw transaction list at a time. -->
         @if (rapportByCounter().length > 1) {
         <div class="pt-4">
           <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">Par comptoir</p>
@@ -468,9 +427,6 @@
           </div>
         </div>
         }
-
-        <!-- Top ventes: ranks services by revenue so a cashier can spot what's driving the day -->
-        <!-- without scanning the full detail list — Historique has no such ranking. -->
         @if (rapportTopServices().length > 0) {
         <div class="pt-4">
           <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">Top ventes</p>
@@ -487,9 +443,6 @@
           </div>
         </div>
         }
-
-        <!-- Adjustments summary: a rollup total, not a per-order badge — the reason a cashier -->
-        <!-- opens Rapport instead of counting "Remise"/"Majoration" chips in Historique. -->
         @if (rapportAdjustmentsSummary().discountCount > 0 || rapportAdjustmentsSummary().increaseCount > 0) {
         <div class="pt-4">
           <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">Ajustements de prix</p>
@@ -513,7 +466,6 @@
           </div>
         </div>
         }
-
         <div class="pt-4">
           <p class="text-xs text-gray-400 uppercase tracking-wide font-medium mb-3">Détail par comptoir</p>
           @if (rapportGroupsByUsername().length === 0) {
@@ -572,8 +524,6 @@
     </div>
   </div>
   }
-
-  <!-- ── Historique panel ────────────────────────────────────────────────────── -->
   @if (showHistorique) {
   <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showHistorique = false"
        (keydown.escape)="showHistorique = false">
@@ -596,8 +546,6 @@
           </svg>
         </button>
       </div>
-
-      <!-- Per-counter filter: separates history so each comptoir's orders can be reviewed on their own -->
       @if (historiqueUsernames().length > 1) {
       <div class="px-6 pt-4" role="group" aria-label="Filtrer l'historique par comptoir">
         <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Comptoir</p>
@@ -625,16 +573,12 @@
         </div>
       </div>
       }
-
-      <!-- Summary strip: running total for the current selection, the one figure a cashier -->
-      <!-- reaches for first — not shown on the comptoir's brief history, which tracks status, not money. -->
       @if (filteredHistoriqueGroups().length > 0) {
       <div class="mx-6 mt-4 flex items-center justify-between bg-[#F7F9FC] border border-gray-100 rounded-lg px-4 py-2.5">
         <span class="text-xs font-medium text-gray-500">Total encaissé</span>
         <span class="text-sm font-bold text-[#1A1A1A] tabular-nums">{{ historiqueTotalAmount() | number:'1.0-0' }} Ar</span>
       </div>
       }
-
       <div class="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-2">
         @if (filteredHistoriqueGroups().length === 0) {
         <p class="text-sm text-gray-400 italic py-4">
@@ -648,8 +592,6 @@
         <div class="space-y-5">
           @for (day of historiqueGroupsByDay(); track day.dayLabel) {
           <div>
-            <!-- Day separator: groups the flat feed into scannable chunks, each with its own -->
-            <!-- subtotal — the "worthy extra" a receipt-style history needs but a live status list doesn't. -->
             <div class="sticky top-0 z-10 flex items-baseline justify-between bg-white/95 backdrop-blur-sm -mx-2 px-2 py-1.5">
               <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{{ day.dayLabel }}</p>
               <p class="text-[11px] text-gray-400 tabular-nums">
@@ -711,9 +653,7 @@
     </div>
   </div>
   }
-
   <main class="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-6">
-
     <section class="mb-8">
       <div class="flex items-center gap-2 mb-4">
         <span class="inline-flex items-center gap-1.5 text-xs font-medium
@@ -724,7 +664,6 @@
         </span>
         <span class="text-sm text-gray-400">({{ pendingGroups().length }})</span>
       </div>
-
       @if (pendingGroups().length === 0) {
       <div class="text-center py-16 text-gray-400">
         <svg class="w-8 h-8 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -734,7 +673,6 @@
         <p class="text-sm">Aucun client en attente d'encaissement.</p>
       </div>
       }
-
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         @for (group of pendingGroups(); track group.groupId) {
         <div class="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 hover:shadow-sm
@@ -806,7 +744,6 @@
         }
       </div>
     </section>
-
     <section>
       <div class="flex items-center gap-2 mb-4">
         <span class="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200
@@ -815,7 +752,6 @@
         </span>
         <span class="text-sm text-gray-400">({{ paidGroups().length }})</span>
       </div>
-
       @if (paidGroups().length === 0) {
       <p class="text-sm text-gray-400 italic py-4">Aucun encaissement réalisé pour le moment.</p>
       } @else {
@@ -869,14 +805,10 @@
       </div>
       }
     </section>
-
   </main>
-
   <footer class="px-6 py-3 border-t border-gray-100 text-center">
     <p class="text-xs text-gray-400">GasiPro v1.0 &mdash; Système de prise de commande</p>
   </footer>
-
-  <!-- ── Order detail modal ──────────────────────────────────────────────────── -->
   @if (selectedGroup(); as group) {
   <div class="fixed inset-0 z-50 flex items-center justify-center px-4" (click)="closeGroupDetail()"
        (keydown.escape)="closeGroupDetail()">
@@ -907,7 +839,6 @@
           </svg>
         </button>
       </div>
-
       <div class="flex-1 overflow-y-auto px-6 py-3">
         @for (line of group.lines; track line.id) {
         <div class="flex justify-between items-baseline gap-2 py-2 border-b border-gray-50 last:border-0">
@@ -940,7 +871,6 @@
         </div>
         }
       </div>
-
       <div class="px-6 py-4 border-t border-gray-100 shrink-0">
         <div class="flex items-center justify-between mb-4">
           <span class="text-sm text-gray-500 flex items-center gap-1.5">
@@ -976,8 +906,6 @@
     </div>
   </div>
   }
-
-  <!-- ── Reject (cancel) order dialog ────────────────────────────────────────── -->
   @if (rejectGroupTarget(); as group) {
   <div class="fixed inset-0 z-50 flex items-center justify-center px-4" (click)="closeRejectDialog()"
        (keydown.escape)="closeRejectDialog()">
@@ -992,7 +920,6 @@
         </h2>
         <p class="text-xs text-gray-400 mt-0.5">La raison est facultative.</p>
       </div>
-
       <div class="px-6 py-4">
         <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5" for="reject-order-raison">
           Raison (facultatif)
@@ -1003,7 +930,6 @@
           class="w-full text-sm border border-gray-200 rounded-md px-3 py-2 text-gray-700 resize-none
                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"></textarea>
       </div>
-
       <div class="px-6 py-4 border-t border-gray-100 shrink-0 flex items-center gap-2">
         <button (click)="closeRejectDialog()"
           class="flex-1 px-4 py-3 rounded-lg text-sm font-semibold border border-gray-200 text-gray-600
@@ -1021,7 +947,6 @@
     </div>
   </div>
   }
-
   @if (toastVisible()) {
   <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50
                 bg-[#1E3A5F] text-white text-sm font-medium px-5 py-3 rounded-lg shadow-lg"

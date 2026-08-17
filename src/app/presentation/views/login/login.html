@@ -1,8 +1,4 @@
-
-<!-- login.html -->
 <div class="bg-[#FAFAFA] min-h-screen flex flex-col">
-
-  <!-- Header -->
   <header class="px-6 py-5 border-b border-gray-200">
     <div class="max-w-md mx-auto flex items-center gap-3">
       <div class="w-7 h-7 bg-[#1E3A5F] rounded-sm flex items-center justify-center">
@@ -11,21 +7,15 @@
       <span class="text-sm font-semibold tracking-wide text-gray-800">GasiPro</span>
     </div>
   </header>
-
-  <!-- Main -->
   <main class="flex-1 flex items-center justify-center px-4 py-12">
     <div class="w-full max-w-md">
-
-      <!-- ── STEP: Role selection ─────────────────────────────────────────── -->
       @if (step() === 'role') {
       <div>
         <div class="mb-10">
           <h1 class="text-2xl font-semibold text-[#1A1A1A] mb-1">Accès au système</h1>
           <p class="text-sm text-gray-500">Choisissez votre rôle pour continuer.</p>
         </div>
-
         <div class="space-y-3">
-          <!-- Caissier -->
           <button
             (click)="selectCashier()"
             class="w-full text-left group border border-gray-200 rounded-lg px-5 py-5 bg-white
@@ -47,8 +37,6 @@
               </div>
             </div>
           </button>
-
-          <!-- Comptoir -->
           <button
             (click)="selectCounter()"
             class="w-full text-left group border border-gray-200 rounded-lg px-5 py-5 bg-white
@@ -73,12 +61,9 @@
             </div>
           </button>
         </div>
-
         <p class="mt-8 text-center text-xs text-gray-400">{{ currentDateTime }}</p>
       </div>
       }
-
-      <!-- ── STEP: Cashier — username + WS link ──────────────────────────── -->
       @if (step() === 'cashier-setup') {
       <div>
         <button (click)="goBack()" class="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600
@@ -89,7 +74,6 @@
           </svg>
           Retour
         </button>
-
         <div class="mb-8">
           <div class="flex items-center gap-2 mb-1">
             <div class="w-6 h-6 rounded-full bg-amber-50 flex items-center justify-center flex-shrink-0">
@@ -102,9 +86,7 @@
           <h1 class="text-2xl font-semibold text-[#1A1A1A]">Configuration caissier</h1>
           <p class="text-sm text-gray-500 mt-1">Entrez votre nom, puis partagez l'adresse aux comptoirs.</p>
         </div>
-
         <div class="space-y-5">
-          <!-- Username -->
           <div>
             <label for="cashier-username" class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
               Votre nom / identifiant
@@ -122,8 +104,6 @@
               class="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-[#1A1A1A]
                      focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
           </div>
-
-          <!-- Password -->
           <div>
             <label for="cashier-password" class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
               Mot de passe
@@ -162,12 +142,9 @@
               Au moins 8 caractères, avec une lettre et un chiffre.
             </p>
           </div>
-
           <p id="cashier-login-error" role="alert" aria-live="assertive" class="text-xs text-red-600">
             {{ cashierError() }}
           </p>
-
-          <!-- WS address -->
           <div>
             <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
               Adresse à partager aux comptoirs
@@ -197,7 +174,6 @@
             <p class="text-xs text-gray-400 mt-1.5">Communiquez cette adresse aux postes comptoirs sur le même réseau.</p>
             }
           </div>
-
           <button
             (click)="enterAsCashier()"
             [disabled]="!cashierUsername.trim() || !cashierPassword || authenticatingCashier()"
@@ -210,8 +186,6 @@
         </div>
       </div>
       }
-
-      <!-- ── STEP: Counter — username + WS URL ──────────────────────────── -->
       @if (step() === 'counter-setup') {
       <div>
         <button (click)="goBack()" class="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600
@@ -222,7 +196,6 @@
           </svg>
           Retour
         </button>
-
         <div class="mb-8">
           <div class="flex items-center gap-2 mb-1">
             <div class="w-6 h-6 rounded-full bg-[#1E3A5F]/10 flex items-center justify-center flex-shrink-0">
@@ -237,7 +210,6 @@
           <h1 class="text-2xl font-semibold text-[#1A1A1A]">Connexion au comptoir</h1>
           <p class="text-sm text-gray-500 mt-1">Entrez vos informations et connectez-vous à la caisse.</p>
         </div>
-
         <div class="space-y-4">
           <div>
             <label for="counter-username" class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
@@ -255,8 +227,6 @@
               class="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-[#1A1A1A]
                      focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
           </div>
-
-          <!-- Password -->
           <div>
             <label for="counter-password" class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
               Mot de passe
@@ -295,11 +265,9 @@
               Au moins 8 caractères, avec une lettre et un chiffre.
             </p>
           </div>
-
           <p id="counter-login-error" role="alert" aria-live="assertive" class="text-xs text-red-600">
             {{ counterError() }}
           </p>
-
           <div>
             <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5" id="counter-ws-url-label">
               Adresse de la caisse
@@ -345,7 +313,6 @@
               }
             </div>
           </div>
-
           <button
             (click)="connectAsCounter()"
             [disabled]="!counterUsername.trim() || !counterPassword || !counterWsUrl.trim()"
@@ -357,25 +324,20 @@
         </div>
       </div>
       }
-
-      <!-- ── STEP: Counter — waiting for approval ────────────────────────── -->
       @if (step() === 'counter-waiting') {
       <div class="text-center">
         <div class="w-16 h-16 rounded-full bg-[#EFF4FA] flex items-center justify-center mx-auto mb-6">
           <span class="w-7 h-7 rounded-full border-[3px] border-[#1E3A5F] border-t-transparent animate-spin inline-block"></span>
         </div>
-
         <h1 class="text-xl font-semibold text-[#1A1A1A] mb-2">En attente d'approbation</h1>
         <p class="text-sm text-gray-500 mb-1">
           Votre demande a été envoyée à la caisse sous le nom
         </p>
         <p class="text-sm font-semibold text-[#1E3A5F] mb-6">« {{ counterUsername }} »</p>
-
         <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-left mb-8">
           <p class="text-xs font-medium text-amber-700 uppercase tracking-wide mb-0.5">Serveur</p>
-          <p class="text-sm font-mono text-amber-800">{{ counterWsUrl }}</p>
+          <p class="text-sm font-mono text-amber-800 selectable">{{ counterWsUrl }}</p>
         </div>
-
         <button (click)="goBack()"
           class="text-sm text-gray-400 hover:text-gray-600 transition-colors
                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
@@ -383,8 +345,6 @@
         </button>
       </div>
       }
-
-      <!-- ── STEP: Counter — rejected ────────────────────────────────────── -->
       @if (step() === 'counter-rejected') {
       <div class="text-center">
         <div class="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-6">
@@ -392,13 +352,11 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </div>
-
         <h1 class="text-xl font-semibold text-[#1A1A1A] mb-2">Connexion refusée</h1>
         <p role="alert" aria-live="assertive" class="text-sm text-gray-500 mb-8">
           {{ counterError() || "Le caissier a refusé votre demande de connexion." }}<br>
           Contactez le caissier si vous pensez qu'il s'agit d'une erreur.
         </p>
-
         <div class="space-y-3">
           <button
             (click)="retryConnection()"
@@ -417,12 +375,9 @@
         </div>
       </div>
       }
-
     </div>
   </main>
-
   <footer class="px-6 py-4 border-t border-gray-100 text-center">
     <p class="text-xs text-gray-400">GasiPro v1.0 &mdash; Système de prise de commande</p>
   </footer>
-
 </div>

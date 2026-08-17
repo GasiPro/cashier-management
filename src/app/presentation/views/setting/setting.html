@@ -1,5 +1,4 @@
 <div class="bg-[#FAFAFA] min-h-screen flex flex-col">
-
   <header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sticky top-0 z-20">
     <div class="max-w-3xl mx-auto flex items-center gap-3">
       <button (click)="goBack()" aria-label="Retour"
@@ -19,10 +18,8 @@
       </div>
     </div>
   </header>
-
   <main class="flex-1 px-4 sm:px-6 py-6">
     <div class="max-w-3xl mx-auto space-y-6">
-
       <section aria-labelledby="devices-setting-heading"
         class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
         <div class="mb-1">
@@ -33,12 +30,9 @@
             Limite le nombre de comptoirs pouvant être connectés à la caisse en même temps.
           </p>
         </div>
-
         @if (loadingDevicesSetting()) {
         <p class="text-sm text-gray-400 italic py-4">Chargement…</p>
         } @else {
-
-        <!-- Current usage -->
         <div class="flex items-center gap-2 mt-4 mb-5">
           <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
             Actuellement connectés
@@ -48,7 +42,6 @@
             {{ connectedDevicesCount() }}{{ maxConnectedDevices() > 0 ? ' / ' + maxConnectedDevices() : '' }}
           </span>
         </div>
-
         @if (atDevicesCapacity()) {
         <div role="status" class="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-5">
           <svg class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -60,14 +53,11 @@
           </p>
         </div>
         }
-
-        <!-- Editable limit -->
         <div>
           <label for="max-connected-devices-input"
             class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
             Nombre maximum d'appareils connectés
           </label>
-
           <div class="flex items-center gap-2">
             <button type="button" (click)="decrementMaxConnectedDevices()"
               [disabled]="maxConnectedDevicesDraft() <= 0"
@@ -79,7 +69,6 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
               </svg>
             </button>
-
             <input id="max-connected-devices-input" type="number" inputmode="numeric"
               min="0" [attr.max]="maxAllowedConnectedDevices"
               [value]="maxConnectedDevicesDraft()"
@@ -87,7 +76,6 @@
               aria-describedby="max-connected-devices-help"
               class="w-20 text-center font-semibold text-[#1A1A1A] border border-gray-200 rounded-md py-1.5
                      focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]" />
-
             <button type="button" (click)="incrementMaxConnectedDevices()"
               [disabled]="maxConnectedDevicesDraft() >= maxAllowedConnectedDevices"
               aria-label="Augmenter le nombre maximum d'appareils"
@@ -98,19 +86,15 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" />
               </svg>
             </button>
-
             <span class="text-sm text-gray-400 ml-1">
               {{ maxConnectedDevicesDraft() === 0 ? 'Illimité' : 'appareil(s)' }}
             </span>
           </div>
-
           <p id="max-connected-devices-help" class="text-xs text-gray-400 mt-2">
             0 = illimité. Un appareil déjà connecté n'est pas déconnecté si vous baissez la limite —
             elle s'applique seulement aux nouvelles connexions.
           </p>
         </div>
-
-        <!-- Actions -->
         <div class="flex items-center gap-2 mt-5">
           <button type="button" (click)="saveMaxConnectedDevices()"
             [disabled]="!devicesSettingDirty() || savingDevicesSetting()"
@@ -130,17 +114,14 @@
           </button>
           }
         </div>
-
         <p role="status" aria-live="polite"
           class="text-xs mt-3"
           [class.text-red-600]="statusIsError()"
           [class.text-emerald-600]="!statusIsError() && statusMessage()">
           {{ statusMessage() }}
         </p>
-
         }
       </section>
-
       <section aria-labelledby="cashier-accounts-heading"
         class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
         <div class="mb-1">
@@ -153,8 +134,6 @@
             suspendu (temporaire, réversible) ou supprimé définitivement (irréversible).
           </p>
         </div>
-
-        <!-- Existing accounts -->
         <div class="mt-4 mb-6">
           <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
             Comptes existants
@@ -176,7 +155,7 @@
                 </div>
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-2">
-                    <p class="text-sm font-medium text-[#1A1A1A] truncate"
+                    <p class="text-sm font-medium text-[#1A1A1A] truncate selectable"
                       [class.text-gray-400]="account.status === 'suspended'">
                       {{ account.display_name || account.username }}
                     </p>
@@ -189,7 +168,7 @@
                     }
                   </div>
                   @if (account.display_name) {
-                  <p class="text-xs text-gray-400 truncate">{{ account.username }}</p>
+                  <p class="text-xs text-gray-400 truncate selectable">{{ account.username }}</p>
                   } @else {
                   <p class="text-xs text-gray-400 italic truncate">Aucun nom affiché défini</p>
                   }
@@ -249,7 +228,6 @@
                   </button>
                 </div>
               </div>
-
               @if (confirmingDeleteUsername() === account.username) {
               <div [id]="'account-delete-panel-' + account.username" role="group"
                 [attr.aria-label]="'Confirmer la suppression du compte ' + account.username"
@@ -288,14 +266,11 @@
                 </div>
               </div>
               }
-
               @if (editingUsername() === account.username) {
               <div [id]="'account-edit-panel-' + account.username" role="group"
                 [attr.aria-label]="'Modifier le compte ' + account.username"
                 (keydown.escape)="cancelEditAccount()"
                 class="mt-3 pl-11 space-y-4">
-
-                <!-- Display name -->
                 <div>
                   <label [attr.for]="'edit-display-name-' + account.username"
                     class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
@@ -314,8 +289,6 @@
                     Facultatif — laissé vide, c'est à la personne qui utilise ce compte au comptoir de le remplir.
                   </p>
                 </div>
-
-                <!-- New password -->
                 <div>
                   <label [attr.for]="'edit-password-' + account.username"
                     class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
@@ -355,8 +328,6 @@
                     caractères, avec une lettre et un chiffre.
                   </p>
                 </div>
-
-                <!-- Confirm new password -->
                 @if (editPassword().length > 0) {
                 <div>
                   <label [attr.for]="'edit-password-confirm-' + account.username"
@@ -374,9 +345,7 @@
                            focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
                 </div>
                 }
-
                 <p role="alert" aria-live="assertive" class="text-xs text-red-600">{{ editAccountError() }}</p>
-
                 <div class="flex items-center gap-2">
                   <button type="button" (click)="saveEditAccount()"
                     [disabled]="!canSubmitEditAccount()"
@@ -401,15 +370,11 @@
           </ul>
           }
         </div>
-
-        <!-- Create account form -->
         <form (ngSubmit)="createAccount()" novalidate>
           <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
             Nouveau compte
           </h3>
-
           <div class="space-y-4">
-            <!-- Username -->
             <div>
               <label for="new-account-username"
                 class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
@@ -432,8 +397,6 @@
                 Définitif une fois créé — choisissez un nom que vous reconnaîtrez facilement.
               </p>
             </div>
-
-            <!-- Password -->
             <div>
               <label for="new-account-password"
                 class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
@@ -473,8 +436,6 @@
                 Au moins {{ minPasswordLen }} caractères, avec une lettre et un chiffre.
               </p>
             </div>
-
-            <!-- Confirm password -->
             <div>
               <label for="new-account-password-confirm"
                 class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
@@ -491,11 +452,9 @@
                        focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
             </div>
           </div>
-
           <p role="alert" aria-live="assertive" class="text-xs text-red-600 mt-3">
             {{ accountFormError() }}
           </p>
-
           <div class="flex items-center gap-2 mt-2">
             <button type="submit"
               [disabled]="!canSubmitAccount()"
@@ -507,7 +466,6 @@
               {{ creatingAccount() ? 'Création…' : 'Créer le compte' }}
             </button>
           </div>
-
           <p role="status" aria-live="polite"
             class="text-xs mt-3"
             [class.text-red-600]="accountStatusIsError()"
@@ -516,8 +474,6 @@
           </p>
         </form>
       </section>
-
     </div>
   </main>
-
 </div>
