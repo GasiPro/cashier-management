@@ -1,7 +1,6 @@
 pub mod config;
 pub mod domain;
 pub mod service;
-
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -13,99 +12,74 @@ use tokio::net::TcpListener;
 use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
-
 use config::accounts;
 use config::pricing_matrix::PRICING_MATRIX;
 use config::settings;
 use domain::order::price_calculator::{CartItem, ServiceItem, ServiceItemType as PriceCalculatorItemType};
 use service::order_api_service::Order;
 use service::order_service::OrderService;
-
 type Tx = mpsc::UnboundedSender<Message>;
-
 pub struct PeerState {
     tx: Tx,
     username: String,
     approved: bool,
     is_cashier: bool,
 }
-
 type PeerMap = Arc<Mutex<HashMap<SocketAddr, PeerState>>>;
-/// Maximum number of connected comptoir (counter) devices. `0` means unlimited.
-/// Shared with the WebSocket accept loop so a change made from Réglages takes
-/// effect immediately, without restarting the server.
 type MaxConnectedDevices = Arc<SyncMutex<u32>>;
-/// Persisted cashier accounts, shared so a creation from Réglages is
-/// immediately reflected everywhere that reads the list.
 type CashierAccounts = Arc<SyncMutex<Vec<accounts::CashierAccount>>>;
-
+/// Populated once `.setup()` has resolved the app's config directory, so the
+/// WebSocket task (spawned before the Tauri builder runs) can still persist
+/// account edits via `accounts::save`, which needs an `AppHandle`.
+type AppHandleSlot = Arc<SyncMutex<Option<tauri::AppHandle>>>;
 pub struct AppState {
     pub order_service: Arc<OrderService>,
     pub peers: PeerMap,
     pub max_connected_devices: MaxConnectedDevices,
     pub cashier_accounts: CashierAccounts,
 }
-
-// Messages a WS client can send to the server.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ClientMessage {
-    /// Cashier registers itself — sent once on WS open from the cashier device.
     CashierRegister { username: String },
-    /// Counter requests to join — credentials are checked against the accounts
-    /// stored on the cashier before the request is even queued for manual
-    /// approval; a request that fails that check is rejected immediately and
-    /// never reaches the pending list.
     RequestConnection { username: String, password: String },
-    /// Counter sends its cart to the cashier for processing.
     CreateOrder { cart: Vec<CartItem> },
-    /// Comptoir: edit a single pending order line (only while EN_ATTENTE).
     UpdateOrder { id: i64, quantity: u32, unit_price: u32 },
-    /// Comptoir: delete a single pending order line (only while EN_ATTENTE).
     DeleteOrder { id: i64 },
-    /// Comptoir: delete an entire pending order group (only while EN_ATTENTE).
     DeleteOrderGroup { group_id: i64 },
-    /// Ask the server to re-push the current order snapshot (scoped to the caller).
-    /// Used right after a WS handoff (e.g. login → counter) where the snapshot pushed
-    /// at approval time can be missed because nobody was subscribed yet to receive it.
     RequestOrders,
+    /// Comptoir: fetch the account view for the peer's own authenticated account,
+    /// to prefill the account-settings form.
+    GetAccount,
+    /// Comptoir: self-service edit of the peer's own display name and/or password.
+    /// `password: None` means "leave the password unchanged", mirroring
+    /// `update_cashier_account`.
+    UpdateAccount { display_name: String, password: Option<String> },
 }
-
 #[derive(Debug, Serialize, Clone)]
 struct ConnectionRequest {
     addr: String,
     username: String,
 }
-
 #[derive(Debug, Serialize, Clone)]
 struct ConnectedDevice {
     addr: String,
     username: String,
 }
-
-// Messages the WS server pushes to peers.
 #[derive(Debug, Serialize, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ServerMessage {
-    /// Full order snapshot — pushed to all approved peers.
     Orders { data: Vec<Order> },
-    /// Wall-clock tick — pushed to all approved peers.
     Time { data: String },
-    /// Pending connection requests — pushed to the cashier only.
     ConnectionRequests { data: Vec<ConnectionRequest> },
-    /// Currently approved counters — pushed to the cashier only.
     ConnectedDevices { data: Vec<ConnectedDevice> },
-    /// Sent to a counter when the cashier approves its connection.
     ConnectionApproved,
-    /// Sent to a counter when the cashier rejects its connection, or when the
-    /// cashier's connected-devices limit is already reached.
     ConnectionRejected,
-    /// Sent to a counter when the cashier blocks (force-disconnects) its connection.
     ConnectionBlocked,
+    Account { data: accounts::CashierAccountView },
+    AccountUpdated { data: accounts::CashierAccountView },
+    AccountUpdateError { data: String },
 }
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
 async fn send_to_addr(peers: &PeerMap, addr: SocketAddr, msg: &ServerMessage) {
     if let Ok(json) = serde_json::to_string(msg) {
         let guard = peers.lock().await;
@@ -114,8 +88,6 @@ async fn send_to_addr(peers: &PeerMap, addr: SocketAddr, msg: &ServerMessage) {
         }
     }
 }
-
-/// Broadcast to all approved peers (cashier + approved counters).
 async fn broadcast_to_approved(peers: &PeerMap, msg: &ServerMessage) {
     let json = match serde_json::to_string(msg) {
         Ok(j) => j,
@@ -128,11 +100,6 @@ async fn broadcast_to_approved(peers: &PeerMap, msg: &ServerMessage) {
         }
     }
 }
-
-/// Push the order snapshot to every approved peer, scoped per recipient: the cashier
-/// needs the full picture to run the register, but a comptoir must only ever see its
-/// own orders — never another counter's history — so each counter peer gets the list
-/// filtered to its own username before it leaves the server.
 async fn broadcast_orders_to_approved(peers: &PeerMap, orders: &[Order]) {
     let guard = peers.lock().await;
     for (_, state) in guard.iter() {
@@ -153,10 +120,6 @@ async fn broadcast_orders_to_approved(peers: &PeerMap, orders: &[Order]) {
         }
     }
 }
-
-/// Build the order snapshot for a single peer, scoped the same way as
-/// `broadcast_orders_to_approved`: the cashier gets everything, a comptoir gets only
-/// the orders it placed.
 fn scope_orders_for_peer(orders: &[Order], peer: &PeerState) -> Vec<Order> {
     if peer.is_cashier {
         orders.to_vec()
@@ -168,8 +131,6 @@ fn scope_orders_for_peer(orders: &[Order], peer: &PeerState) -> Vec<Order> {
             .collect()
     }
 }
-
-/// Push a message to the cashier peer only.
 async fn notify_cashier(peers: &PeerMap, msg: &ServerMessage) {
     let json = match serde_json::to_string(msg) {
         Ok(j) => j,
@@ -182,7 +143,6 @@ async fn notify_cashier(peers: &PeerMap, msg: &ServerMessage) {
         }
     }
 }
-
 async fn get_pending_requests_list(peers: &PeerMap) -> Vec<ConnectionRequest> {
     let guard = peers.lock().await;
     guard
@@ -194,7 +154,6 @@ async fn get_pending_requests_list(peers: &PeerMap) -> Vec<ConnectionRequest> {
         })
         .collect()
 }
-
 async fn get_connected_devices_list(peers: &PeerMap) -> Vec<ConnectedDevice> {
     let guard = peers.lock().await;
     guard
@@ -206,20 +165,10 @@ async fn get_connected_devices_list(peers: &PeerMap) -> Vec<ConnectedDevice> {
         })
         .collect()
 }
-
-/// `true` once the configured connected-devices limit has been reached (`0` on the
-/// limit means unlimited, so it never reports full).
 async fn is_at_connected_devices_capacity(peers: &PeerMap, max_connected_devices: &MaxConnectedDevices) -> bool {
     let max = *max_connected_devices.lock().unwrap();
     max > 0 && get_connected_devices_list(peers).await.len() >= max as usize
 }
-
-// ── Tauri Commands ────────────────────────────────────────────────────────────
-
-/// Returns the local LAN address for this machine (e.g. 192.168.1.5:8080).
-///
-/// Deliberately scheme-less: this is shown/copied straight into the UI, and
-/// "ws://" is implementation detail that isn't meaningful to end users.
 #[tauri::command]
 fn get_ws_address() -> String {
     use std::net::UdpSocket;
@@ -232,7 +181,6 @@ fn get_ws_address() -> String {
     }
     "127.0.0.1:8080".to_string()
 }
-
 #[tauri::command]
 fn get_pricing_matrix() -> Vec<ServiceItem> {
     PRICING_MATRIX
@@ -249,36 +197,30 @@ fn get_pricing_matrix() -> Vec<ServiceItem> {
         })
         .collect()
 }
-
 #[tauri::command]
 fn get_orders(state: State<'_, AppState>) -> Vec<Order> {
     state.order_service.get_orders()
 }
-
 #[tauri::command]
 fn get_pending_orders(state: State<'_, AppState>) -> Vec<Order> {
     state.order_service.get_pending()
 }
-
 #[tauri::command]
 fn get_paid_orders(state: State<'_, AppState>) -> Vec<Order> {
     state.order_service.get_paid()
 }
-
 #[tauri::command]
 async fn create_order(state: State<'_, AppState>, cart: Vec<CartItem>, counter_username: String) -> Result<(), String> {
     state.order_service.create_order(&cart, &counter_username);
     broadcast_orders_to_approved(&state.peers, &state.order_service.get_orders()).await;
     Ok(())
 }
-
 #[tauri::command]
 async fn mark_group_as_paid(state: State<'_, AppState>, group_id: i64) -> Result<(), String> {
     state.order_service.mark_group_as_paid(group_id);
     broadcast_orders_to_approved(&state.peers, &state.order_service.get_orders()).await;
     Ok(())
 }
-
 /// Caisse: refuse an entire pending order group. Called from the cashier UI via invoke().
 /// `raison` is an optional reason for the cancellation.
 #[tauri::command]
@@ -287,21 +229,16 @@ async fn reject_group(state: State<'_, AppState>, group_id: i64, raison: Option<
     broadcast_orders_to_approved(&state.peers, &state.order_service.get_orders()).await;
     Ok(())
 }
-
-/// Approve a pending counter connection. Called from the cashier UI via invoke().
 #[tauri::command]
 async fn approve_connection(state: State<'_, AppState>, addr: String) -> Result<(), String> {
     let socket_addr: SocketAddr = addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
-
     if is_at_connected_devices_capacity(&state.peers, &state.max_connected_devices).await {
         let max = *state.max_connected_devices.lock().unwrap();
         return Err(format!(
             "Limite de {max} appareil(s) connecté(s) atteinte. Déconnectez un appareil ou augmentez la limite dans Réglages."
         ));
     }
-
     let orders = state.order_service.get_orders();
-
     {
         let mut guard = state.peers.lock().await;
         if let Some(peer) = guard.get_mut(&socket_addr) {
@@ -319,19 +256,16 @@ async fn approve_connection(state: State<'_, AppState>, addr: String) -> Result<
             ));
         }
     }
-
     let pending = get_pending_requests_list(&state.peers).await;
     let connected = get_connected_devices_list(&state.peers).await;
     notify_cashier(&state.peers, &ServerMessage::ConnectionRequests { data: pending }).await;
     notify_cashier(&state.peers, &ServerMessage::ConnectedDevices { data: connected }).await;
     Ok(())
 }
-
 /// Reject a pending counter connection. Called from the cashier UI via invoke().
 #[tauri::command]
 async fn reject_connection(state: State<'_, AppState>, addr: String) -> Result<(), String> {
     let socket_addr: SocketAddr = addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
-
     {
         let mut guard = state.peers.lock().await;
         if let Some(peer) = guard.get(&socket_addr) {
@@ -343,17 +277,13 @@ async fn reject_connection(state: State<'_, AppState>, addr: String) -> Result<(
         }
         guard.remove(&socket_addr);
     }
-
     let pending = get_pending_requests_list(&state.peers).await;
     notify_cashier(&state.peers, &ServerMessage::ConnectionRequests { data: pending }).await;
     Ok(())
 }
-
-/// Force-disconnect an approved counter. Called from the cashier UI via invoke().
 #[tauri::command]
 async fn disconnect_device(state: State<'_, AppState>, addr: String) -> Result<(), String> {
     let socket_addr: SocketAddr = addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
-
     {
         let mut guard = state.peers.lock().await;
         if let Some(peer) = guard.get(&socket_addr) {
@@ -365,26 +295,20 @@ async fn disconnect_device(state: State<'_, AppState>, addr: String) -> Result<(
         }
         guard.remove(&socket_addr);
     }
-
     let connected = get_connected_devices_list(&state.peers).await;
     notify_cashier(&state.peers, &ServerMessage::ConnectedDevices { data: connected }).await;
     Ok(())
 }
-
 /// Current cap on connected comptoir devices (`0` = unlimited). Called from the
 /// Réglages UI via invoke().
 #[tauri::command]
 fn get_max_connected_devices(state: State<'_, AppState>) -> u32 {
     *state.max_connected_devices.lock().unwrap()
 }
-
-/// How many comptoir devices are connected right now — shown alongside the limit in
-/// Réglages, using the same peer bookkeeping as the cashier's "Appareils" panel.
 #[tauri::command]
 async fn get_connected_devices_count(state: State<'_, AppState>) -> Result<usize, String> {
     Ok(get_connected_devices_list(&state.peers).await.len())
 }
-
 /// Update the cap on connected comptoir devices. Persists to disk and takes effect
 /// immediately for new connection requests; already-connected devices are left
 /// untouched. Returns the value actually applied (clamped to a sane range).
@@ -403,17 +327,6 @@ async fn set_max_connected_devices(app: tauri::AppHandle, state: State<'_, AppSt
     )?;
     Ok(clamped)
 }
-
-/// Authenticate a cashier login attempt against the persisted accounts.
-/// Called from the login UI via invoke() as part of the existing
-/// username-based cashier flow — it doesn't replace that identity
-/// (`LS_USERNAME` on the frontend), it just gates entry into it with a
-/// password check. Wrong username and wrong password are reported with the
-/// same generic message so a failed attempt can't be used to probe which
-/// usernames exist; a suspended account gets its own, more specific
-/// message, since — unlike a wrong username/password — knowing that an
-/// account exists but is blocked isn't sensitive for the person trying to
-/// log into it.
 #[tauri::command]
 fn authenticate_cashier(
     state: State<'_, AppState>,
@@ -422,29 +335,20 @@ fn authenticate_cashier(
 ) -> Result<accounts::CashierAccountView, String> {
     let username = accounts::validate_username(&username)?;
     accounts::validate_password(&password)?;
-
     let guard = state.cashier_accounts.lock().unwrap();
     let account = guard.iter().find(|a| a.username.eq_ignore_ascii_case(&username));
-
     let account = match account {
         Some(a) if accounts::verify_password(&password, &a.password_hash) => a,
         _ => return Err("Nom d'utilisateur ou mot de passe incorrect.".to_string()),
     };
-
     if account.status == accounts::AccountStatus::Suspended {
         return Err("Ce compte a été suspendu. Contactez un administrateur.".to_string());
     }
-
     Ok(accounts::CashierAccountView::from(account))
 }
-
 /// Create a new cashier account. The username is validated, checked for
 /// uniqueness (case-insensitive) against every existing account, and — once
 /// created — is never changed: there is deliberately no "rename" command,
-/// since the rest of the app treats the username as a stable identity (the
-/// same one used by the existing username-based login flow). The password is
-/// hashed with Argon2 before it is persisted; the raw value never reaches
-/// disk. Called from the Réglages UI via invoke().
 #[tauri::command]
 async fn create_cashier_account(
     app: tauri::AppHandle,
@@ -454,12 +358,10 @@ async fn create_cashier_account(
 ) -> Result<accounts::CashierAccountView, String> {
     let username = accounts::validate_username(&username)?;
     accounts::validate_password(&password)?;
-
     let mut guard = state.cashier_accounts.lock().unwrap();
     if accounts::username_exists(&guard, &username) {
         return Err("Ce nom d'utilisateur est déjà utilisé.".to_string());
     }
-
     let password_hash = accounts::hash_password(&password)?;
     let account = accounts::CashierAccount {
         username,
@@ -470,13 +372,8 @@ async fn create_cashier_account(
     };
     guard.push(account);
     accounts::save(&app, &guard)?;
-
     Ok(accounts::CashierAccountView::from(guard.last().expect("account was just pushed")))
 }
-
-/// List existing cashier accounts (username + creation date only — password
-/// hashes never cross the Tauri IPC boundary). Called from the Réglages UI
-/// via invoke() to populate the account list.
 #[tauri::command]
 fn list_cashier_accounts(state: State<'_, AppState>) -> Vec<accounts::CashierAccountView> {
     state
@@ -487,12 +384,7 @@ fn list_cashier_accounts(state: State<'_, AppState>) -> Vec<accounts::CashierAcc
         .map(accounts::CashierAccountView::from)
         .collect()
 }
-
 /// Modify an existing cashier account's display name and/or password. The
-/// username is immutable and only used to locate the account (see
-/// `accounts.rs`) — there is deliberately no way to change it here. Pass
-/// `password` as `null`/`None` to leave the current password unchanged.
-/// Called from the Réglages UI via invoke().
 #[tauri::command]
 async fn update_cashier_account(
     app: tauri::AppHandle,
@@ -511,27 +403,19 @@ async fn update_cashier_account(
         Some(pwd) => Some(accounts::hash_password(&pwd)?),
         None => None,
     };
-
     let mut guard = state.cashier_accounts.lock().unwrap();
     let account = accounts::find_account_mut(&mut guard, &username)
         .ok_or_else(|| "Compte introuvable.".to_string())?;
-
     account.display_name = display_name;
     if let Some(hash) = new_password_hash {
         account.password_hash = hash;
     }
-
     let updated = accounts::CashierAccountView::from(&*account);
     accounts::save(&app, &guard)?;
-
     Ok(updated)
 }
-
 /// Suspend a cashier account: a reversible block. The account and its order
 /// history are left untouched on disk — it's only flagged so it can no
-/// longer be used to log in until an admin reactivates it. Distinct from
-/// `delete_cashier_account`, which is permanent. Called from the Réglages UI
-/// via invoke().
 #[tauri::command]
 async fn suspend_cashier_account(
     app: tauri::AppHandle,
@@ -546,7 +430,6 @@ async fn suspend_cashier_account(
     accounts::save(&app, &guard)?;
     Ok(updated)
 }
-
 /// Reactivate a previously suspended cashier account, restoring its access.
 /// Called from the Réglages UI via invoke().
 #[tauri::command]
@@ -563,12 +446,6 @@ async fn reactivate_cashier_account(
     accounts::save(&app, &guard)?;
     Ok(updated)
 }
-
-/// Permanently delete a cashier account. Unlike suspension this is
-/// irreversible — the account is dropped from the list for good, with no
-/// "undo". The frontend is expected to gate this behind an explicit
-/// confirmation step before calling it. Called from the Réglages UI via
-/// invoke().
 #[tauri::command]
 async fn delete_cashier_account(app: tauri::AppHandle, state: State<'_, AppState>, username: String) -> Result<(), String> {
     let mut guard = state.cashier_accounts.lock().unwrap();
@@ -578,16 +455,13 @@ async fn delete_cashier_account(app: tauri::AppHandle, state: State<'_, AppState
     accounts::save(&app, &guard)?;
     Ok(())
 }
-
 /// Write raw bytes to an absolute path chosen by the user (e.g. via a save dialog).
 /// Used by the cashier UI to export the daily report (rapport du jour) as an Excel file.
 #[tauri::command]
 fn save_binary_file(path: String, data: Vec<u8>) -> Result<(), String> {
     std::fs::write(&path, data).map_err(|e| e.to_string())
 }
-
 // ── Application Entry Point ───────────────────────────────────────────────────
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let order_service = Arc::new(OrderService::new());
@@ -595,26 +469,25 @@ pub fn run() {
     // Real value is loaded from disk (or defaulted) in `.setup()` below, once an
     // AppHandle is available to resolve the app's config directory.
     let max_connected_devices: MaxConnectedDevices = Arc::new(SyncMutex::new(settings::DEFAULT_MAX_CONNECTED_DEVICES));
-    // Same deal as `max_connected_devices`: the real list is loaded from disk in
-    // `.setup()` below.
     let cashier_accounts: CashierAccounts = Arc::new(SyncMutex::new(Vec::new()));
-
-    // ── WebSocket server (0.0.0.0 → reachable on LAN) ────────────────────────
+    // Set once `.setup()` resolves an `AppHandle`; read by the WebSocket task so
+    // `ClientMessage::UpdateAccount` can persist edits via `accounts::save`.
+    let app_handle_slot: AppHandleSlot = Arc::new(SyncMutex::new(None));
     let ws_order_service = order_service.clone();
     let ws_peers = peers.clone();
     let ws_max_connected_devices = max_connected_devices.clone();
     let ws_cashier_accounts = cashier_accounts.clone();
+    let ws_app_handle_slot = app_handle_slot.clone();
     tauri::async_runtime::spawn(async move {
         let listener = TcpListener::bind("0.0.0.0:8080")
             .await
             .expect("failed to bind WebSocket server to 0.0.0.0:8080");
-
         while let Ok((stream, addr)) = listener.accept().await {
             let peers_inner = ws_peers.clone();
             let order_service_inner = ws_order_service.clone();
             let max_connected_devices_inner = ws_max_connected_devices.clone();
             let cashier_accounts_inner = ws_cashier_accounts.clone();
-
+            let app_handle_inner = ws_app_handle_slot.clone();
             tauri::async_runtime::spawn(async move {
                 let ws_stream = match accept_async(stream).await {
                     Ok(s) => s,
@@ -622,8 +495,6 @@ pub fn run() {
                 };
                 let (mut ws_sender, mut ws_receiver) = ws_stream.split();
                 let (tx, mut rx) = mpsc::unbounded_channel();
-
-                // Register peer as unapproved with no username until it self-identifies.
                 peers_inner.lock().await.insert(
                     addr,
                     PeerState {
@@ -633,7 +504,6 @@ pub fn run() {
                         is_cashier: false,
                     },
                 );
-
                 let ws_writer = tauri::async_runtime::spawn(async move {
                     while let Some(message) = rx.recv().await {
                         if ws_sender.send(message).await.is_err() {
@@ -641,7 +511,6 @@ pub fn run() {
                         }
                     }
                 });
-
                 while let Some(Ok(message)) = ws_receiver.next().await {
                     if let Message::Text(text) = message {
                         match serde_json::from_str::<ClientMessage>(&text) {
@@ -654,7 +523,6 @@ pub fn run() {
                                         state.is_cashier = true;
                                     }
                                 }
-                                // Push initial snapshot to cashier.
                                 send_to_addr(
                                     &peers_inner,
                                     addr,
@@ -676,15 +544,7 @@ pub fn run() {
                                 )
                                 .await;
                             }
-
                             Ok(ClientMessage::RequestConnection { username, password }) => {
-                                // Check the credentials against the accounts stored on the
-                                // cashier *before* the request is queued for manual approval:
-                                // format/length (mirrors the comptoir's own pre-flight check),
-                                // then existence + password match + active status. A request
-                                // that fails any of this is rejected immediately and never
-                                // becomes a pending entry the cashier would have to manually
-                                // turn away.
                                 let format_ok = accounts::validate_username(&username).is_ok()
                                     && accounts::validate_password(&password).is_ok();
                                 let credentials_ok = format_ok && {
@@ -695,19 +555,14 @@ pub fn run() {
                                             && accounts::verify_password(&password, &a.password_hash)
                                     })
                                 };
-
                                 if !credentials_ok {
                                     send_to_addr(&peers_inner, addr, &ServerMessage::ConnectionRejected).await;
                                 } else {
-                                    // Enforce the connected-devices cap up front: a device turned
-                                    // away here never shows up as a pending request the cashier
-                                    // could approve anyway, which would just be a dead end.
                                     let at_capacity = is_at_connected_devices_capacity(
                                         &peers_inner,
                                         &max_connected_devices_inner,
                                     )
                                     .await;
-
                                     if at_capacity {
                                         send_to_addr(&peers_inner, addr, &ServerMessage::ConnectionRejected).await;
                                     } else {
@@ -726,7 +581,6 @@ pub fn run() {
                                     }
                                 }
                             }
-
                             Ok(ClientMessage::CreateOrder { cart }) => {
                                 let (is_approved, counter_username) = {
                                     let guard = peers_inner.lock().await;
@@ -744,7 +598,6 @@ pub fn run() {
                                     .await;
                                 }
                             }
-
                             Ok(ClientMessage::UpdateOrder { id, quantity, unit_price }) => {
                                 let is_approved = {
                                     let guard = peers_inner.lock().await;
@@ -759,7 +612,6 @@ pub fn run() {
                                     .await;
                                 }
                             }
-
                             Ok(ClientMessage::DeleteOrder { id }) => {
                                 let is_approved = {
                                     let guard = peers_inner.lock().await;
@@ -774,7 +626,6 @@ pub fn run() {
                                     .await;
                                 }
                             }
-
                             Ok(ClientMessage::DeleteOrderGroup { group_id }) => {
                                 let is_approved = {
                                     let guard = peers_inner.lock().await;
@@ -789,7 +640,6 @@ pub fn run() {
                                     .await;
                                 }
                             }
-
                             Ok(ClientMessage::RequestOrders) => {
                                 let orders = order_service_inner.get_orders();
                                 let guard = peers_inner.lock().await;
@@ -804,20 +654,96 @@ pub fn run() {
                                     }
                                 }
                             }
-
+                            Ok(ClientMessage::GetAccount) => {
+                                let username = {
+                                    let guard = peers_inner.lock().await;
+                                    guard
+                                        .get(&addr)
+                                        .filter(|s| s.approved && !s.is_cashier)
+                                        .map(|s| s.username.clone())
+                                };
+                                if let Some(username) = username {
+                                    let view = {
+                                        let guard = cashier_accounts_inner.lock().unwrap();
+                                        guard
+                                            .iter()
+                                            .find(|a| a.username.eq_ignore_ascii_case(&username))
+                                            .map(accounts::CashierAccountView::from)
+                                    };
+                                    if let Some(view) = view {
+                                        send_to_addr(&peers_inner, addr, &ServerMessage::Account { data: view }).await;
+                                    }
+                                }
+                            }
+                            Ok(ClientMessage::UpdateAccount { display_name, password }) => {
+                                let username = {
+                                    let guard = peers_inner.lock().await;
+                                    guard
+                                        .get(&addr)
+                                        .filter(|s| s.approved && !s.is_cashier)
+                                        .map(|s| s.username.clone())
+                                };
+                                let Some(username) = username else {
+                                    continue;
+                                };
+                                let app_handle = {
+                                    let guard = app_handle_inner.lock().unwrap();
+                                    guard.clone()
+                                };
+                                let Some(app_handle) = app_handle else {
+                                    send_to_addr(
+                                        &peers_inner,
+                                        addr,
+                                        &ServerMessage::AccountUpdateError {
+                                            data: "Serveur non prêt. Réessayez.".to_string(),
+                                        },
+                                    )
+                                    .await;
+                                    continue;
+                                };
+                                // Reuses the exact same validation/hashing/persistence logic as
+                                // `update_cashier_account` (the Réglages UI's own account editor).
+                                let result: Result<accounts::CashierAccountView, String> = (|| {
+                                    let display_name = accounts::validate_display_name(&display_name)?;
+                                    if let Some(ref pwd) = password {
+                                        accounts::validate_password(pwd)?;
+                                    }
+                                    let new_password_hash = match password {
+                                        Some(pwd) => Some(accounts::hash_password(&pwd)?),
+                                        None => None,
+                                    };
+                                    let mut guard = cashier_accounts_inner.lock().unwrap();
+                                    let account = accounts::find_account_mut(&mut guard, &username)
+                                        .ok_or_else(|| "Compte introuvable.".to_string())?;
+                                    account.display_name = display_name;
+                                    if let Some(hash) = new_password_hash {
+                                        account.password_hash = hash;
+                                    }
+                                    let updated = accounts::CashierAccountView::from(&*account);
+                                    accounts::save(&app_handle, &guard)?;
+                                    Ok(updated)
+                                })();
+                                match result {
+                                    Ok(updated) => {
+                                        send_to_addr(&peers_inner, addr, &ServerMessage::AccountUpdated { data: updated })
+                                            .await;
+                                    }
+                                    Err(err) => {
+                                        send_to_addr(&peers_inner, addr, &ServerMessage::AccountUpdateError { data: err })
+                                            .await;
+                                    }
+                                }
+                            }
                             Err(_) => {}
                         }
                     }
                 }
-
-                // Peer disconnected — clean up and update cashier.
                 let was_counter = {
                     let guard = peers_inner.lock().await;
                     guard.get(&addr).map(|s| !s.is_cashier).unwrap_or(false)
                 };
                 peers_inner.lock().await.remove(&addr);
                 ws_writer.abort();
-
                 if was_counter {
                     let pending = get_pending_requests_list(&peers_inner).await;
                     let connected = get_connected_devices_list(&peers_inner).await;
@@ -835,8 +761,6 @@ pub fn run() {
             });
         }
     });
-
-    // ── 1 Hz clock tick (broadcast only to approved peers) ───────────────────
     let time_peers = peers.clone();
     tauri::async_runtime::spawn(async move {
         loop {
@@ -845,10 +769,9 @@ pub fn run() {
             broadcast_to_approved(&time_peers, &ServerMessage::Time { data: current_time }).await;
         }
     });
-
     let setup_max_connected_devices = max_connected_devices.clone();
     let setup_cashier_accounts = cashier_accounts.clone();
-
+    let setup_app_handle_slot = app_handle_slot.clone();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
@@ -859,19 +782,10 @@ pub fn run() {
                         .build(),
                 )?;
             }
-
-            // Load the persisted connected-devices cap (falls back to the default
-            // set above if there's no settings file yet, or it can't be read).
             let loaded_settings = config::settings::load(app.handle());
             *setup_max_connected_devices.lock().unwrap() = loaded_settings.max_connected_devices;
-
-            // Load persisted cashier accounts (falls back to an empty list if
-            // there's no accounts file yet, or it can't be read), bootstrapping
-            // a default `admin` / `admin123` account on first launch if none
-            // exist yet — Réglages, where accounts are normally created, is
-            // itself reachable only after cashier login.
             *setup_cashier_accounts.lock().unwrap() = config::accounts::load_or_bootstrap(app.handle());
-
+            *setup_app_handle_slot.lock().unwrap() = Some(app.handle().clone());
             Ok(())
         })
         .manage(AppState { order_service, peers, max_connected_devices, cashier_accounts })
