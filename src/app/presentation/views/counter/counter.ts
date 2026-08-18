@@ -135,6 +135,8 @@ export class Counter implements OnInit, OnDestroy {
   showAccountPanel = false;
   /** Display name as last confirmed by the server; used to prefill the edit form. */
   private accountDisplayName = signal('');
+  /** Name shown in the navbar — the account display name when one exists, otherwise the username. */
+  displayLabel = computed(() => this.accountDisplayName().trim() || this.username);
   editDisplayName = signal('');
   editPassword = signal('');
   editPasswordConfirm = signal('');
@@ -293,7 +295,6 @@ export class Counter implements OnInit, OnDestroy {
     this.ws.clearCounterCredentials();
     this.router.navigate(['/login']);
   }
-  // ── Account settings ────────────────────────────────────────────────────────
   openAccountPanel(): void {
     this.showMenu = false;
     this.editDisplayName.set(this.accountDisplayName());
