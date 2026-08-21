@@ -329,6 +329,19 @@ async fn set_max_connected_devices(app: tauri::AppHandle, state: State<'_, AppSt
     settings::update(&app, current)?;
     Ok(clamped)
 }
+
+#[tauri::command]
+fn get_theme(app: tauri::AppHandle) -> String {
+    settings::load(&app).theme.as_str().to_string()
+}
+#[tauri::command]
+fn get_background_color(app: tauri::AppHandle) -> String {
+    settings::load(&app).background_color
+}
+#[tauri::command]
+fn get_font_size(app: tauri::AppHandle) -> u32 {
+    settings::load(&app).font_size
+}
 #[tauri::command]
 async fn set_background_color(app: tauri::AppHandle, value: String) -> Result<String, String> {
     let mut current = settings::load(&app);
@@ -346,15 +359,11 @@ async fn set_font_size(app: tauri::AppHandle, value: u32) -> Result<u32, String>
 }
 #[tauri::command]
 async fn set_theme(app: tauri::AppHandle, value: String) -> Result<String, String> {
-    let theme = match value.as_str() {
-        "Light" => settings::Theme::Light,
-        "Dark" => settings::Theme::Dark,
-        _ => return Err(format!("Thème invalide: {value}")),
-    };
+    let theme = settings::Theme::from_str(&value)?;
     let mut current = settings::load(&app);
-    current.theme = theme;
+    current.theme = theme.clone();
     settings::update(&app, current)?;
-    Ok(value)
+    Ok(theme.as_str().to_string())
 }
 
 
@@ -820,7 +829,7 @@ pub fn run() {
             Ok(())
         })
         .manage(AppState { order_service, peers, max_connected_devices, cashier_accounts })
-        .invoke_handler(tauri::generate_handler![
+                .invoke_handler(tauri::generate_handler![
             get_ws_address,
             get_pricing_matrix,
             get_orders,
@@ -835,6 +844,9 @@ pub fn run() {
             get_max_connected_devices,
             get_connected_devices_count,
             set_max_connected_devices,
+            get_theme,
+            get_background_color,
+            get_font_size,
             set_background_color,
             set_font_size,
             set_theme,

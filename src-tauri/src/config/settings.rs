@@ -31,12 +31,36 @@ pub struct AppSettings {
     pub theme: Theme,              // "light" | "dark" | "custom"
 }
 
+
+
+// Apply theme
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
 pub enum Theme {
     #[default]
     Light,
-    Dark
+    Dark,
+    System,
 }
+impl Theme {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Theme::Light => "clair",
+            Theme::Dark => "sombre",
+            Theme::System => "systeme",
+        }
+    }
+    pub fn from_str(value: &str) -> Result<Self, String> {
+        match value {
+            "clair" => Ok(Theme::Light),
+            "sombre" => Ok(Theme::Dark),
+            "systeme" => Ok(Theme::System),
+            _ => Err(format!("Thème invalide: {value}")),
+        }
+    }
+}
+
+
+
 
 fn default_max_connected_devices() -> u32 {
     DEFAULT_MAX_CONNECTED_DEVICES

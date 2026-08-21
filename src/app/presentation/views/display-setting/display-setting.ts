@@ -4,8 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { invoke } from '@tauri-apps/api/core';
 
-const MIN_FONT_SIZE = 12;
-const MAX_FONT_SIZE = 24;
+const MIN_FONT_SIZE = 8;
+const MAX_FONT_SIZE = 32;
 const FONT_SIZE_STEP = 1;
 
 export type ThemeOption = 'clair' | 'sombre' | 'systeme';
