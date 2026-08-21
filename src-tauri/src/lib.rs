@@ -1,6 +1,7 @@
 pub mod config;
 pub mod domain;
 pub mod service;
+use futures_util::future::ok;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -309,6 +310,10 @@ fn get_max_connected_devices(state: State<'_, AppState>) -> u32 {
 async fn get_connected_devices_count(state: State<'_, AppState>) -> Result<usize, String> {
     Ok(get_connected_devices_list(&state.peers).await.len())
 }
+
+
+
+
 /// Update the cap on connected comptoir devices. Persists to disk and takes effect
 /// immediately for new connection requests; already-connected devices are left
 /// untouched. Returns the value actually applied (clamped to a sane range).
@@ -319,14 +324,40 @@ async fn set_max_connected_devices(app: tauri::AppHandle, state: State<'_, AppSt
         let mut guard = state.max_connected_devices.lock().unwrap();
         *guard = clamped;
     }
-    settings::save(
-        &app,
-        &settings::AppSettings {
-            max_connected_devices: clamped,
-        },
-    )?;
+    let mut current = settings::load(&app);
+    current.max_connected_devices = clamped;
+    settings::update(&app, current)?;
     Ok(clamped)
 }
+#[tauri::command]
+async fn set_background_color(app: tauri::AppHandle, value: String) -> Result<String, String> {
+    let mut current = settings::load(&app);
+    current.background_color = value.clone();
+    settings::update(&app, current)?;
+    Ok(value)
+}
+#[tauri::command]
+async fn set_font_size(app: tauri::AppHandle, value: u32) -> Result<u32, String> {
+    let clamped = settings::clamp_font_size(value);
+    let mut current = settings::load(&app);
+    current.font_size = clamped;
+    settings::update(&app, current)?;
+    Ok(clamped)
+}
+#[tauri::command]
+async fn set_theme(app: tauri::AppHandle, value: String) -> Result<String, String> {
+    let theme = match value.as_str() {
+        "Light" => settings::Theme::Light,
+        "Dark" => settings::Theme::Dark,
+        _ => return Err(format!("Thème invalide: {value}")),
+    };
+    let mut current = settings::load(&app);
+    current.theme = theme;
+    settings::update(&app, current)?;
+    Ok(value)
+}
+
+
 #[tauri::command]
 fn authenticate_cashier(
     state: State<'_, AppState>,
@@ -384,7 +415,7 @@ fn list_cashier_accounts(state: State<'_, AppState>) -> Vec<accounts::CashierAcc
         .map(accounts::CashierAccountView::from)
         .collect()
 }
-/// Modify an existing cashier account's display name and/or password. The
+/// Modify an existing cashier account's display name and/or password.
 #[tauri::command]
 async fn update_cashier_account(
     app: tauri::AppHandle,
@@ -804,6 +835,9 @@ pub fn run() {
             get_max_connected_devices,
             get_connected_devices_count,
             set_max_connected_devices,
+            set_background_color,
+            set_font_size,
+            set_theme,
             authenticate_cashier,
             create_cashier_account,
             list_cashier_accounts,
