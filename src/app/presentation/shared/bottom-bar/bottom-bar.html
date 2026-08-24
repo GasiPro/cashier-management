@@ -1,0 +1,27 @@
+<footer class="bg-white border-t border-gray-100 px-4 sm:px-6 py-2 sticky bottom-0 z-20"
+        role="contentinfo" [attr.aria-label]="roleLabel + ' — barre d\'état'">
+  <div class="max-w-6xl mx-auto flex items-center justify-between gap-4">
+    <div class="flex items-center gap-2 text-xs text-gray-400">
+      <span class="capitalize selectable">{{ currentDate() }}</span>
+      <span class="text-gray-200" aria-hidden="true">•</span>
+      <span class="tabular-nums selectable">{{ currentTime() }}</span>
+    </div>
+    <button type="button" (click)="onNotificationsClick()" [attr.aria-label]="resolvedNotificationLabel"
+      [title]="resolvedNotificationLabel"
+      class="relative flex items-center gap-1.5 text-gray-400 hover:text-gray-600 transition-colors p-1 rounded
+             focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+      <span class="w-1.5 h-1.5 rounded-full inline-block flex-shrink-0"
+        [class]="connected ? 'bg-emerald-400' : 'bg-red-400'" aria-hidden="true"></span>
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+      </svg>
+      @if (notificationCount > 0) {
+      <span class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold
+                   rounded-full flex items-center justify-center leading-none">
+        {{ displayNotificationCount }}
+      </span>
+      }
+    </button>
+  </div>
+</footer>
