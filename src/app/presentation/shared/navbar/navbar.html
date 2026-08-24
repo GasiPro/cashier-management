@@ -1,0 +1,50 @@
+<header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sticky top-0 z-20">
+  <div [class]="containerMaxWidthClass() + ' mx-auto flex items-center justify-between gap-4'">
+    <div class="flex items-center gap-3 min-w-0">
+      <button (click)="goBack()" aria-label="Retour" class="text-gray-400 hover:text-gray-600 transition-colors
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="w-6 h-6 bg-[#1E3A5F] rounded-sm flex items-center justify-center flex-shrink-0">
+          <span class="text-white text-[10px] font-bold">G</span>
+        </div>
+        <span class="text-sm font-semibold text-gray-800 hidden sm:block flex-shrink-0">GasiPro</span>
+        <span class="text-gray-300 hidden sm:block flex-shrink-0">/</span>
+        <span class="text-sm text-gray-500 truncate max-w-[140px] sm:max-w-[240px]" [title]="displayLabel()">{{ roleLabel() }} · {{ displayLabel() }}</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 sm:gap-3">
+      <ng-content select="[navbarActions]"></ng-content>
+      <div class="relative">
+        <button (click)="toggleMenu()" [attr.aria-expanded]="showMenu()" aria-haspopup="menu"
+                [attr.aria-controls]="menuId()" aria-label="Menu"
+          class="relative flex items-center gap-1.5 text-xs font-medium border border-gray-200 px-3 py-1.5 rounded-md
+                 text-gray-600 hover:bg-gray-50 transition-colors
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+          <span class="hidden sm:inline">Menu</span>
+          @if (menuBadgeCount() > 0) {
+          <span class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold
+                       rounded-full flex items-center justify-center leading-none">
+            {{ menuBadgeCount() }}
+          </span>
+          }
+        </button>
+        @if (showMenu()) {
+        <div class="fixed inset-0 z-40" (click)="closeMenu()" (keydown.escape)="closeMenu()"></div>
+        <div [id]="menuId()" role="menu" aria-label="Menu principal"
+          class="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1.5 overflow-hidden"
+          (click)="closeMenu()">
+          <ng-content select="[navbarMenuItems]"></ng-content>
+        </div>
+        }
+      </div>
+    </div>
+    <span class="text-xs text-gray-400">{{ currentTime() }}</span>
+  </div>
+</header>
