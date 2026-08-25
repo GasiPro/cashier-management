@@ -8,11 +8,8 @@
         </svg>
       </button>
       <div class="flex items-center gap-2 min-w-0">
-        <div class="w-6 h-6 bg-[#1E3A5F] rounded-sm flex items-center justify-center flex-shrink-0">
-          <span class="text-white text-[10px] font-bold">G</span>
-        </div>
-        <span class="text-sm font-semibold text-gray-800 hidden sm:block flex-shrink-0">GasiPro</span>
-        <span class="text-gray-300 hidden sm:block flex-shrink-0">/</span>
+        <span class="text-sm font-semibold text-gray-800 flex-shrink-0">GasiPro</span>
+        <span class="text-gray-300 flex-shrink-0">/</span>
         <span class="text-sm text-gray-500 truncate max-w-[140px] sm:max-w-[240px]" [title]="displayLabel()">{{ roleLabel() }} · {{ displayLabel() }}</span>
       </div>
     </div>
@@ -45,6 +42,5 @@
         }
       </div>
     </div>
-    <span class="text-xs text-gray-400">{{ currentTime() }}</span>
   </div>
 </header>
