@@ -1,101 +1,49 @@
 <div class="bg-[#FAFAFA] min-h-screen flex flex-col">
-  <header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sticky top-0 z-20">
-    <div class="max-w-5xl mx-auto flex items-center justify-between gap-4">
-      <div class="flex items-center gap-3 min-w-0">
-        <button (click)="goBack()" aria-label="Retour" class="text-gray-400 hover:text-gray-600 transition-colors
-                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <div class="flex items-center gap-2 min-w-0">
-          <div class="w-6 h-6 bg-[#1E3A5F] rounded-sm flex items-center justify-center flex-shrink-0">
-            <span class="text-white text-[10px] font-bold">G</span>
-          </div>
-          <span class="text-sm font-semibold text-gray-800 hidden sm:block flex-shrink-0">GasiPro</span>
-          <span class="text-gray-300 hidden sm:block flex-shrink-0">/</span>
-          <span class="text-sm text-gray-500 truncate max-w-[140px] sm:max-w-[240px]" [title]="displayLabel">Caisse · {{ displayLabel }}</span>
-        </div>
+  <app-navbar role="cashier" [displayLabel]="displayLabel" [currentTime]="currentTime()" [menuBadgeCount]="totalPendingRequests">
+    <div navbarActions class="hidden sm:flex items-center gap-4 text-sm">
+      <div class="text-right">
+        <p class="text-xs text-gray-400">Encaissé</p>
+        <p class="font-semibold text-[#1A1A1A] tabular-nums selectable">{{ todaysRevenue() | number:'1.0-0' }} Ar</p>
       </div>
-      <div class="flex items-center gap-2 sm:gap-3">
-        <div class="hidden sm:flex items-center gap-4 text-sm">
-          <div class="text-right">
-            <p class="text-xs text-gray-400">Encaissé</p>
-            <p class="font-semibold text-[#1A1A1A] tabular-nums selectable">{{ todaysRevenue() | number:'1.0-0' }} Ar</p>
-          </div>
-          <div class="w-px h-8 bg-gray-200"></div>
-          <div class="text-right">
-            <p class="text-xs text-gray-400">Transactions</p>
-            <p class="font-semibold text-[#1A1A1A] selectable">{{ todaysPaidGroups().length }}</p>
-          </div>
-        </div>
-        <div class="relative">
-          <button (click)="showMenu = !showMenu" [attr.aria-expanded]="showMenu" aria-haspopup="menu"
-                  aria-controls="cashier-menu" aria-label="Menu"
-            class="relative flex items-center gap-1.5 text-xs font-medium border border-gray-200 px-3 py-1.5 rounded-md
-                   text-gray-600 hover:bg-gray-50 transition-colors
-                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
-            </svg>
-            <span class="hidden sm:inline">Menu</span>
-            @if (totalPendingRequests > 0) {
-            <span class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold
-                         rounded-full flex items-center justify-center leading-none">
-              {{ totalPendingRequests }}
-            </span>
-            }
-          </button>
-          @if (showMenu) {
-          <div class="fixed inset-0 z-40" (click)="showMenu = false" (keydown.escape)="showMenu = false"></div>
-          <div id="cashier-menu" role="menu" aria-label="Menu principal"
-            class="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1.5 overflow-hidden">
-            <button role="menuitem" (click)="showRapport = true; showMenu = false" autofocus
-              class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
-                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
-              <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6M12 17V7M15 17v-3M4 21h16M5 21V5a1 1 0 011-1h12a1 1 0 011 1v16"/>
-              </svg>
-              Rapport
-            </button>
-            <button role="menuitem" (click)="showHistorique = true; showMenu = false"
-              class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
-                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
-              <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3M21 12a9 9 0 11-9-9 9 9 0 019 9z"/>
-              </svg>
-              Historique
-            </button>
-            <button role="menuitem" (click)="showDevicesPanel = true; showMenu = false"
-              class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
-                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
-              <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8 21h8M12 17v4"/>
-              </svg>
-              <span class="flex-1">Appareils</span>
-              @if (totalPendingRequests > 0) {
-              <span class="text-[10px] bg-red-100 text-red-700 font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0">
-                {{ totalPendingRequests }}
-              </span>
-              }
-            </button>
-            <button role="menuitem" (click)="goToSettings()"
-              class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
-                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
-              <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-              </svg>
-              Réglages
-            </button>
-          </div>
-          }
-        </div>
+      <div class="w-px h-8 bg-gray-200"></div>
+      <div class="text-right">
+        <p class="text-xs text-gray-400">Transactions</p>
+        <p class="font-semibold text-[#1A1A1A] selectable">{{ todaysPaidGroups().length }}</p>
       </div>
-      <span class="text-xs text-gray-400">{{ currentTime() }}</span>
     </div>
-  </header>
+    <ng-container navbarMenuItems>
+      <button role="menuitem" (click)="showRapport = true" autofocus
+        class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
+        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6M12 17V7M15 17v-3M4 21h16M5 21V5a1 1 0 011-1h12a1 1 0 011 1v16"/>
+        </svg>
+        Rapport
+      </button>
+      <button role="menuitem" (click)="showHistorique = true"
+        class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
+        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3M21 12a9 9 0 11-9-9 9 9 0 019 9z"/>
+        </svg>
+        Historique
+      </button>
+      <button role="menuitem" (click)="showDevicesPanel = true"
+        class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
+        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 21h8M12 17v4"/>
+        </svg>
+        <span class="flex-1">Appareils</span>
+        @if (totalPendingRequests > 0) {
+        <span class="text-[10px] bg-red-100 text-red-700 font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0">
+          {{ totalPendingRequests }}
+        </span>
+        }
+      </button>
+    </ng-container>
+  </app-navbar>
   @if (showDevicesPanel) {
   <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showDevicesPanel = false">
     <div class="absolute inset-0 bg-black/20"></div>

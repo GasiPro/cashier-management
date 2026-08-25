@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { invoke } from '@tauri-apps/api/core';
 import { WebsocketService, WsMessage, isValidHostPort, stripWsScheme } from '../../../core/service/websocket.service';
+import { Navbar } from '../../shared/navbar/navbar';
 import { Subscription } from 'rxjs';
 export interface ServiceItem {
   id: string;
@@ -59,7 +60,7 @@ const PASSWORD_HAS_DIGIT = /\d/;
 @Component({
   selector: 'app-counter',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, Navbar],
   templateUrl: './counter.html',
 })
 export class Counter implements OnInit, OnDestroy {
@@ -115,7 +116,6 @@ export class Counter implements OnInit, OnDestroy {
   blocked = signal(false);
   credentialsError = signal('');
   // ── Menu / panels ────────────────────────────────────────────────────────────
-  showMenu = false;
   showServerPanel = false;
   showHistoriquePanel = false;
   newCashierHost = '';
@@ -296,7 +296,6 @@ export class Counter implements OnInit, OnDestroy {
     this.router.navigate(['/login']);
   }
   openAccountPanel(): void {
-    this.showMenu = false;
     this.editDisplayName.set(this.accountDisplayName());
     this.editPassword.set('');
     this.editPasswordConfirm.set('');
@@ -637,9 +636,6 @@ export class Counter implements OnInit, OnDestroy {
       return `Encaissé à ${time}`;
     }
     return `Envoyé à ${g.time}`;
-  }
-  goBack(): void {
-    this.router.navigate(['/']);
   }
   private buildGroups(orders: Order[]): OrderGroup[] {
     const map = new Map<number, Order[]>();

@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { WebsocketService, WsMessage } from '../../../core/service/websocket.service';
+import { Navbar } from '../../shared/navbar/navbar';
 import { Subscription } from 'rxjs';
 import * as XLSX from 'xlsx';
 export interface Order {
@@ -88,7 +89,7 @@ const HISTORIQUE_ALL_COUNTERS = 'Tous';
 @Component({
   selector: 'app-cashier',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, Navbar],
   templateUrl: './cashier.html',
 })
 export class Cashier implements OnInit, OnDestroy {
@@ -118,7 +119,6 @@ export class Cashier implements OnInit, OnDestroy {
   atDeviceCapacity = computed(
     () => this.maxConnectedDevices() > 0 && this.connectedDevices().length >= this.maxConnectedDevices(),
   );
-  showMenu = false;
   showRapport = false;
   showHistorique = false;
   toastVisible = signal(false);
@@ -270,11 +270,7 @@ export class Cashier implements OnInit, OnDestroy {
   copyWsAddress(): void {
     navigator.clipboard.writeText(this.wsAddress()).catch(() => {});
   }
-  goBack(): void {
-    this.router.navigate(['/']);
-  }
   goToSettings(): void {
-    this.showMenu = false;
     this.showDevicesPanel = false;
     this.router.navigate(['/reglages']);
   }
