@@ -23,7 +23,7 @@ export class LeftSidebar {
   @Input({ required: true }) role: SidebarRole = 'cashier';
   @Output() calculatriceClick = new EventEmitter<void>();
   @Output() memoClick = new EventEmitter<void>();
-  private currentUrl = signal(this.router.url);
+  private currentUrl = signal('');
   calculatriceSlot = signal<ToolSlot | null>(null);
   display = signal('0');
   memoSlot = signal<ToolSlot | null>(null);
@@ -32,6 +32,7 @@ export class LeftSidebar {
   private pendingOperator: string | null = null;
   private waitingForOperand = false;
   constructor(private router: Router) {
+    this.currentUrl.set(this.router.url);
     this.router.events
       .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
       .subscribe((e) => this.currentUrl.set(e.urlAfterRedirects));

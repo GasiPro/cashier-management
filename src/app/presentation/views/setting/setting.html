@@ -1,7 +1,7 @@
-<div class="bg-[#FAFAFA] min-h-screen flex">
+<div class="bg-[#FAFAFA] h-screen overflow-hidden flex">
   <app-left-sidebar role="cashier"></app-left-sidebar>
-  <div class="flex-1 min-w-0 flex flex-col">
-  <header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sticky top-0 z-20">
+  <div class="flex-1 min-w-0 h-screen overflow-hidden flex flex-col">
+  <header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sticky top-0 z-20 shrink-0">
     <div class="max-w-3xl mx-auto flex items-center gap-3">
       <button (click)="goBack()" aria-label="Retour"
         class="text-gray-400 hover:text-gray-600 transition-colors
@@ -20,7 +20,7 @@
       </div>
     </div>
   </header>
-  <main class="flex-1 px-4 sm:px-6 py-6">
+  <main class="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-6">
     <div class="max-w-3xl mx-auto space-y-6">
       <section aria-labelledby="devices-setting-heading"
         class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">

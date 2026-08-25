@@ -1,6 +1,6 @@
-<div class="bg-[#FAFAFA] min-h-screen flex">
+<div class="bg-[#FAFAFA] h-screen overflow-hidden flex">
   <app-left-sidebar role="cashier"></app-left-sidebar>
-  <div class="flex-1 min-w-0 flex flex-col">
+  <div class="flex-1 min-w-0 h-screen overflow-hidden flex flex-col">
   <app-navbar role="cashier" [displayLabel]="displayLabel" [currentTime]="currentTime()" [menuBadgeCount]="totalPendingRequests">
     <div navbarActions class="hidden sm:flex items-center gap-4 text-sm">
       <div class="text-right">
@@ -603,7 +603,7 @@
     </div>
   </div>
   }
-  <main class="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-6">
+  <main class="flex-1 min-h-0 overflow-y-auto max-w-5xl w-full mx-auto px-4 sm:px-6 py-6">
     <section class="mb-8">
       <div class="flex items-center gap-2 mb-4">
         <span class="inline-flex items-center gap-1.5 text-xs font-medium
@@ -756,7 +756,7 @@
       }
     </section>
   </main>
-  <footer class="px-6 py-3 border-t border-gray-100 text-center">
+  <footer class="px-6 py-3 border-t border-gray-100 text-center shrink-0">
     <p class="text-xs text-gray-400">GasiPro v1.0 &mdash; Système de prise de commande</p>
   </footer>
   <app-bottom-bar role="cashier" [connected]="wsConnected()" [notificationCount]="totalPendingRequests"></app-bottom-bar>

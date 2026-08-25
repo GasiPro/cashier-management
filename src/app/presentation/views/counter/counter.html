@@ -1,6 +1,6 @@
-<div class="bg-[#FAFAFA] min-h-screen flex">
+<div class="bg-[#FAFAFA] h-screen overflow-hidden flex">
   <app-left-sidebar role="counter"></app-left-sidebar>
-  <div class="flex-1 min-w-0 flex flex-col">
+  <div class="flex-1 min-w-0 h-screen overflow-hidden flex flex-col">
   <app-navbar role="counter" [displayLabel]="displayLabel()" [currentTime]="currentTime()">
     <button navbarActions (click)="showServerPanel = !showServerPanel"
       class="flex items-center gap-1.5 text-xs font-medium border rounded-md px-3 py-1.5 transition-colors
@@ -563,7 +563,7 @@
     {{ toastMessage() }}
   </div>
   }
-  <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6">
+  <main class="flex-1 min-h-0 overflow-y-auto max-w-6xl w-full mx-auto px-4 sm:px-6 py-6">
     <div class="flex flex-col lg:flex-row gap-6">
       <div class="flex-1 min-w-0">
         <h1 class="text-base font-semibold text-[#1A1A1A] mb-4">Nouvelle commande</h1>
@@ -875,7 +875,7 @@
       </div>
     </div>
   </main>
-  <footer class="px-6 py-3 border-t border-gray-100 text-center mt-4">
+  <footer class="px-6 py-3 border-t border-gray-100 text-center mt-4 shrink-0">
     <p class="text-xs text-gray-400">GasiPro v1.0 &mdash; Système de prise de commande</p>
   </footer>
   <app-bottom-bar role="counter" [connected]="wsConnected()"></app-bottom-bar>
