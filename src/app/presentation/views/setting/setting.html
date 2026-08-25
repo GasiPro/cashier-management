@@ -1,4 +1,6 @@
-<div class="bg-[#FAFAFA] min-h-screen flex flex-col">
+<div class="bg-[#FAFAFA] min-h-screen flex">
+  <app-left-sidebar role="cashier"></app-left-sidebar>
+  <div class="flex-1 min-w-0 flex flex-col">
   <header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sticky top-0 z-20">
     <div class="max-w-3xl mx-auto flex items-center gap-3">
       <button (click)="goBack()" aria-label="Retour"
@@ -476,4 +478,5 @@
       </section>
     </div>
   </main>
+  </div>
 </div>

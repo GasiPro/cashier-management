@@ -1,4 +1,6 @@
-<div class="bg-[#FAFAFA] min-h-screen flex flex-col">
+<div class="bg-[#FAFAFA] min-h-screen flex">
+  <app-left-sidebar role="counter"></app-left-sidebar>
+  <div class="flex-1 min-w-0 flex flex-col">
   <app-navbar role="counter" [displayLabel]="displayLabel()" [currentTime]="currentTime()">
     <button navbarActions (click)="showServerPanel = !showServerPanel"
       class="flex items-center gap-1.5 text-xs font-medium border rounded-md px-3 py-1.5 transition-colors
@@ -976,3 +978,6 @@
     </div>
   </div>
   }
+
+  </div>
+</div>

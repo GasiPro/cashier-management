@@ -5,6 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { WebsocketService, WsMessage } from '../../../core/service/websocket.service';
 import { Navbar } from '../../shared/navbar/navbar';
+import { LeftSidebar } from '../../shared/sidebar/left-sidebar/left-sidebar';
 import { Subscription } from 'rxjs';
 import * as XLSX from 'xlsx';
 export interface Order {
@@ -89,7 +90,7 @@ const HISTORIQUE_ALL_COUNTERS = 'Tous';
 @Component({
   selector: 'app-cashier',
   standalone: true,
-  imports: [CommonModule, Navbar],
+  imports: [CommonModule, Navbar, LeftSidebar],
   templateUrl: './cashier.html',
 })
 export class Cashier implements OnInit, OnDestroy {

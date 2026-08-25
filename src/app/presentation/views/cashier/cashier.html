@@ -1,4 +1,6 @@
-<div class="bg-[#FAFAFA] min-h-screen flex flex-col">
+<div class="bg-[#FAFAFA] min-h-screen flex">
+  <app-left-sidebar role="cashier"></app-left-sidebar>
+  <div class="flex-1 min-w-0 flex flex-col">
   <app-navbar role="cashier" [displayLabel]="displayLabel" [currentTime]="currentTime()" [menuBadgeCount]="totalPendingRequests">
     <div navbarActions class="hidden sm:flex items-center gap-4 text-sm">
       <div class="text-right">
@@ -902,3 +904,6 @@
     {{ toastMessage() }}
   </div>
   }
+
+  </div>
+</div>

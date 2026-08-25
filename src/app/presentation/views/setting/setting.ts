@@ -1,43 +1,28 @@
-// src/app/presentation/views/setting/setting.ts
 import { Component, ElementRef, OnInit, OnDestroy, signal, computed, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { invoke } from '@tauri-apps/api/core';
-
-/** Kept in sync with `MAX_ALLOWED_CONNECTED_DEVICES` in src-tauri/src/config/settings.rs. */
+import { LeftSidebar } from '../../shared/sidebar/left-sidebar/left-sidebar';
 const MAX_ALLOWED_CONNECTED_DEVICES = 50;
-/** How often the "currently connected" count is refreshed while this page is open — a
- *  device can connect/disconnect elsewhere (from the cashier's own "Appareils" panel, or
- *  simply by dropping off the network) while this page is sitting open, and the capacity
- *  warning above the limit input is only useful if that number stays current. */
 const CONNECTED_DEVICES_POLL_MS = 5000;
-
-/** Kept in sync with the bounds in src-tauri/src/config/accounts.rs. */
 const MIN_USERNAME_LEN = 3;
 const MAX_USERNAME_LEN = 32;
 const MIN_PASSWORD_LEN = 8;
 const MAX_DISPLAY_NAME_LEN = 40;
-/** Password must contain at least one letter and one digit ("word + number"),
- *  mirroring the format check in `accounts::validate_password`. */
 const PASSWORD_HAS_LETTER = /[A-Za-z]/;
 const PASSWORD_HAS_DIGIT = /\d/;
-
-/** Mirrors `AccountStatus` in src-tauri/src/config/accounts.rs. */
 type AccountStatus = 'active' | 'suspended';
-
-/** Mirrors `CashierAccountView` returned by the Tauri backend — never carries a password. */
 interface CashierAccountView {
   username: string;
   display_name: string;
   created_at: string;
   status: AccountStatus;
 }
-
 @Component({
   selector: 'app-setting',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, LeftSidebar],
   templateUrl: './setting.html',
   styleUrl: './setting.css',
 })
@@ -47,47 +32,33 @@ export class Setting implements OnInit, OnDestroy {
   readonly maxUsernameLen = MAX_USERNAME_LEN;
   readonly minPasswordLen = MIN_PASSWORD_LEN;
   readonly maxDisplayNameLen = MAX_DISPLAY_NAME_LEN;
-
   @ViewChild('newAccountUsernameInput') private newAccountUsernameInput?: ElementRef<HTMLInputElement>;
-
-  // ── Max connected devices ─────────────────────────────────────────────────
-  /** Value currently applied on the server. */
   maxConnectedDevices = signal(0);
-  /** Value shown in the input — kept separate so typing/stepping doesn't save until confirmed. */
   maxConnectedDevicesDraft = signal(0);
-  /** How many comptoirs are connected right now (from the same peer tracking as the Appareils panel). */
   connectedDevicesCount = signal(0);
   loadingDevicesSetting = signal(true);
   savingDevicesSetting = signal(false);
   devicesSettingDirty = computed(() => this.maxConnectedDevicesDraft() !== this.maxConnectedDevices());
-  /** True once the currently-applied limit is already reached — informs the cashier why new requests may be turned away. */
   atDevicesCapacity = computed(
     () => this.maxConnectedDevices() > 0 && this.connectedDevicesCount() >= this.maxConnectedDevices(),
   );
-
-  // ── Save feedback, announced to screen readers via aria-live ─────────────────
   statusMessage = signal('');
   statusIsError = signal(false);
-
   // ── Cashier accounts ──────────────────────────────────────────────────────
   accounts = signal<CashierAccountView[]>([]);
   loadingAccounts = signal(true);
-
   newAccountUsername = signal('');
   newAccountPassword = signal('');
   newAccountPasswordConfirm = signal('');
   /** Toggles the password/confirm fields between masked and plain text. */
   showAccountPassword = signal(false);
   creatingAccount = signal(false);
-
   /** Inline validation error for the account form, announced via aria-live. */
   accountFormError = signal('');
   /** Result feedback (success or server error) for the account form, announced via aria-live. */
   accountStatusMessage = signal('');
   accountStatusIsError = signal(false);
-
   private readonly trimmedNewAccountUsername = computed(() => this.newAccountUsername().trim());
-
   /** Client-side shape check only — the server is still the source of truth for
    *  uniqueness, so the button stays enabled even if this passes; the real
    *  rejection (if any) comes back from `create_cashier_account`. */
@@ -105,11 +76,8 @@ export class Setting implements OnInit, OnDestroy {
       !this.creatingAccount()
     );
   });
-
   private connectedDevicesPollId: ReturnType<typeof setInterval> | null = null;
-
   constructor(private router: Router) {}
-
   ngOnInit(): void {
     this.loadDevicesSetting();
     this.loadAccounts();
@@ -117,14 +85,12 @@ export class Setting implements OnInit, OnDestroy {
     // change from elsewhere (a comptoir connecting/dropping) at any time.
     this.connectedDevicesPollId = setInterval(() => this.refreshConnectedDevicesCount(), CONNECTED_DEVICES_POLL_MS);
   }
-
   ngOnDestroy(): void {
     if (this.connectedDevicesPollId !== null) {
       clearInterval(this.connectedDevicesPollId);
       this.connectedDevicesPollId = null;
     }
   }
-
   /** Re-fetches just the connected-devices count (not the configured limit, which this
    *  page itself owns) — used by the background poll started in `ngOnInit`. Silently
    *  ignored on failure so a transient IPC hiccup doesn't spam the status region. */
@@ -136,7 +102,6 @@ export class Setting implements OnInit, OnDestroy {
       console.error('failed to refresh connected devices count', e);
     }
   }
-
   private async loadDevicesSetting(): Promise<void> {
     this.loadingDevicesSetting.set(true);
     try {
@@ -154,30 +119,22 @@ export class Setting implements OnInit, OnDestroy {
       this.loadingDevicesSetting.set(false);
     }
   }
-
-  // ── Stepper / input helpers ──────────────────────────────────────────────────
-
   decrementMaxConnectedDevices(): void {
     this.maxConnectedDevicesDraft.update((v) => Math.max(0, v - 1));
   }
-
   incrementMaxConnectedDevices(): void {
     this.maxConnectedDevicesDraft.update((v) => Math.min(this.maxAllowedConnectedDevices, v + 1));
   }
-
   onMaxConnectedDevicesInput(value: string): void {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return;
     const clamped = Math.min(this.maxAllowedConnectedDevices, Math.max(0, Math.round(parsed)));
     this.maxConnectedDevicesDraft.set(clamped);
   }
-
-  /** Discards unsaved edits, restoring the last value applied on the server. */
   resetMaxConnectedDevicesDraft(): void {
     this.maxConnectedDevicesDraft.set(this.maxConnectedDevices());
     this.setStatus('', false);
   }
-
   async saveMaxConnectedDevices(): Promise<void> {
     if (!this.devicesSettingDirty() || this.savingDevicesSetting()) return;
     this.savingDevicesSetting.set(true);
@@ -201,14 +158,10 @@ export class Setting implements OnInit, OnDestroy {
       this.savingDevicesSetting.set(false);
     }
   }
-
   private setStatus(message: string, isError: boolean): void {
     this.statusMessage.set(message);
     this.statusIsError.set(isError);
   }
-
-  // ── Cashier accounts ──────────────────────────────────────────────────────
-
   private async loadAccounts(): Promise<void> {
     this.loadingAccounts.set(true);
     try {
@@ -221,14 +174,9 @@ export class Setting implements OnInit, OnDestroy {
       this.loadingAccounts.set(false);
     }
   }
-
   toggleAccountPasswordVisibility(): void {
     this.showAccountPassword.update((v) => !v);
   }
-
-  /** Client-side check, mirroring the server-side validation in accounts.rs, so the
-   *  cashier gets immediate feedback instead of waiting on a round trip for an
-   *  obviously invalid entry. Returns a message, or '' if the form looks valid. */
   private validateAccountForm(): string {
     const username = this.trimmedNewAccountUsername();
     if (username.length < this.minUsernameLen) {
@@ -251,10 +199,8 @@ export class Setting implements OnInit, OnDestroy {
     }
     return '';
   }
-
   async createAccount(): Promise<void> {
     if (this.creatingAccount()) return;
-
     const formError = this.validateAccountForm();
     if (formError) {
       this.accountFormError.set(formError);
@@ -262,7 +208,6 @@ export class Setting implements OnInit, OnDestroy {
       return;
     }
     this.accountFormError.set('');
-
     this.creatingAccount.set(true);
     this.setAccountStatus('', false);
     try {
@@ -273,7 +218,6 @@ export class Setting implements OnInit, OnDestroy {
       this.accounts.update((list) => [created, ...list]);
       this.setAccountStatus(`Compte « ${created.username} » créé.`, false);
       this.resetAccountForm();
-      // Ready for the next entry — helps when creating several accounts in a row.
       this.newAccountUsernameInput?.nativeElement.focus();
     } catch (e) {
       console.error('create_cashier_account failed', e);
@@ -283,14 +227,12 @@ export class Setting implements OnInit, OnDestroy {
       this.creatingAccount.set(false);
     }
   }
-
   private resetAccountForm(): void {
     this.newAccountUsername.set('');
     this.newAccountPassword.set('');
     this.newAccountPasswordConfirm.set('');
     this.showAccountPassword.set(false);
   }
-
   /** Formats an ISO/RFC3339 timestamp for display; falls back to the raw value if parsing fails. */
   formatAccountDate(isoDate: string): string {
     const date = new Date(isoDate);
@@ -303,16 +245,10 @@ export class Setting implements OnInit, OnDestroy {
       minute: '2-digit',
     });
   }
-
   private setAccountStatus(message: string, isError: boolean): void {
     this.accountStatusMessage.set(message);
     this.accountStatusIsError.set(isError);
   }
-
-  // ── Cashier accounts: modify (display name / password) ─────────────────────
-
-  /** Username of the account currently being edited, or null if none — only one
-   *  row is editable at a time so the form and its validation stay unambiguous. */
   editingUsername = signal<string | null>(null);
   editDisplayName = signal('');
   editPassword = signal('');
@@ -322,7 +258,6 @@ export class Setting implements OnInit, OnDestroy {
   savingEditAccount = signal(false);
   /** Inline validation or server error for the edit form, announced via aria-live. */
   editAccountError = signal('');
-
   /** An empty new-password pair is valid — it means "leave the password unchanged". */
   canSubmitEditAccount = computed(() => {
     if (this.savingEditAccount()) return false;
@@ -337,7 +272,6 @@ export class Setting implements OnInit, OnDestroy {
       password === confirm
     );
   });
-
   startEditAccount(account: CashierAccountView): void {
     this.confirmingDeleteUsername.set(null);
     this.editingUsername.set(account.username);
@@ -347,13 +281,10 @@ export class Setting implements OnInit, OnDestroy {
     this.showEditPassword.set(false);
     this.editAccountError.set('');
     // Move focus into the panel once it's rendered, so keyboard/screen-reader
-    // users land straight on the first editable field instead of the button.
     setTimeout(() => {
       document.getElementById(`edit-display-name-${account.username}`)?.focus();
     });
   }
-
-  /** Closes the edit panel and returns focus to the row's "Modifier" button. */
   cancelEditAccount(): void {
     const username = this.editingUsername();
     this.editingUsername.set(null);
@@ -361,12 +292,9 @@ export class Setting implements OnInit, OnDestroy {
       document.getElementById(`account-edit-btn-${username}`)?.focus();
     }
   }
-
   toggleEditPasswordVisibility(): void {
     this.showEditPassword.update((v) => !v);
   }
-
-  /** Client-side check, mirroring the server-side validation in accounts.rs. */
   private validateEditAccountForm(): string {
     if (this.editDisplayName().trim().length > this.maxDisplayNameLen) {
       return `Le nom affiché ne peut pas dépasser ${this.maxDisplayNameLen} caractères.`;
@@ -386,18 +314,15 @@ export class Setting implements OnInit, OnDestroy {
     }
     return '';
   }
-
   async saveEditAccount(): Promise<void> {
     const username = this.editingUsername();
     if (!username || this.savingEditAccount()) return;
-
     const formError = this.validateEditAccountForm();
     if (formError) {
       this.editAccountError.set(formError);
       return;
     }
     this.editAccountError.set('');
-
     this.savingEditAccount.set(true);
     try {
       const displayName = this.editDisplayName().trim();
@@ -419,21 +344,10 @@ export class Setting implements OnInit, OnDestroy {
       this.savingEditAccount.set(false);
     }
   }
-
-  // ── Cashier accounts: delete (suspend / permanent) ──────────────────────────
-
-  /** Username currently mid-flight on a suspend/reactivate call — disables that
-   *  row's toggle button so a slow round trip can't be double-fired. */
   togglingStatusUsername = signal<string | null>(null);
-
-  /** Username currently showing the "permanently delete?" confirmation step, or
-   *  null if none. Only one row confirms at a time, and it closes the edit panel
-   *  (and vice versa) so the two destructive/edit flows never overlap. */
   confirmingDeleteUsername = signal<string | null>(null);
   deletingAccount = signal(false);
-  /** Inline error for the delete confirmation, announced via aria-live. */
   deleteAccountError = signal('');
-
   /** Reversibly blocks an account from logging in. Kept separate from
    *  permanent deletion so an admin can temporarily take a cashier offline
    *  (e.g. between shifts) without losing the account or its history. */
@@ -455,8 +369,6 @@ export class Setting implements OnInit, OnDestroy {
       this.togglingStatusUsername.set(null);
     }
   }
-
-  /** Lifts a suspension applied by `suspendAccount`, restoring the account's access. */
   async reactivateAccount(account: CashierAccountView): Promise<void> {
     if (this.togglingStatusUsername()) return;
     this.togglingStatusUsername.set(account.username);
@@ -475,10 +387,6 @@ export class Setting implements OnInit, OnDestroy {
       this.togglingStatusUsername.set(null);
     }
   }
-
-  /** Opens the inline "are you sure?" step for a permanent delete — deliberately
-   *  not a native browser confirm(), so the request stays keyboard- and
-   *  screen-reader-accessible and consistent with the rest of the panel. */
   requestDeleteAccount(account: CashierAccountView): void {
     this.editingUsername.set(null);
     this.confirmingDeleteUsername.set(account.username);
@@ -487,7 +395,6 @@ export class Setting implements OnInit, OnDestroy {
       document.getElementById(`account-delete-confirm-btn-${account.username}`)?.focus();
     });
   }
-
   /** Closes the confirmation step and returns focus to the row's delete button. */
   cancelDeleteAccount(): void {
     const username = this.confirmingDeleteUsername();
@@ -497,7 +404,6 @@ export class Setting implements OnInit, OnDestroy {
       document.getElementById(`account-delete-btn-${username}`)?.focus();
     }
   }
-
   /** Permanently removes the account — irreversible, unlike `suspendAccount`. Only
    *  reachable after `requestDeleteAccount`'s confirmation step. */
   async confirmDeleteAccount(account: CashierAccountView): Promise<void> {
@@ -509,7 +415,6 @@ export class Setting implements OnInit, OnDestroy {
       this.accounts.update((list) => list.filter((a) => a.username !== account.username));
       this.confirmingDeleteUsername.set(null);
       this.setAccountStatus(`Compte « ${account.username} » supprimé définitivement.`, false);
-      // Ready for the next entry, same as after creating an account.
       this.newAccountUsernameInput?.nativeElement.focus();
     } catch (e) {
       console.error('delete_cashier_account failed', e);
@@ -519,7 +424,6 @@ export class Setting implements OnInit, OnDestroy {
       this.deletingAccount.set(false);
     }
   }
-
   goBack(): void {
     this.router.navigate(['/caissier']);
   }
