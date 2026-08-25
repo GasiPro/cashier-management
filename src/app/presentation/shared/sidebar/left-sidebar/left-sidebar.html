@@ -12,10 +12,9 @@
       Accueil
     </span>
   </button>
-
-  <button (click)="openCalculatrice()" title="Calculatrice" aria-label="Calculatrice"
-    class="group relative w-10 h-10 rounded-full flex items-center justify-center text-gray-400
-           hover:bg-gray-50 hover:text-gray-600 transition-colors
+  <button (click)="openCalculatrice()" [attr.aria-current]="calculatriceOpen() ? 'page' : null" title="Calculatrice" aria-label="Calculatrice"
+    [class]="iconButtonClass(calculatriceOpen())"
+    class="group relative w-10 h-10 rounded-full flex items-center justify-center transition-colors
            focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
       <rect x="5" y="2" width="14" height="20" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round" />
@@ -26,7 +25,6 @@
       Calculatrice
     </span>
   </button>
-
   <button (click)="openMemo()" title="Mémo" aria-label="Mémo"
     class="group relative w-10 h-10 rounded-full flex items-center justify-center text-gray-400
            hover:bg-gray-50 hover:text-gray-600 transition-colors
@@ -39,9 +37,7 @@
       Mémo
     </span>
   </button>
-
   <div class="flex-1"></div>
-
   <button (click)="goToSettings()" [attr.aria-current]="isSettingsActive() ? 'page' : null" title="Réglages" aria-label="Réglages"
     [class]="iconButtonClass(isSettingsActive())"
     class="group relative w-10 h-10 rounded-full flex items-center justify-center transition-colors
@@ -56,3 +52,66 @@
     </span>
   </button>
 </nav>
+
+<div *ngIf="calculatriceOpen()"
+     class="fixed bottom-4 left-20 z-50 w-72 rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden"
+     role="dialog" aria-label="Calculatrice">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+      <span class="text-sm font-semibold text-[#1A1A1A]">Calculatrice</span>
+      <button (click)="closeCalculatrice()" title="Fermer" aria-label="Fermer la calculatrice"
+        class="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <div class="px-4 pt-3 pb-2">
+      <div class="w-full rounded-lg bg-gray-50 border border-gray-100 px-3 py-3 text-right">
+        <span class="block text-2xl font-medium text-[#1A1A1A] truncate">{{ display() }}</span>
+      </div>
+    </div>
+    <div class="grid grid-cols-4 gap-1.5 px-4 pb-4">
+      <button (click)="clearPressed()"
+        class="col-span-2 h-10 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-medium text-[#1A1A1A] transition-colors">C</button>
+      <button (click)="backspacePressed()"
+        class="h-10 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-medium text-[#1A1A1A] transition-colors">⌫</button>
+      <button (click)="operatorPressed('÷')"
+        class="h-10 rounded-lg bg-[#EFF4FA] hover:bg-[#E1EAF4] text-sm font-medium text-[#1E3A5F] transition-colors">÷</button>
+
+      <button (click)="digitPressed('7')"
+        class="h-10 rounded-lg bg-white hover:bg-gray-50 border border-gray-100 text-sm font-medium text-[#1A1A1A] transition-colors">7</button>
+      <button (click)="digitPressed('8')"
+        class="h-10 rounded-lg bg-white hover:bg-gray-50 border border-gray-100 text-sm font-medium text-[#1A1A1A] transition-colors">8</button>
+      <button (click)="digitPressed('9')"
+        class="h-10 rounded-lg bg-white hover:bg-gray-50 border border-gray-100 text-sm font-medium text-[#1A1A1A] transition-colors">9</button>
+      <button (click)="operatorPressed('×')"
+        class="h-10 rounded-lg bg-[#EFF4FA] hover:bg-[#E1EAF4] text-sm font-medium text-[#1E3A5F] transition-colors">×</button>
+
+      <button (click)="digitPressed('4')"
+        class="h-10 rounded-lg bg-white hover:bg-gray-50 border border-gray-100 text-sm font-medium text-[#1A1A1A] transition-colors">4</button>
+      <button (click)="digitPressed('5')"
+        class="h-10 rounded-lg bg-white hover:bg-gray-50 border border-gray-100 text-sm font-medium text-[#1A1A1A] transition-colors">5</button>
+      <button (click)="digitPressed('6')"
+        class="h-10 rounded-lg bg-white hover:bg-gray-50 border border-gray-100 text-sm font-medium text-[#1A1A1A] transition-colors">6</button>
+      <button (click)="operatorPressed('−')"
+        class="h-10 rounded-lg bg-[#EFF4FA] hover:bg-[#E1EAF4] text-sm font-medium text-[#1E3A5F] transition-colors">−</button>
+
+      <button (click)="digitPressed('1')"
+        class="h-10 rounded-lg bg-white hover:bg-gray-50 border border-gray-100 text-sm font-medium text-[#1A1A1A] transition-colors">1</button>
+      <button (click)="digitPressed('2')"
+        class="h-10 rounded-lg bg-white hover:bg-gray-50 border border-gray-100 text-sm font-medium text-[#1A1A1A] transition-colors">2</button>
+      <button (click)="digitPressed('3')"
+        class="h-10 rounded-lg bg-white hover:bg-gray-50 border border-gray-100 text-sm font-medium text-[#1A1A1A] transition-colors">3</button>
+      <button (click)="operatorPressed('+')"
+        class="h-10 rounded-lg bg-[#EFF4FA] hover:bg-[#E1EAF4] text-sm font-medium text-[#1E3A5F] transition-colors">+</button>
+
+      <button (click)="toggleSignPressed()"
+        class="h-10 rounded-lg bg-white hover:bg-gray-50 border border-gray-100 text-sm font-medium text-[#1A1A1A] transition-colors">±</button>
+      <button (click)="digitPressed('0')"
+        class="h-10 rounded-lg bg-white hover:bg-gray-50 border border-gray-100 text-sm font-medium text-[#1A1A1A] transition-colors">0</button>
+      <button (click)="decimalPressed()"
+        class="h-10 rounded-lg bg-white hover:bg-gray-50 border border-gray-100 text-sm font-medium text-[#1A1A1A] transition-colors">,</button>
+      <button (click)="equalsPressed()"
+        class="h-10 rounded-lg bg-[#1E3A5F] hover:bg-[#183050] text-sm font-medium text-white transition-colors">=</button>
+    </div>
+  </div>
