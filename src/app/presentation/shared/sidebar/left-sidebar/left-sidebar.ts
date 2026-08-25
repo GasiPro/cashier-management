@@ -3,11 +3,16 @@ import { CommonModule } from '@angular/common';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter } from 'rxjs';
 export type SidebarRole = 'cashier' | 'counter';
+export type ToolSlot = 'A' | 'B';
 const HOME_ROUTE_BY_ROLE: Record<SidebarRole, string> = {
   cashier: '/caisse',
   counter: '/comptoir',
 };
 const SETTINGS_ROUTE = '/reglages';
+const SLOT_POSITION_CLASS: Record<ToolSlot, string> = {
+  A: 'fixed bottom-4 left-20',
+  B: 'fixed bottom-4 left-96',
+};
 @Component({
   selector: 'app-left-sidebar',
   standalone: true,
@@ -19,9 +24,9 @@ export class LeftSidebar {
   @Output() calculatriceClick = new EventEmitter<void>();
   @Output() memoClick = new EventEmitter<void>();
   private currentUrl = signal(this.router.url);
-  calculatriceOpen = signal(false);
+  calculatriceSlot = signal<ToolSlot | null>(null);
   display = signal('0');
-  memoOpen = signal(false);
+  memoSlot = signal<ToolSlot | null>(null);
   memoText = signal('');
   private storedValue: number | null = null;
   private pendingOperator: string | null = null;
@@ -46,22 +51,48 @@ export class LeftSidebar {
     this.router.navigate([HOME_ROUTE_BY_ROLE[this.role]]);
   }
   openCalculatrice(): void {
-    this.calculatriceOpen.update((open) => !open);
+    if (this.calculatriceSlot() !== null) {
+      this.calculatriceSlot.set(null);
+    } else {
+      this.calculatriceSlot.set(this.assignSlot());
+    }
     this.calculatriceClick.emit();
   }
   closeCalculatrice(): void {
-    this.calculatriceOpen.set(false);
+    this.calculatriceSlot.set(null);
+  }
+  calculatricePanelClass(): string {
+    const position = SLOT_POSITION_CLASS[this.calculatriceSlot() ?? 'A'];
+    return `${position} z-50 w-72 rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden`;
   }
   openMemo(): void {
-    this.memoOpen.update((open) => !open);
+    if (this.memoSlot() !== null) {
+      this.memoSlot.set(null);
+    } else {
+      this.memoSlot.set(this.assignSlot());
+    }
     this.memoClick.emit();
   }
   closeMemo(): void {
-    this.memoOpen.set(false);
+    this.memoSlot.set(null);
+  }
+  memoPanelClass(): string {
+    const position = SLOT_POSITION_CLASS[this.memoSlot() ?? 'A'];
+    return `${position} z-50 w-80 h-96 rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden flex flex-col`;
   }
   memoTextChanged(event: Event): void {
     const target = event.target as HTMLTextAreaElement;
     this.memoText.set(target.value);
+  }
+  private assignSlot(): ToolSlot | null {
+    const occupied = new Set<ToolSlot>();
+    const calcSlot = this.calculatriceSlot();
+    const memoSlot = this.memoSlot();
+    if (calcSlot) occupied.add(calcSlot);
+    if (memoSlot) occupied.add(memoSlot);
+    if (!occupied.has('A')) return 'A';
+    if (!occupied.has('B')) return 'B';
+    return null;
   }
   goToSettings(): void {
     this.router.navigate([SETTINGS_ROUTE]);

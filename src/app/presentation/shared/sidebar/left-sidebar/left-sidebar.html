@@ -12,8 +12,8 @@
       Accueil
     </span>
   </button>
-  <button (click)="openCalculatrice()" [attr.aria-current]="calculatriceOpen() ? 'page' : null" title="Calculatrice" aria-label="Calculatrice"
-    [class]="iconButtonClass(calculatriceOpen())"
+  <button (click)="openCalculatrice()" [attr.aria-current]="calculatriceSlot() !== null ? 'page' : null" title="Calculatrice" aria-label="Calculatrice"
+    [class]="iconButtonClass(calculatriceSlot() !== null)"
     class="group relative w-10 h-10 rounded-full flex items-center justify-center transition-colors
            focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -25,8 +25,8 @@
       Calculatrice
     </span>
   </button>
-  <button (click)="openMemo()" [attr.aria-current]="memoOpen() ? 'page' : null" title="Mémo" aria-label="Mémo"
-    [class]="iconButtonClass(memoOpen())"
+  <button (click)="openMemo()" [attr.aria-current]="memoSlot() !== null ? 'page' : null" title="Mémo" aria-label="Mémo"
+    [class]="iconButtonClass(memoSlot() !== null)"
     class="group relative w-10 h-10 rounded-full flex items-center justify-center transition-colors
            focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -53,8 +53,8 @@
   </button>
 </nav>
 
-<div *ngIf="calculatriceOpen()"
-     class="fixed bottom-4 left-20 z-50 w-72 rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden"
+<div *ngIf="calculatriceSlot() !== null"
+     [class]="calculatricePanelClass()"
      role="dialog" aria-label="Calculatrice">
     <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
       <span class="text-sm font-semibold text-[#1A1A1A]">Calculatrice</span>
@@ -115,8 +115,8 @@
         class="h-10 rounded-lg bg-[#1E3A5F] hover:bg-[#183050] text-sm font-medium text-white transition-colors">=</button>
     </div>
   </div>
-<div *ngIf="memoOpen()"
-     class="fixed bottom-4 left-96 z-50 w-80 h-96 rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden flex flex-col"
+<div *ngIf="memoSlot() !== null"
+     [class]="memoPanelClass()"
      role="dialog" aria-label="Mémo">
   <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
     <span class="text-sm font-semibold text-[#1A1A1A]">Memo</span>
