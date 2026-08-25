@@ -21,6 +21,8 @@ export class LeftSidebar {
   private currentUrl = signal(this.router.url);
   calculatriceOpen = signal(false);
   display = signal('0');
+  memoOpen = signal(false);
+  memoText = signal('');
   private storedValue: number | null = null;
   private pendingOperator: string | null = null;
   private waitingForOperand = false;
@@ -51,7 +53,15 @@ export class LeftSidebar {
     this.calculatriceOpen.set(false);
   }
   openMemo(): void {
+    this.memoOpen.update((open) => !open);
     this.memoClick.emit();
+  }
+  closeMemo(): void {
+    this.memoOpen.set(false);
+  }
+  memoTextChanged(event: Event): void {
+    const target = event.target as HTMLTextAreaElement;
+    this.memoText.set(target.value);
   }
   goToSettings(): void {
     this.router.navigate([SETTINGS_ROUTE]);
