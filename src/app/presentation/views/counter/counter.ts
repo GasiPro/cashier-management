@@ -6,6 +6,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { WebsocketService, WsMessage, isValidHostPort, stripWsScheme } from '../../../core/service/websocket.service';
 import { Navbar } from '../../shared/navbar/navbar';
 import { LeftSidebar } from '../../shared/sidebar/left-sidebar/left-sidebar';
+import { BottomBar } from '../../shared/bottom-bar/bottom-bar';
 import { Subscription } from 'rxjs';
 export interface ServiceItem {
   id: string;
@@ -61,7 +62,7 @@ const PASSWORD_HAS_DIGIT = /\d/;
 @Component({
   selector: 'app-counter',
   standalone: true,
-  imports: [CommonModule, FormsModule, Navbar, LeftSidebar],
+  imports: [CommonModule, FormsModule, Navbar, LeftSidebar, BottomBar],
   templateUrl: './counter.html',
 })
 export class Counter implements OnInit, OnDestroy {

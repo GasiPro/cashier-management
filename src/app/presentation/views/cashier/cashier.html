@@ -759,6 +759,7 @@
   <footer class="px-6 py-3 border-t border-gray-100 text-center">
     <p class="text-xs text-gray-400">GasiPro v1.0 &mdash; Système de prise de commande</p>
   </footer>
+  <app-bottom-bar role="cashier" [connected]="wsConnected()" [notificationCount]="totalPendingRequests"></app-bottom-bar>
   @if (selectedGroup(); as group) {
   <div class="fixed inset-0 z-50 flex items-center justify-center px-4" (click)="closeGroupDetail()"
        (keydown.escape)="closeGroupDetail()">
@@ -904,6 +905,5 @@
     {{ toastMessage() }}
   </div>
   }
-
   </div>
 </div>

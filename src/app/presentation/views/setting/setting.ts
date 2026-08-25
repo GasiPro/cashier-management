@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { invoke } from '@tauri-apps/api/core';
 import { LeftSidebar } from '../../shared/sidebar/left-sidebar/left-sidebar';
+import { BottomBar } from '../../shared/bottom-bar/bottom-bar';
 const MAX_ALLOWED_CONNECTED_DEVICES = 50;
 const CONNECTED_DEVICES_POLL_MS = 5000;
 const MIN_USERNAME_LEN = 3;
@@ -22,7 +23,7 @@ interface CashierAccountView {
 @Component({
   selector: 'app-setting',
   standalone: true,
-  imports: [CommonModule, FormsModule, LeftSidebar],
+  imports: [CommonModule, FormsModule, LeftSidebar, BottomBar],
   templateUrl: './setting.html',
   styleUrl: './setting.css',
 })
