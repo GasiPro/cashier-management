@@ -10,8 +10,8 @@ const HOME_ROUTE_BY_ROLE: Record<SidebarRole, string> = {
 };
 const SETTINGS_ROUTE = '/reglages';
 const SLOT_POSITION_CLASS: Record<ToolSlot, string> = {
-  A: 'fixed bottom-4 left-20',
-  B: 'fixed bottom-4 left-96',
+  A: 'fixed bottom-17 left-20',
+  B: 'fixed bottom-17 left-105',
 };
 @Component({
   selector: 'app-left-sidebar',
@@ -64,7 +64,7 @@ export class LeftSidebar {
   }
   calculatricePanelClass(): string {
     const position = SLOT_POSITION_CLASS[this.calculatriceSlot() ?? 'A'];
-    return `${position} z-50 w-72 rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden`;
+    return `${position} z-10 w-80 h-96 rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden flex flex-col`;
   }
   openMemo(): void {
     if (this.memoSlot() !== null) {
@@ -79,7 +79,7 @@ export class LeftSidebar {
   }
   memoPanelClass(): string {
     const position = SLOT_POSITION_CLASS[this.memoSlot() ?? 'A'];
-    return `${position} z-50 w-80 h-96 rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden flex flex-col`;
+    return `${position} z-10 w-80 h-96 rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden flex flex-col`;
   }
   memoTextChanged(event: Event): void {
     const target = event.target as HTMLTextAreaElement;
