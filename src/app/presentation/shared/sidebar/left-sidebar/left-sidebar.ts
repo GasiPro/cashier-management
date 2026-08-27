@@ -5,7 +5,7 @@ import { filter } from 'rxjs';
 export type SidebarRole = 'cashier' | 'counter';
 export type ToolSlot = 'A' | 'B';
 const HOME_ROUTE_BY_ROLE: Record<SidebarRole, string> = {
-  cashier: '/caisse',
+  cashier: '/caissier',
   counter: '/comptoir',
 };
 const SETTINGS_ROUTE = '/reglages';

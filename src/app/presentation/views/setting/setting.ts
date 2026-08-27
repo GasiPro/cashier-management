@@ -428,4 +428,7 @@ export class Setting implements OnInit, OnDestroy {
   goBack(): void {
     this.router.navigate(['/caissier']);
   }
+  goToDisplaySettings(): void {
+    this.router.navigate(['/affichage']);
+  }
 }

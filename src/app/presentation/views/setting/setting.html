@@ -124,6 +124,24 @@
         </p>
         }
       </section>
+      <section aria-labelledby="display-setting-heading"
+        class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h2 id="display-setting-heading" class="text-base font-semibold text-[#1A1A1A]">
+              Affichage
+            </h2>
+            <p class="text-xs text-gray-400 mt-0.5">
+              Thème, couleur de fond et taille de police.
+            </p>
+          </div>
+          <button type="button" (click)="goToDisplaySettings()"
+            class="text-sm font-semibold text-[#1E3A5F] hover:underline px-3 py-2 rounded-md
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            Gérer →
+          </button>
+        </div>
+      </section>
       <section aria-labelledby="cashier-accounts-heading"
         class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
         <div class="mb-1">
