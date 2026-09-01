@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { invoke } from '@tauri-apps/api/core';
+import { Navbar } from '../../shared/navbar/navbar';
 import { LeftSidebar } from '../../shared/sidebar/left-sidebar/left-sidebar';
 import { BottomBar } from '../../shared/bottom-bar/bottom-bar';
 const MAX_ALLOWED_CONNECTED_DEVICES = 50;
@@ -13,6 +14,8 @@ const MIN_PASSWORD_LEN = 8;
 const MAX_DISPLAY_NAME_LEN = 40;
 const PASSWORD_HAS_LETTER = /[A-Za-z]/;
 const PASSWORD_HAS_DIGIT = /\d/;
+const LS_USERNAME = 'gasipro:username';
+const LS_DISPLAY_NAME = 'gasipro:displayName';
 type AccountStatus = 'active' | 'suspended';
 interface CashierAccountView {
   username: string;
@@ -23,7 +26,7 @@ interface CashierAccountView {
 @Component({
   selector: 'app-setting',
   standalone: true,
-  imports: [CommonModule, FormsModule, LeftSidebar, BottomBar],
+  imports: [CommonModule, FormsModule, Navbar, LeftSidebar, BottomBar],
   templateUrl: './setting.html',
   styleUrl: './setting.css',
 })
@@ -34,6 +37,14 @@ export class Setting implements OnInit, OnDestroy {
   readonly minPasswordLen = MIN_PASSWORD_LEN;
   readonly maxDisplayNameLen = MAX_DISPLAY_NAME_LEN;
   @ViewChild('newAccountUsernameInput') private newAccountUsernameInput?: ElementRef<HTMLInputElement>;
+  username = localStorage.getItem(LS_USERNAME) ?? 'Caisse';
+  private displayName = localStorage.getItem(LS_DISPLAY_NAME) ?? '';
+  /** Name shown in the navbar — the account display name when one exists, otherwise the username. */
+  get displayLabel(): string {
+    return this.displayName.trim() ? this.displayName : this.username;
+  }
+  currentTime = signal('');
+  private clockInterval?: ReturnType<typeof setInterval>;
   maxConnectedDevices = signal(0);
   maxConnectedDevicesDraft = signal(0);
   connectedDevicesCount = signal(0);
@@ -82,6 +93,8 @@ export class Setting implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadDevicesSetting();
     this.loadAccounts();
+    this.tick();
+    this.clockInterval = setInterval(() => this.tick(), 1000);
     // Keep the "currently connected" count fresh while this page is open — it can
     // change from elsewhere (a comptoir connecting/dropping) at any time.
     this.connectedDevicesPollId = setInterval(() => this.refreshConnectedDevicesCount(), CONNECTED_DEVICES_POLL_MS);
@@ -91,6 +104,15 @@ export class Setting implements OnInit, OnDestroy {
       clearInterval(this.connectedDevicesPollId);
       this.connectedDevicesPollId = null;
     }
+    if (this.clockInterval) {
+      clearInterval(this.clockInterval);
+    }
+  }
+  private tick(): void {
+    const now = new Date();
+    this.currentTime.set(
+      now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    );
   }
   /** Re-fetches just the connected-devices count (not the configured limit, which this
    *  page itself owns) — used by the background poll started in `ngOnInit`. Silently

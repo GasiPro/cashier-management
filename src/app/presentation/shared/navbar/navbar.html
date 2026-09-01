@@ -16,6 +16,7 @@
     <div class="text-sm">
       <ng-content select="[navbarActions]"></ng-content>
     </div>
+    @if (showMenuButton()) {
     <div class="flex items-center gap-2 sm:gap-3">
       <div class="relative">
         <button (click)="toggleMenu()" [attr.aria-expanded]="showMenu()" aria-haspopup="menu"
@@ -43,5 +44,6 @@
         }
       </div>
     </div>
+    }
   </div>
 </header>
