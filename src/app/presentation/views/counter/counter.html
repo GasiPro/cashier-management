@@ -1,4 +1,3 @@
-
 <div class="bg-[#FAFAFA] h-screen overflow-hidden flex">
   <app-left-sidebar role="counter"></app-left-sidebar>
   <div class="flex-1 min-w-0 h-screen overflow-hidden flex flex-col">
@@ -60,449 +59,9 @@
       </button>
     </ng-container>
   </app-navbar>
-  @if (showServerPanel) {
-  <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showServerPanel = false">
-    <div class="absolute inset-0 bg-black/20"></div>
-    <div class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-y-auto flex flex-col"
-         (click)="$event.stopPropagation()">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-        <h2 class="text-base font-semibold text-[#1A1A1A]">Connexion serveur</h2>
-        <button (click)="showServerPanel = false"
-          class="text-gray-400 hover:text-gray-600 p-1
-                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-      <div class="flex-1 px-6 py-5 space-y-6">
-        <div>
-          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Connexion actuelle</p>
-          <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="text-xs text-gray-500">Identifiant</span>
-              <span class="text-sm font-semibold text-[#1A1A1A]">{{ username }}</span>
-            </div>
-            <div class="flex items-center justify-between">
-              <span class="text-xs text-gray-500">Serveur caisse</span>
-              <span class="text-sm font-mono text-[#1E3A5F]">{{ cashierHost }}</span>
-            </div>
-            <div class="flex items-center justify-between">
-              <span class="text-xs text-gray-500">Statut</span>
-              <span class="flex items-center gap-1 text-xs font-medium"
-                [class]="wsConnected() ? 'text-emerald-600' : waitingApproval() ? 'text-amber-600' : 'text-red-500'">
-                <span class="w-1.5 h-1.5 rounded-full inline-block"
-                  [class]="wsConnected() ? 'bg-emerald-400' : waitingApproval() ? 'bg-amber-400 animate-pulse' : 'bg-red-400'">
-                </span>
-                @if (wsConnected()) { Connecté et approuvé }
-                @else if (waitingApproval()) { En attente d'approbation }
-                @else { Déconnecté }
-              </span>
-            </div>
-          </div>
-        </div>
-        @if (serverConnectError()) {
-        <div role="alert" aria-live="assertive"
-          class="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
-          <svg class="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-          </svg>
-          <p class="text-xs text-red-700">{{ serverConnectError() }}</p>
-        </div>
-        }
-        <div>
-          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Se connecter à un autre serveur</p>
-          <div class="space-y-3">
-            <div>
-              <label class="block text-xs text-gray-500 mb-1.5" id="new-cashier-host-label">Adresse de la caisse</label>
-              <input
-                type="text"
-                [(ngModel)]="newCashierHost"
-                (input)="onNewCashierHostChanged()"
-                (blur)="checkNewCashierHost()"
-                (keydown.enter)="connectToNewCashier()"
-                placeholder="ex : 192.168.1.5:8080"
-                autocomplete="off"
-                spellcheck="false"
-                inputmode="url"
-                pattern="^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|[A-Za-z0-9.-]+):\d{1,5}$"
-                title="Adresse IP (ou nom d'hôte) suivie du port, ex : 192.168.1.5:8080"
-                aria-labelledby="new-cashier-host-label"
-                aria-describedby="new-cashier-host-hint"
-                [attr.aria-invalid]="newCashierAddressCheck() === 'invalid_format' || newCashierAddressCheck() === 'unreachable' ? 'true' : null"
-                class="w-full border rounded-lg px-3.5 py-2.5 text-sm font-mono text-[#1A1A1A]
-                       focus:outline-none transition-colors placeholder-gray-300"
-                [class]="newCashierAddressCheck() === 'invalid_format' || newCashierAddressCheck() === 'unreachable'
-                  ? 'border-red-300 focus:border-red-500'
-                  : 'border-gray-200 focus:border-[#1E3A5F]'" />
-              <div id="new-cashier-host-hint" aria-live="polite">
-                @if (newCashierAddressCheck() === 'checking') {
-                <p class="text-xs text-gray-400 mt-1.5 flex items-center gap-1.5">
-                  <span class="w-2.5 h-2.5 rounded-full border-2 border-gray-300 border-t-transparent animate-spin inline-block"></span>
-                  Vérification de l'adresse…
-                </p>
-                } @else if (newCashierAddressCheck() === 'invalid_format') {
-                <p class="text-xs text-red-600 mt-1.5 flex items-center gap-1.5">
-                  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  Format d'adresse invalide. Utilisez IP:port, ex : 192.168.1.5:8080.
-                </p>
-                } @else if (newCashierAddressCheck() === 'unreachable') {
-                <p class="text-xs text-amber-600 mt-1.5 flex items-center gap-1.5">
-                  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                          d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-8.94 3.94h.008v.008h-.008v-.008z" />
-                  </svg>
-                  Aucun serveur trouvé à cette adresse — il est peut-être éteint. Vérifiez-la avant de continuer.
-                </p>
-                } @else if (newCashierAddressCheck() === 'reachable') {
-                <p class="text-xs text-emerald-600 mt-1.5 flex items-center gap-1.5">
-                  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                  </svg>
-                  Serveur détecté à cette adresse.
-                </p>
-                }
-              </div>
-            </div>
-            <button (click)="connectToNewCashier()"
-              [disabled]="!newCashierHost.trim() || newCashierAddressCheck() === 'invalid_format'"
-              [attr.aria-describedby]="newCashierAddressCheck() === 'invalid_format' ? 'new-cashier-host-hint' : null"
-              class="w-full bg-[#1E3A5F] text-white text-sm font-semibold py-2.5 rounded-lg
-                     hover:bg-[#16304f] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
-                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
-              Changer de serveur
-            </button>
-          </div>
-        </div>
-        <div class="pt-2 border-t border-gray-100">
-          <button (click)="disconnectFromCashier()"
-            class="w-full border border-red-200 text-red-600 text-sm font-medium py-2.5 rounded-lg
-                   hover:bg-red-50 active:scale-95 transition-all
-                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
-            Déconnecter ce poste
-          </button>
-          <p class="text-xs text-gray-400 text-center mt-2">
-            Retourne à l'écran de connexion.
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
-  }
-  @if (showHistoriquePanel) {
-  <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showHistoriquePanel = false"
-       (keydown.escape)="showHistoriquePanel = false">
-    <div class="absolute inset-0 bg-black/20"></div>
-    <div id="historique-panel" class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-hidden
-                flex flex-col"
-         role="dialog" aria-modal="true" aria-labelledby="historique-panel-heading"
-         (click)="$event.stopPropagation()">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-        <div>
-          <h2 id="historique-panel-heading" class="text-base font-semibold text-[#1A1A1A]">Historique</h2>
-          <p class="text-xs text-gray-400 mt-0.5" aria-live="polite">
-            {{ filteredHistoriqueGroups().length }} commande{{ filteredHistoriqueGroups().length > 1 ? 's' : '' }}
-          </p>
-        </div>
-        <button (click)="showHistoriquePanel = false" autofocus
-          class="text-gray-400 hover:text-gray-600 p-1
-                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
-          aria-label="Fermer l'historique">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-      @if (orderGroups().length > 0) {
-      <div class="px-6 pt-4" role="group" aria-label="Filtrer l'historique par statut">
-        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Statut</p>
-        <div class="flex flex-wrap gap-2">
-          @for (filter of historiqueStatusFilters; track filter.value) {
-          <button (click)="setHistoriqueStatusFilter(filter.value)"
-            [attr.aria-pressed]="selectedHistoriqueStatus() === filter.value"
-            [class]="selectedHistoriqueStatus() === filter.value
-              ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]'
-              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
-            class="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors
-                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-            {{ filter.label }}
-          </button>
-          }
-        </div>
-      </div>
-      }
-      <div class="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-2">
-        @if (filteredHistoriqueGroups().length === 0) {
-        <p class="text-sm text-gray-400 italic py-4">
-          @if (orderGroups().length === 0) {
-            Aucune commande pour le moment.
-          } @else {
-            Aucune commande pour ce statut.
-          }
-        </p>
-        } @else {
-        <div class="space-y-5">
-          @for (day of historiqueGroupsByDay(); track day.dayLabel) {
-          <div>
-            <div class="sticky top-0 z-10 flex items-baseline justify-between bg-white/95 backdrop-blur-sm -mx-2 px-2 py-1.5">
-              <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{{ day.dayLabel }}</p>
-              <p class="text-[11px] text-gray-400 tabular-nums">
-                {{ day.count }} commande{{ day.count > 1 ? 's' : '' }}
-              </p>
-            </div>
-            <div class="space-y-0">
-              @for (g of day.groups; track g.groupId) {
-              <div class="text-sm border-b border-gray-50 last:border-0 py-2.5 last:pb-0">
-                <div class="flex items-start justify-between gap-2">
-                  <div class="flex items-start gap-2 min-w-0 cursor-pointer rounded -m-1 p-1
-                              hover:bg-gray-50 transition-colors
-                              focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]"
-                       role="button" tabindex="0"
-                       [attr.aria-label]="'Voir le détail de la commande ' + groupLabel(g.groupId)"
-                       (click)="openGroupDetail(g)"
-                       (keydown.enter)="openGroupDetail(g)"
-                       (keydown.space)="$event.preventDefault(); openGroupDetail(g)">
-                    <span class="font-mono text-gray-500 font-semibold flex-shrink-0 mt-0.5">{{ groupLabel(g.groupId) }}</span>
-                    <div class="min-w-0">
-                      <div class="flex items-baseline gap-2 min-w-0">
-                        <p class="text-gray-600 text-xs leading-snug line-clamp-2">{{ groupSummary(g) }}</p>
-                      </div>
-                      <div class="flex items-center gap-1.5 mt-0.5">
-                        <p class="text-gray-400 text-[11px] leading-snug">{{ historiqueTimeLabel(g) }}</p>
-                        <span class="text-gray-300 text-[11px]" aria-hidden="true">·</span>
-                        <p class="text-gray-400 text-[11px] leading-snug">
-                          {{ historiqueItemCount(g) }} article{{ historiqueItemCount(g) > 1 ? 's' : '' }}
-                        </p>
-                      </div>
-                      @if (g.status === 'REJETEE') {
-                      <p class="text-red-600 text-[11px] leading-snug mt-0.5 italic">
-                        {{ groupRejectReason(g) || 'Aucune raison fournie par la caisse.' }}
-                      </p>
-                      }
-                      @if (groupHasDiscount(g)) {
-                      <span class="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-amber-700
-                                   bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full"
-                            title="Un ou plusieurs prix ont été réduits par le comptoir">
-                        <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M20.59 13.41L11 3.83A2 2 0 009.59 3.24H4a1 1 0 00-1 1v5.59a2 2 0 00.59 1.41l9.58 9.58a2 2 0 002.82 0l4.6-4.6a2 2 0 000-2.82z"/>
-                          <circle cx="7.5" cy="7.5" r="1.5"/>
-                        </svg>
-                        Remise
-                        <span class="sr-only">appliquée sur cette commande</span>
-                      </span>
-                      }
-                      @if (groupHasIncrease(g)) {
-                      <span class="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-sky-700
-                                   bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full"
-                            title="Un ou plusieurs prix ont été majorés par le comptoir">
-                        <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M5 12l7-7 7 7"/>
-                        </svg>
-                        Majoration
-                        <span class="sr-only">appliquée sur cette commande</span>
-                      </span>
-                      }
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-1 flex-shrink-0">
-                    @if (g.status === 'EN_ATTENTE') {
-                    <button (click)="toggleEditGroup(g.groupId)" title="Modifier"
-                      class="text-gray-400 hover:text-[#1E3A5F] p-1 rounded transition-colors
-                             focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                      </svg>
-                    </button>
-                    <button (click)="deleteOrderGroup(g.groupId)" title="Annuler la commande"
-                      class="text-gray-400 hover:text-red-600 p-1 rounded transition-colors
-                             focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                    }
-                    <span class="text-xs px-2 py-0.5 rounded-full font-medium" [class]="groupStatusClass(g)">
-                      {{ groupStatusLabel(g) }}
-                    </span>
-                  </div>
-                </div>
-                @if (g.status === 'EN_ATTENTE' && isEditingGroup(g.groupId)) {
-                <div class="mt-2 ml-1 space-y-2 bg-[#F7F9FC] border border-gray-100 rounded-lg p-2.5">
-                  @for (line of g.lines; track line.id) {
-                  <div class="flex items-center gap-2">
-                    <span class="flex-1 min-w-0 text-xs text-gray-600 truncate">{{ line.service_type }}</span>
-                    <div class="flex items-center gap-1 flex-shrink-0">
-                      <button (click)="decrementOrderLine(line)" class="w-5 h-5 rounded border border-gray-200 flex items-center justify-center
-                                       text-gray-500 hover:bg-gray-100 transition-colors leading-none text-xs
-                                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">−</button>
-                      <span class="w-4 text-center text-xs font-semibold text-[#1A1A1A] tabular-nums">{{ line.quantity }}</span>
-                      <button (click)="incrementOrderLine(line)" class="w-5 h-5 rounded border border-gray-200 flex items-center justify-center
-                                       text-gray-500 hover:bg-gray-100 transition-colors leading-none text-xs
-                                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">+</button>
-                    </div>
-                    <label class="sr-only" [attr.for]="'edit-price-' + line.id">Prix unitaire pour {{ line.service_type }}</label>
-                    <input [id]="'edit-price-' + line.id" type="number" [(ngModel)]="line.unit_price" (change)="updateOrderLine(line)" min="0"
-                      [attr.aria-describedby]="(isLineDiscounted(line) || isLineIncreased(line)) ? ('edit-price-hint-' + line.id) : null"
-                      class="w-16 border rounded px-1 py-0.5 text-xs font-medium flex-shrink-0
-                             text-[#1A1A1A] focus:outline-none focus:border-[#1E3A5F] transition-colors tabular-nums"
-                      [class]="isLineDiscounted(line) ? 'border-amber-300 bg-amber-50' : isLineIncreased(line) ? 'border-sky-300 bg-sky-50' : 'border-gray-200'" />
-                    @if (isLineDiscounted(line)) {
-                    <span [id]="'edit-price-hint-' + line.id" class="text-[10px] text-amber-600 flex-shrink-0 whitespace-nowrap">
-                      <span aria-hidden="true">initial {{ line.original_unit_price | number:'1.0-0' }} Ar</span>
-                      <span class="sr-only">Prix réduit, initialement {{ line.original_unit_price }} Ar</span>
-                    </span>
-                    } @else if (isLineIncreased(line)) {
-                    <span [id]="'edit-price-hint-' + line.id" class="text-[10px] text-sky-600 flex-shrink-0 whitespace-nowrap">
-                      <span aria-hidden="true">initial {{ line.original_unit_price | number:'1.0-0' }} Ar</span>
-                      <span class="sr-only">Prix majoré, initialement {{ line.original_unit_price }} Ar</span>
-                    </span>
-                    }
-                    <button (click)="deleteOrderLine(line)" title="Supprimer cette ligne"
-                      class="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0
-                             focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400 rounded">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                  }
-                </div>
-                }
-              </div>
-              }
-            </div>
-          </div>
-          }
-        </div>
-        }
-      </div>
-    </div>
-  </div>
-  }
-  @if (showAccountPanel) {
-  <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="closeAccountPanel()"
-       (keydown.escape)="closeAccountPanel()">
-    <div class="absolute inset-0 bg-black/20"></div>
-    <div id="account-panel" class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-y-auto
-                flex flex-col"
-         role="dialog" aria-modal="true" aria-labelledby="account-panel-heading"
-         (click)="$event.stopPropagation()">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-        <div>
-          <h2 id="account-panel-heading" class="text-base font-semibold text-[#1A1A1A]">Mon compte</h2>
-          <p class="text-xs text-gray-400 mt-0.5 selectable">{{ username }}</p>
-        </div>
-        <button (click)="closeAccountPanel()" autofocus
-          class="text-gray-400 hover:text-gray-600 p-1
-                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
-          aria-label="Fermer les réglages du compte">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-      <div class="flex-1 px-6 py-5 space-y-4">
-        <div>
-          <label for="account-display-name"
-            class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Nom affiché
-          </label>
-          <input id="account-display-name" type="text"
-            name="accountDisplayName"
-            [ngModel]="editDisplayName()"
-            (ngModelChange)="editDisplayName.set($event)"
-            [attr.maxlength]="maxDisplayNameLen"
-            aria-describedby="account-display-name-help"
-            placeholder="ex : Comptoir 1"
-            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A]
-                   focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
-          <p id="account-display-name-help" class="text-xs text-gray-400 mt-1.5">
-            Facultatif — visible par la caisse à la place de l'identifiant.
-          </p>
-        </div>
-        <div>
-          <label for="account-password"
-            class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Nouveau mot de passe
-          </label>
-          <div class="flex items-center gap-2">
-            <input id="account-password" [type]="showEditPassword() ? 'text' : 'password'"
-              name="accountPassword"
-              [ngModel]="editPassword()"
-              (ngModelChange)="editPassword.set($event)"
-              autocomplete="new-password"
-              [attr.minlength]="minPasswordLen"
-              aria-describedby="account-password-help"
-              placeholder="Laisser vide pour ne pas changer"
-              class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A]
-                     focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
-            <button type="button" (click)="toggleEditPasswordVisibility()"
-              [attr.aria-pressed]="showEditPassword()"
-              [attr.aria-label]="showEditPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'"
-              class="flex-shrink-0 border border-gray-200 bg-white rounded-lg p-2.5
-                     hover:bg-gray-50 transition-colors
-                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-              @if (showEditPassword()) {
-              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.243 4.243L9.88 9.88" />
-              </svg>
-              } @else {
-              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              }
-            </button>
-          </div>
-          <p id="account-password-help" class="text-xs text-gray-400 mt-1.5">
-            Laissez vide pour conserver le mot de passe actuel. Sinon, au moins {{ minPasswordLen }}
-            caractères, avec une lettre et un chiffre.
-          </p>
-        </div>
-        @if (editPassword().length > 0) {
-        <div>
-          <label for="account-password-confirm"
-            class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Confirmer le nouveau mot de passe
-          </label>
-          <input id="account-password-confirm"
-            [type]="showEditPassword() ? 'text' : 'password'"
-            name="accountPasswordConfirm"
-            [ngModel]="editPasswordConfirm()"
-            (ngModelChange)="editPasswordConfirm.set($event)"
-            autocomplete="new-password"
-            placeholder="••••••••"
-            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A]
-                   focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
-        </div>
-        }
-        <p role="alert" aria-live="assertive" class="text-xs text-red-600">{{ editAccountError() }}</p>
-        <div class="flex items-center gap-2 pt-1">
-          <button type="button" (click)="saveAccountSettings()"
-            [disabled]="!canSubmitEditAccount()"
-            [attr.aria-busy]="savingAccount()"
-            class="bg-[#1E3A5F] text-white text-sm font-semibold px-4 py-2 rounded-md
-                   hover:bg-[#16304f] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
-                   disabled:opacity-40 disabled:hover:bg-[#1E3A5F] disabled:active:scale-100
-                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-            {{ savingAccount() ? 'Enregistrement…' : 'Enregistrer' }}
-          </button>
-          <button type="button" (click)="closeAccountPanel()"
-            [disabled]="savingAccount()"
-            class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
-                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-            Annuler
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-  }
+  <div class="relative flex-1 min-h-0">
   @if (waitingApproval() && !wsConnected()) {
-  <div class="fixed inset-0 z-40 bg-white/90 backdrop-blur-sm flex items-center justify-center px-4">
+  <div class="absolute inset-0 z-30 bg-white/90 backdrop-blur-sm flex items-center justify-center px-4">
     <div class="text-center">
       <div class="w-16 h-16 rounded-full bg-[#EFF4FA] flex items-center justify-center mx-auto mb-5">
         <span class="w-7 h-7 rounded-full border-[3px] border-[#1E3A5F] border-t-transparent animate-spin inline-block"></span>
@@ -514,7 +73,7 @@
   </div>
   }
   @if (blocked()) {
-  <div class="fixed inset-0 z-40 bg-white/90 backdrop-blur-sm flex items-center justify-center px-4">
+  <div class="absolute inset-0 z-30 bg-white/90 backdrop-blur-sm flex items-center justify-center px-4">
     <div class="text-center max-w-sm">
       <div class="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-5">
         <svg class="w-7 h-7 text-red-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -535,7 +94,7 @@
   </div>
   }
   @if (!wsConnected() && !waitingApproval() && !blocked()) {
-  <div class="fixed inset-0 z-40 bg-white/90 backdrop-blur-sm flex items-center justify-center px-4">
+  <div class="absolute inset-0 z-30 bg-white/90 backdrop-blur-sm flex items-center justify-center px-4">
     <div class="text-center max-w-sm">
       <div class="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-5">
         <svg class="w-7 h-7 text-red-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -557,7 +116,7 @@
     </div>
   </div>
   }
-  <main class="flex-1 min-h-0 overflow-y-auto max-w-6xl w-full mx-auto px-4 sm:px-6 py-6">
+  <main class="h-full overflow-y-auto max-w-6xl w-full mx-auto px-4 sm:px-6 py-6">
     <div class="flex flex-col lg:flex-row gap-6">
       <div class="flex-1 min-w-0">
         <h1 class="text-base font-semibold text-[#1A1A1A] mb-4">Nouvelle commande</h1>
@@ -869,9 +428,449 @@
       </div>
     </div>
   </main>
-  <app-bottom-bar role="counter" [connected]="wsConnected()" [notifications]="notifications()"></app-bottom-bar>
+  @if (showServerPanel) {
+  <div class="absolute inset-0 z-30 flex items-start justify-end" (click)="showServerPanel = false">
+    <div class="absolute inset-0 bg-black/20"></div>
+    <div class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-y-auto flex flex-col"
+         (click)="$event.stopPropagation()">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+        <h2 class="text-base font-semibold text-[#1A1A1A]">Connexion serveur</h2>
+        <button (click)="showServerPanel = false"
+          class="text-gray-400 hover:text-gray-600 p-1
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="flex-1 px-6 py-5 space-y-6">
+        <div>
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Connexion actuelle</p>
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-gray-500">Identifiant</span>
+              <span class="text-sm font-semibold text-[#1A1A1A]">{{ username }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-gray-500">Serveur caisse</span>
+              <span class="text-sm font-mono text-[#1E3A5F]">{{ cashierHost }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-gray-500">Statut</span>
+              <span class="flex items-center gap-1 text-xs font-medium"
+                [class]="wsConnected() ? 'text-emerald-600' : waitingApproval() ? 'text-amber-600' : 'text-red-500'">
+                <span class="w-1.5 h-1.5 rounded-full inline-block"
+                  [class]="wsConnected() ? 'bg-emerald-400' : waitingApproval() ? 'bg-amber-400 animate-pulse' : 'bg-red-400'">
+                </span>
+                @if (wsConnected()) { Connecté et approuvé }
+                @else if (waitingApproval()) { En attente d'approbation }
+                @else { Déconnecté }
+              </span>
+            </div>
+          </div>
+        </div>
+        @if (serverConnectError()) {
+        <div role="alert" aria-live="assertive"
+          class="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
+          <svg class="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+          <p class="text-xs text-red-700">{{ serverConnectError() }}</p>
+        </div>
+        }
+        <div>
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Se connecter à un autre serveur</p>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1.5" id="new-cashier-host-label">Adresse de la caisse</label>
+              <input
+                type="text"
+                [(ngModel)]="newCashierHost"
+                (input)="onNewCashierHostChanged()"
+                (blur)="checkNewCashierHost()"
+                (keydown.enter)="connectToNewCashier()"
+                placeholder="ex : 192.168.1.5:8080"
+                autocomplete="off"
+                spellcheck="false"
+                inputmode="url"
+                pattern="^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|[A-Za-z0-9.-]+):\d{1,5}$"
+                title="Adresse IP (ou nom d'hôte) suivie du port, ex : 192.168.1.5:8080"
+                aria-labelledby="new-cashier-host-label"
+                aria-describedby="new-cashier-host-hint"
+                [attr.aria-invalid]="newCashierAddressCheck() === 'invalid_format' || newCashierAddressCheck() === 'unreachable' ? 'true' : null"
+                class="w-full border rounded-lg px-3.5 py-2.5 text-sm font-mono text-[#1A1A1A]
+                       focus:outline-none transition-colors placeholder-gray-300"
+                [class]="newCashierAddressCheck() === 'invalid_format' || newCashierAddressCheck() === 'unreachable'
+                  ? 'border-red-300 focus:border-red-500'
+                  : 'border-gray-200 focus:border-[#1E3A5F]'" />
+              <div id="new-cashier-host-hint" aria-live="polite">
+                @if (newCashierAddressCheck() === 'checking') {
+                <p class="text-xs text-gray-400 mt-1.5 flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full border-2 border-gray-300 border-t-transparent animate-spin inline-block"></span>
+                  Vérification de l'adresse…
+                </p>
+                } @else if (newCashierAddressCheck() === 'invalid_format') {
+                <p class="text-xs text-red-600 mt-1.5 flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Format d'adresse invalide. Utilisez IP:port, ex : 192.168.1.5:8080.
+                </p>
+                } @else if (newCashierAddressCheck() === 'unreachable') {
+                <p class="text-xs text-amber-600 mt-1.5 flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-8.94 3.94h.008v.008h-.008v-.008z" />
+                  </svg>
+                  Aucun serveur trouvé à cette adresse — il est peut-être éteint. Vérifiez-la avant de continuer.
+                </p>
+                } @else if (newCashierAddressCheck() === 'reachable') {
+                <p class="text-xs text-emerald-600 mt-1.5 flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                  Serveur détecté à cette adresse.
+                </p>
+                }
+              </div>
+            </div>
+            <button (click)="connectToNewCashier()"
+              [disabled]="!newCashierHost.trim() || newCashierAddressCheck() === 'invalid_format'"
+              [attr.aria-describedby]="newCashierAddressCheck() === 'invalid_format' ? 'new-cashier-host-hint' : null"
+              class="w-full bg-[#1E3A5F] text-white text-sm font-semibold py-2.5 rounded-lg
+                     hover:bg-[#16304f] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
+              Changer de serveur
+            </button>
+          </div>
+        </div>
+        <div class="pt-2 border-t border-gray-100">
+          <button (click)="disconnectFromCashier()"
+            class="w-full border border-red-200 text-red-600 text-sm font-medium py-2.5 rounded-lg
+                   hover:bg-red-50 active:scale-95 transition-all
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
+            Déconnecter ce poste
+          </button>
+          <p class="text-xs text-gray-400 text-center mt-2">
+            Retourne à l'écran de connexion.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+  }
+  @if (showHistoriquePanel) {
+  <div class="absolute inset-0 z-30 flex items-start justify-end" (click)="showHistoriquePanel = false"
+       (keydown.escape)="showHistoriquePanel = false">
+    <div class="absolute inset-0 bg-black/20"></div>
+    <div id="historique-panel" class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-hidden
+                flex flex-col"
+         role="dialog" aria-modal="true" aria-labelledby="historique-panel-heading"
+         (click)="$event.stopPropagation()">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+        <div>
+          <h2 id="historique-panel-heading" class="text-base font-semibold text-[#1A1A1A]">Historique</h2>
+          <p class="text-xs text-gray-400 mt-0.5" aria-live="polite">
+            {{ filteredHistoriqueGroups().length }} commande{{ filteredHistoriqueGroups().length > 1 ? 's' : '' }}
+          </p>
+        </div>
+        <button (click)="showHistoriquePanel = false" autofocus
+          class="text-gray-400 hover:text-gray-600 p-1
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
+          aria-label="Fermer l'historique">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      @if (orderGroups().length > 0) {
+      <div class="px-6 pt-4" role="group" aria-label="Filtrer l'historique par statut">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Statut</p>
+        <div class="flex flex-wrap gap-2">
+          @for (filter of historiqueStatusFilters; track filter.value) {
+          <button (click)="setHistoriqueStatusFilter(filter.value)"
+            [attr.aria-pressed]="selectedHistoriqueStatus() === filter.value"
+            [class]="selectedHistoriqueStatus() === filter.value
+              ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]'
+              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
+            class="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            {{ filter.label }}
+          </button>
+          }
+        </div>
+      </div>
+      }
+      <div class="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-2">
+        @if (filteredHistoriqueGroups().length === 0) {
+        <p class="text-sm text-gray-400 italic py-4">
+          @if (orderGroups().length === 0) {
+            Aucune commande pour le moment.
+          } @else {
+            Aucune commande pour ce statut.
+          }
+        </p>
+        } @else {
+        <div class="space-y-5">
+          @for (day of historiqueGroupsByDay(); track day.dayLabel) {
+          <div>
+            <div class="sticky top-0 z-10 flex items-baseline justify-between bg-white/95 backdrop-blur-sm -mx-2 px-2 py-1.5">
+              <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{{ day.dayLabel }}</p>
+              <p class="text-[11px] text-gray-400 tabular-nums">
+                {{ day.count }} commande{{ day.count > 1 ? 's' : '' }}
+              </p>
+            </div>
+            <div class="space-y-0">
+              @for (g of day.groups; track g.groupId) {
+              <div class="text-sm border-b border-gray-50 last:border-0 py-2.5 last:pb-0">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="flex items-start gap-2 min-w-0 cursor-pointer rounded -m-1 p-1
+                              hover:bg-gray-50 transition-colors
+                              focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]"
+                       role="button" tabindex="0"
+                       [attr.aria-label]="'Voir le détail de la commande ' + groupLabel(g.groupId)"
+                       (click)="openGroupDetail(g)"
+                       (keydown.enter)="openGroupDetail(g)"
+                       (keydown.space)="$event.preventDefault(); openGroupDetail(g)">
+                    <span class="font-mono text-gray-500 font-semibold flex-shrink-0 mt-0.5">{{ groupLabel(g.groupId) }}</span>
+                    <div class="min-w-0">
+                      <div class="flex items-baseline gap-2 min-w-0">
+                        <p class="text-gray-600 text-xs leading-snug line-clamp-2">{{ groupSummary(g) }}</p>
+                      </div>
+                      <div class="flex items-center gap-1.5 mt-0.5">
+                        <p class="text-gray-400 text-[11px] leading-snug">{{ historiqueTimeLabel(g) }}</p>
+                        <span class="text-gray-300 text-[11px]" aria-hidden="true">·</span>
+                        <p class="text-gray-400 text-[11px] leading-snug">
+                          {{ historiqueItemCount(g) }} article{{ historiqueItemCount(g) > 1 ? 's' : '' }}
+                        </p>
+                      </div>
+                      @if (g.status === 'REJETEE') {
+                      <p class="text-red-600 text-[11px] leading-snug mt-0.5 italic">
+                        {{ groupRejectReason(g) || 'Aucune raison fournie par la caisse.' }}
+                      </p>
+                      }
+                      @if (groupHasDiscount(g)) {
+                      <span class="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-amber-700
+                                   bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full"
+                            title="Un ou plusieurs prix ont été réduits par le comptoir">
+                        <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M20.59 13.41L11 3.83A2 2 0 009.59 3.24H4a1 1 0 00-1 1v5.59a2 2 0 00.59 1.41l9.58 9.58a2 2 0 002.82 0l4.6-4.6a2 2 0 000-2.82z"/>
+                          <circle cx="7.5" cy="7.5" r="1.5"/>
+                        </svg>
+                        Remise
+                        <span class="sr-only">appliquée sur cette commande</span>
+                      </span>
+                      }
+                      @if (groupHasIncrease(g)) {
+                      <span class="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-sky-700
+                                   bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full"
+                            title="Un ou plusieurs prix ont été majorés par le comptoir">
+                        <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M5 12l7-7 7 7"/>
+                        </svg>
+                        Majoration
+                        <span class="sr-only">appliquée sur cette commande</span>
+                      </span>
+                      }
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-1 flex-shrink-0">
+                    @if (g.status === 'EN_ATTENTE') {
+                    <button (click)="toggleEditGroup(g.groupId)" title="Modifier"
+                      class="text-gray-400 hover:text-[#1E3A5F] p-1 rounded transition-colors
+                             focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </button>
+                    <button (click)="deleteOrderGroup(g.groupId)" title="Annuler la commande"
+                      class="text-gray-400 hover:text-red-600 p-1 rounded transition-colors
+                             focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                    }
+                    <span class="text-xs px-2 py-0.5 rounded-full font-medium" [class]="groupStatusClass(g)">
+                      {{ groupStatusLabel(g) }}
+                    </span>
+                  </div>
+                </div>
+                @if (g.status === 'EN_ATTENTE' && isEditingGroup(g.groupId)) {
+                <div class="mt-2 ml-1 space-y-2 bg-[#F7F9FC] border border-gray-100 rounded-lg p-2.5">
+                  @for (line of g.lines; track line.id) {
+                  <div class="flex items-center gap-2">
+                    <span class="flex-1 min-w-0 text-xs text-gray-600 truncate">{{ line.service_type }}</span>
+                    <div class="flex items-center gap-1 flex-shrink-0">
+                      <button (click)="decrementOrderLine(line)" class="w-5 h-5 rounded border border-gray-200 flex items-center justify-center
+                                       text-gray-500 hover:bg-gray-100 transition-colors leading-none text-xs
+                                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">−</button>
+                      <span class="w-4 text-center text-xs font-semibold text-[#1A1A1A] tabular-nums">{{ line.quantity }}</span>
+                      <button (click)="incrementOrderLine(line)" class="w-5 h-5 rounded border border-gray-200 flex items-center justify-center
+                                       text-gray-500 hover:bg-gray-100 transition-colors leading-none text-xs
+                                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">+</button>
+                    </div>
+                    <label class="sr-only" [attr.for]="'edit-price-' + line.id">Prix unitaire pour {{ line.service_type }}</label>
+                    <input [id]="'edit-price-' + line.id" type="number" [(ngModel)]="line.unit_price" (change)="updateOrderLine(line)" min="0"
+                      [attr.aria-describedby]="(isLineDiscounted(line) || isLineIncreased(line)) ? ('edit-price-hint-' + line.id) : null"
+                      class="w-16 border rounded px-1 py-0.5 text-xs font-medium flex-shrink-0
+                             text-[#1A1A1A] focus:outline-none focus:border-[#1E3A5F] transition-colors tabular-nums"
+                      [class]="isLineDiscounted(line) ? 'border-amber-300 bg-amber-50' : isLineIncreased(line) ? 'border-sky-300 bg-sky-50' : 'border-gray-200'" />
+                    @if (isLineDiscounted(line)) {
+                    <span [id]="'edit-price-hint-' + line.id" class="text-[10px] text-amber-600 flex-shrink-0 whitespace-nowrap">
+                      <span aria-hidden="true">initial {{ line.original_unit_price | number:'1.0-0' }} Ar</span>
+                      <span class="sr-only">Prix réduit, initialement {{ line.original_unit_price }} Ar</span>
+                    </span>
+                    } @else if (isLineIncreased(line)) {
+                    <span [id]="'edit-price-hint-' + line.id" class="text-[10px] text-sky-600 flex-shrink-0 whitespace-nowrap">
+                      <span aria-hidden="true">initial {{ line.original_unit_price | number:'1.0-0' }} Ar</span>
+                      <span class="sr-only">Prix majoré, initialement {{ line.original_unit_price }} Ar</span>
+                    </span>
+                    }
+                    <button (click)="deleteOrderLine(line)" title="Supprimer cette ligne"
+                      class="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0
+                             focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400 rounded">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  }
+                </div>
+                }
+              </div>
+              }
+            </div>
+          </div>
+          }
+        </div>
+        }
+      </div>
+    </div>
+  </div>
+  }
+  @if (showAccountPanel) {
+  <div class="absolute inset-0 z-30 flex items-start justify-end" (click)="closeAccountPanel()"
+       (keydown.escape)="closeAccountPanel()">
+    <div class="absolute inset-0 bg-black/20"></div>
+    <div id="account-panel" class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-y-auto
+                flex flex-col"
+         role="dialog" aria-modal="true" aria-labelledby="account-panel-heading"
+         (click)="$event.stopPropagation()">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+        <div>
+          <h2 id="account-panel-heading" class="text-base font-semibold text-[#1A1A1A]">Mon compte</h2>
+          <p class="text-xs text-gray-400 mt-0.5 selectable">{{ username }}</p>
+        </div>
+        <button (click)="closeAccountPanel()" autofocus
+          class="text-gray-400 hover:text-gray-600 p-1
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
+          aria-label="Fermer les réglages du compte">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="flex-1 px-6 py-5 space-y-4">
+        <div>
+          <label for="account-display-name"
+            class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+            Nom affiché
+          </label>
+          <input id="account-display-name" type="text"
+            name="accountDisplayName"
+            [ngModel]="editDisplayName()"
+            (ngModelChange)="editDisplayName.set($event)"
+            [attr.maxlength]="maxDisplayNameLen"
+            aria-describedby="account-display-name-help"
+            placeholder="ex : Comptoir 1"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A]
+                   focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+          <p id="account-display-name-help" class="text-xs text-gray-400 mt-1.5">
+            Facultatif — visible par la caisse à la place de l'identifiant.
+          </p>
+        </div>
+        <div>
+          <label for="account-password"
+            class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+            Nouveau mot de passe
+          </label>
+          <div class="flex items-center gap-2">
+            <input id="account-password" [type]="showEditPassword() ? 'text' : 'password'"
+              name="accountPassword"
+              [ngModel]="editPassword()"
+              (ngModelChange)="editPassword.set($event)"
+              autocomplete="new-password"
+              [attr.minlength]="minPasswordLen"
+              aria-describedby="account-password-help"
+              placeholder="Laisser vide pour ne pas changer"
+              class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A]
+                     focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+            <button type="button" (click)="toggleEditPasswordVisibility()"
+              [attr.aria-pressed]="showEditPassword()"
+              [attr.aria-label]="showEditPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'"
+              class="flex-shrink-0 border border-gray-200 bg-white rounded-lg p-2.5
+                     hover:bg-gray-50 transition-colors
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+              @if (showEditPassword()) {
+              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.243 4.243L9.88 9.88" />
+              </svg>
+              } @else {
+              <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              }
+            </button>
+          </div>
+          <p id="account-password-help" class="text-xs text-gray-400 mt-1.5">
+            Laissez vide pour conserver le mot de passe actuel. Sinon, au moins {{ minPasswordLen }}
+            caractères, avec une lettre et un chiffre.
+          </p>
+        </div>
+        @if (editPassword().length > 0) {
+        <div>
+          <label for="account-password-confirm"
+            class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+            Confirmer le nouveau mot de passe
+          </label>
+          <input id="account-password-confirm"
+            [type]="showEditPassword() ? 'text' : 'password'"
+            name="accountPasswordConfirm"
+            [ngModel]="editPasswordConfirm()"
+            (ngModelChange)="editPasswordConfirm.set($event)"
+            autocomplete="new-password"
+            placeholder="••••••••"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A]
+                   focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+        </div>
+        }
+        <p role="alert" aria-live="assertive" class="text-xs text-red-600">{{ editAccountError() }}</p>
+        <div class="flex items-center gap-2 pt-1">
+          <button type="button" (click)="saveAccountSettings()"
+            [disabled]="!canSubmitEditAccount()"
+            [attr.aria-busy]="savingAccount()"
+            class="bg-[#1E3A5F] text-white text-sm font-semibold px-4 py-2 rounded-md
+                   hover:bg-[#16304f] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
+                   disabled:opacity-40 disabled:hover:bg-[#1E3A5F] disabled:active:scale-100
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            {{ savingAccount() ? 'Enregistrement…' : 'Enregistrer' }}
+          </button>
+          <button type="button" (click)="closeAccountPanel()"
+            [disabled]="savingAccount()"
+            class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            Annuler
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  }
   @if (selectedGroup(); as group) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center px-4" (click)="closeGroupDetail()"
+  <div class="absolute inset-0 z-30 flex items-center justify-center px-4" (click)="closeGroupDetail()"
        (keydown.escape)="closeGroupDetail()">
     <div class="absolute inset-0 bg-black/30"></div>
     <div id="group-detail-modal" class="relative bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[85vh]
@@ -970,5 +969,7 @@
     </div>
   </div>
   }
+  </div>
+  <app-bottom-bar role="counter" [connected]="wsConnected()" [notifications]="notifications()"></app-bottom-bar>
   </div>
 </div>

@@ -1,4 +1,3 @@
-
 <div class="bg-[#FAFAFA] h-screen overflow-hidden flex">
   <app-left-sidebar role="cashier"></app-left-sidebar>
   <div class="flex-1 min-w-0 h-screen overflow-hidden flex flex-col">
@@ -47,8 +46,162 @@
       </button>
     </ng-container>
   </app-navbar>
+  <div class="relative flex-1 min-h-0">
+  <main class="h-full overflow-y-auto max-w-5xl w-full mx-auto px-4 sm:px-6 py-6">
+    <section class="mb-8">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="inline-flex items-center gap-1.5 text-xs font-medium
+                     text-amber-700 bg-amber-50 border border-amber-200
+                     px-2.5 py-1 rounded-full uppercase tracking-wide">
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block"></span>
+          En attente
+        </span>
+        <span class="text-sm text-gray-400">({{ pendingGroups().length }})</span>
+      </div>
+      @if (pendingGroups().length === 0) {
+      <div class="text-center py-16 text-gray-400">
+        <svg class="w-8 h-8 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2
+                     M9 5a2 2 0 002 2h2a2 2 0 002-2" />
+        </svg>
+        <p class="text-sm">Aucun client en attente d'encaissement.</p>
+      </div>
+      }
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        @for (group of pendingGroups(); track group.groupId) {
+        <div class="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 hover:shadow-sm
+                    transition-all flex flex-col justify-between cursor-pointer
+                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]"
+             role="button" tabindex="0"
+             [attr.aria-label]="'Voir le détail de la commande ' + formatGroupId(group.groupId)"
+             (click)="openGroupDetail(group)"
+             (keydown.enter)="openGroupDetail(group)"
+             (keydown.space)="$event.preventDefault(); openGroupDetail(group)">
+          <div>
+            <div class="flex items-start justify-between mb-2">
+              <div class="min-w-0">
+                <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Commande</p>
+                <p class="text-2xl font-bold text-[#1E3A5F] tabular-nums leading-tight">{{ formatGroupId(group.groupId) }}</p>
+                @if (group.counterUsername) {
+                <p class="text-xs text-gray-400 mt-0.5">Envoyée par <span class="font-medium text-gray-500">{{ group.counterUsername }}</span></p>
+                }
+              </div>
+              <span class="text-xs text-gray-400 mt-1 whitespace-nowrap">{{ formatCreatedLabel(group) }}</span>
+            </div>
+            <p class="text-sm text-gray-600 leading-snug mb-3 line-clamp-3">{{ getGroupItemsSummary(group) }}</p>
+            @if (groupHasDiscount(group) || groupHasIncrease(group)) {
+            <div class="flex items-center gap-1.5 mb-3">
+              @if (groupHasDiscount(group)) {
+              <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700
+                           bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full"
+                    title="Un ou plusieurs prix ont été réduits par le comptoir">
+                Remise
+                <span class="sr-only">appliquée sur cette commande</span>
+              </span>
+              }
+              @if (groupHasIncrease(group)) {
+              <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700
+                           bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full"
+                    title="Un ou plusieurs prix ont été majorés par le comptoir">
+                Majoration
+                <span class="sr-only">appliquée sur cette commande</span>
+              </span>
+              }
+            </div>
+            }
+          </div>
+          <div class="flex items-center justify-between pt-3 border-t border-gray-50">
+            <div>
+              <p class="text-xs text-gray-400">Total à payer</p>
+              <p class="text-lg font-bold text-[#1A1A1A] tabular-nums">{{ group.totalAmount | number:'1.0-0' }} Ar</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button (click)="$event.stopPropagation(); openRejectDialog(group)" title="Refuser la commande"
+                [attr.aria-label]="'Refuser la commande ' + formatGroupId(group.groupId)"
+                class="text-gray-400 hover:text-red-600 border border-gray-200 hover:border-red-200 hover:bg-red-50
+                       p-2 rounded-md transition-colors
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              <button (click)="$event.stopPropagation(); markGroupAsPaid(group.groupId)"
+                [attr.aria-label]="'Encaisser la commande ' + formatGroupId(group.groupId)"
+                class="bg-[#1E3A5F] text-white text-sm font-medium px-4 py-2 rounded-md
+                               hover:bg-[#16304f] active:scale-95 transition-all
+                               focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
+                Encaisser
+              </button>
+            </div>
+          </div>
+        </div>
+        }
+      </div>
+    </section>
+    <section>
+      <div class="flex items-center gap-2 mb-4">
+        <span class="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200
+                 px-2.5 py-1 rounded-full uppercase tracking-wide">
+          Encaissées
+        </span>
+        <span class="text-sm text-gray-400">({{ paidGroups().length }})</span>
+      </div>
+      @if (paidGroups().length === 0) {
+      <p class="text-sm text-gray-400 italic py-4">Aucun encaissement réalisé pour le moment.</p>
+      } @else {
+      <div class="bg-white border border-gray-200 rounded-lg overflow-x-auto">
+        <table class="w-full text-sm min-w-[340px] table-auto">
+          <thead>
+            <tr class="border-b border-gray-100 bg-gray-50">
+              <th class="text-left px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide w-12">N°</th>
+              <th class="text-left px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide">Détails</th>
+              <th class="text-left px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide hidden sm:table-cell">Comptoir</th>
+              <th class="text-right px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide whitespace-nowrap">Montant</th>
+              <th class="text-right px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide hidden sm:table-cell">Payé à</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (group of recentPaidGroups(); track group.groupId) {
+            <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors cursor-pointer
+                       focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#1E3A5F]"
+                tabindex="0"
+                [attr.aria-label]="'Voir le détail de la commande ' + formatGroupId(group.groupId)"
+                (click)="openGroupDetail(group)"
+                (keydown.enter)="openGroupDetail(group)"
+                (keydown.space)="$event.preventDefault(); openGroupDetail(group)">
+              <td class="px-3 sm:px-4 py-3 font-mono font-semibold text-gray-700 whitespace-nowrap">{{ formatGroupId(group.groupId) }}</td>
+              <td class="px-3 sm:px-4 py-3 text-gray-600 max-w-[140px] xs:max-w-xs md:max-w-md truncate">
+                {{ getGroupItemsSummary(group) }}
+                @if (groupHasDiscount(group)) {
+                <span class="inline-flex items-center gap-1 ml-1 text-[10px] font-semibold text-amber-700
+                             bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full align-middle"
+                      title="Un ou plusieurs prix ont été réduits par le comptoir">
+                  Remise
+                  <span class="sr-only">appliquée sur cette commande</span>
+                </span>
+                }
+                @if (groupHasIncrease(group)) {
+                <span class="inline-flex items-center gap-1 ml-1 text-[10px] font-semibold text-sky-700
+                             bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full align-middle"
+                      title="Un ou plusieurs prix ont été majorés par le comptoir">
+                  Majoration
+                  <span class="sr-only">appliquée sur cette commande</span>
+                </span>
+                }
+              </td>
+              <td class="px-3 sm:px-4 py-3 text-gray-500 hidden sm:table-cell whitespace-nowrap">{{ group.counterUsername }}</td>
+              <td class="px-3 sm:px-4 py-3 text-right font-semibold text-[#1A1A1A] tabular-nums whitespace-nowrap">{{ group.totalAmount | number:'1.0-0' }} Ar</td>
+              <td class="px-3 sm:px-4 py-3 text-right text-gray-400 hidden sm:table-cell whitespace-nowrap">{{ formatPaidLabel(group) }}</td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      }
+    </section>
+  </main>
   @if (showDevicesPanel) {
-  <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showDevicesPanel = false">
+  <div class="absolute inset-0 z-30 flex items-start justify-end" (click)="showDevicesPanel = false">
     <div class="absolute inset-0 bg-black/20"></div>
     <div class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-y-auto
                 flex flex-col"
@@ -171,7 +324,7 @@
   }
   <!-- ── Rapport panel ───────────────────────────────────────────────────────── -->
   @if (showRapport) {
-  <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showRapport = false"
+  <div class="absolute inset-0 z-30 flex items-start justify-end" (click)="showRapport = false"
        (keydown.escape)="showRapport = false">
     <div class="absolute inset-0 bg-black/20"></div>
     <div id="rapport-panel" class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-hidden
@@ -476,7 +629,7 @@
   </div>
   }
   @if (showHistorique) {
-  <div class="fixed inset-0 z-50 flex items-start justify-end" (click)="showHistorique = false"
+  <div class="absolute inset-0 z-30 flex items-start justify-end" (click)="showHistorique = false"
        (keydown.escape)="showHistorique = false">
     <div class="absolute inset-0 bg-black/20"></div>
     <div id="historique-panel" class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-hidden
@@ -604,162 +757,8 @@
     </div>
   </div>
   }
-  <main class="flex-1 min-h-0 overflow-y-auto max-w-5xl w-full mx-auto px-4 sm:px-6 py-6">
-    <section class="mb-8">
-      <div class="flex items-center gap-2 mb-4">
-        <span class="inline-flex items-center gap-1.5 text-xs font-medium
-                     text-amber-700 bg-amber-50 border border-amber-200
-                     px-2.5 py-1 rounded-full uppercase tracking-wide">
-          <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block"></span>
-          En attente
-        </span>
-        <span class="text-sm text-gray-400">({{ pendingGroups().length }})</span>
-      </div>
-      @if (pendingGroups().length === 0) {
-      <div class="text-center py-16 text-gray-400">
-        <svg class="w-8 h-8 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2
-                     M9 5a2 2 0 002 2h2a2 2 0 002-2" />
-        </svg>
-        <p class="text-sm">Aucun client en attente d'encaissement.</p>
-      </div>
-      }
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        @for (group of pendingGroups(); track group.groupId) {
-        <div class="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 hover:shadow-sm
-                    transition-all flex flex-col justify-between cursor-pointer
-                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]"
-             role="button" tabindex="0"
-             [attr.aria-label]="'Voir le détail de la commande ' + formatGroupId(group.groupId)"
-             (click)="openGroupDetail(group)"
-             (keydown.enter)="openGroupDetail(group)"
-             (keydown.space)="$event.preventDefault(); openGroupDetail(group)">
-          <div>
-            <div class="flex items-start justify-between mb-2">
-              <div class="min-w-0">
-                <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Commande</p>
-                <p class="text-2xl font-bold text-[#1E3A5F] tabular-nums leading-tight">{{ formatGroupId(group.groupId) }}</p>
-                @if (group.counterUsername) {
-                <p class="text-xs text-gray-400 mt-0.5">Envoyée par <span class="font-medium text-gray-500">{{ group.counterUsername }}</span></p>
-                }
-              </div>
-              <span class="text-xs text-gray-400 mt-1 whitespace-nowrap">{{ formatCreatedLabel(group) }}</span>
-            </div>
-            <p class="text-sm text-gray-600 leading-snug mb-3 line-clamp-3">{{ getGroupItemsSummary(group) }}</p>
-            @if (groupHasDiscount(group) || groupHasIncrease(group)) {
-            <div class="flex items-center gap-1.5 mb-3">
-              @if (groupHasDiscount(group)) {
-              <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700
-                           bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full"
-                    title="Un ou plusieurs prix ont été réduits par le comptoir">
-                Remise
-                <span class="sr-only">appliquée sur cette commande</span>
-              </span>
-              }
-              @if (groupHasIncrease(group)) {
-              <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700
-                           bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full"
-                    title="Un ou plusieurs prix ont été majorés par le comptoir">
-                Majoration
-                <span class="sr-only">appliquée sur cette commande</span>
-              </span>
-              }
-            </div>
-            }
-          </div>
-          <div class="flex items-center justify-between pt-3 border-t border-gray-50">
-            <div>
-              <p class="text-xs text-gray-400">Total à payer</p>
-              <p class="text-lg font-bold text-[#1A1A1A] tabular-nums">{{ group.totalAmount | number:'1.0-0' }} Ar</p>
-            </div>
-            <div class="flex items-center gap-2">
-              <button (click)="$event.stopPropagation(); openRejectDialog(group)" title="Refuser la commande"
-                [attr.aria-label]="'Refuser la commande ' + formatGroupId(group.groupId)"
-                class="text-gray-400 hover:text-red-600 border border-gray-200 hover:border-red-200 hover:bg-red-50
-                       p-2 rounded-md transition-colors
-                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-              <button (click)="$event.stopPropagation(); markGroupAsPaid(group.groupId)"
-                [attr.aria-label]="'Encaisser la commande ' + formatGroupId(group.groupId)"
-                class="bg-[#1E3A5F] text-white text-sm font-medium px-4 py-2 rounded-md
-                               hover:bg-[#16304f] active:scale-95 transition-all
-                               focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
-                Encaisser
-              </button>
-            </div>
-          </div>
-        </div>
-        }
-      </div>
-    </section>
-    <section>
-      <div class="flex items-center gap-2 mb-4">
-        <span class="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200
-                 px-2.5 py-1 rounded-full uppercase tracking-wide">
-          Encaissées
-        </span>
-        <span class="text-sm text-gray-400">({{ paidGroups().length }})</span>
-      </div>
-      @if (paidGroups().length === 0) {
-      <p class="text-sm text-gray-400 italic py-4">Aucun encaissement réalisé pour le moment.</p>
-      } @else {
-      <div class="bg-white border border-gray-200 rounded-lg overflow-x-auto">
-        <table class="w-full text-sm min-w-[340px] table-auto">
-          <thead>
-            <tr class="border-b border-gray-100 bg-gray-50">
-              <th class="text-left px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide w-12">N°</th>
-              <th class="text-left px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide">Détails</th>
-              <th class="text-left px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide hidden sm:table-cell">Comptoir</th>
-              <th class="text-right px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide whitespace-nowrap">Montant</th>
-              <th class="text-right px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide hidden sm:table-cell">Payé à</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (group of recentPaidGroups(); track group.groupId) {
-            <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors cursor-pointer
-                       focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#1E3A5F]"
-                tabindex="0"
-                [attr.aria-label]="'Voir le détail de la commande ' + formatGroupId(group.groupId)"
-                (click)="openGroupDetail(group)"
-                (keydown.enter)="openGroupDetail(group)"
-                (keydown.space)="$event.preventDefault(); openGroupDetail(group)">
-              <td class="px-3 sm:px-4 py-3 font-mono font-semibold text-gray-700 whitespace-nowrap">{{ formatGroupId(group.groupId) }}</td>
-              <td class="px-3 sm:px-4 py-3 text-gray-600 max-w-[140px] xs:max-w-xs md:max-w-md truncate">
-                {{ getGroupItemsSummary(group) }}
-                @if (groupHasDiscount(group)) {
-                <span class="inline-flex items-center gap-1 ml-1 text-[10px] font-semibold text-amber-700
-                             bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full align-middle"
-                      title="Un ou plusieurs prix ont été réduits par le comptoir">
-                  Remise
-                  <span class="sr-only">appliquée sur cette commande</span>
-                </span>
-                }
-                @if (groupHasIncrease(group)) {
-                <span class="inline-flex items-center gap-1 ml-1 text-[10px] font-semibold text-sky-700
-                             bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full align-middle"
-                      title="Un ou plusieurs prix ont été majorés par le comptoir">
-                  Majoration
-                  <span class="sr-only">appliquée sur cette commande</span>
-                </span>
-                }
-              </td>
-              <td class="px-3 sm:px-4 py-3 text-gray-500 hidden sm:table-cell whitespace-nowrap">{{ group.counterUsername }}</td>
-              <td class="px-3 sm:px-4 py-3 text-right font-semibold text-[#1A1A1A] tabular-nums whitespace-nowrap">{{ group.totalAmount | number:'1.0-0' }} Ar</td>
-              <td class="px-3 sm:px-4 py-3 text-right text-gray-400 hidden sm:table-cell whitespace-nowrap">{{ formatPaidLabel(group) }}</td>
-            </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-      }
-    </section>
-  </main>
-  <app-bottom-bar role="cashier" [connected]="wsConnected()" [notifications]="notifications()"></app-bottom-bar>
   @if (selectedGroup(); as group) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center px-4" (click)="closeGroupDetail()"
+  <div class="absolute inset-0 z-30 flex items-center justify-center px-4" (click)="closeGroupDetail()"
        (keydown.escape)="closeGroupDetail()">
     <div class="absolute inset-0 bg-black/30"></div>
     <div id="group-detail-modal" class="relative bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[85vh]
@@ -856,7 +855,7 @@
   </div>
   }
   @if (rejectGroupTarget(); as group) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center px-4" (click)="closeRejectDialog()"
+  <div class="absolute inset-0 z-30 flex items-center justify-center px-4" (click)="closeRejectDialog()"
        (keydown.escape)="closeRejectDialog()">
     <div class="absolute inset-0 bg-black/30"></div>
     <div id="reject-order-modal" class="relative bg-white rounded-xl shadow-2xl w-full max-w-sm
@@ -896,5 +895,7 @@
     </div>
   </div>
   }
+  </div>
+  <app-bottom-bar role="cashier" [connected]="wsConnected()" [notifications]="notifications()"></app-bottom-bar>
   </div>
 </div>
