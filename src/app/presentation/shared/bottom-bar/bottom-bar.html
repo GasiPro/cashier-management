@@ -1,3 +1,4 @@
+
 <footer class="bg-white border-t border-gray-100 px-4 sm:px-6 py-2 sticky bottom-0 z-25 shrink-0" role="contentinfo"
   [attr.aria-label]="roleLabel + ' — barre d\'état'">
   <div class="max-w-6xl mx-auto flex items-center justify-between gap-4">
@@ -18,7 +19,7 @@
         <path stroke-linecap="round" stroke-linejoin="round"
           d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
       </svg>
-      @if (notificationCount > 0) {
+      @if (notifications.length > 0) {
       <span class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold
                    rounded-full flex items-center justify-center leading-none">
         {{ displayNotificationCount }}
@@ -56,8 +57,31 @@
         }
       </button>
     </div>
+    @if (!notificationsExpanded()) {
+    <div class="px-3 py-2.5 text-sm" role="status" aria-live="polite">
+      @if (latestNotification) {
+      <p class="text-gray-700">{{ latestNotification.message }}</p>
+      } @else {
+      <p class="text-gray-400 italic">Aucune notification</p>
+      }
+    </div>
+    }
     @if (notificationsExpanded()) {
     <div class="flex-1 overflow-y-auto px-3 py-2">
+      @if (notifications.length === 0) {
+      <p class="text-sm text-gray-400 italic py-4 text-center">Aucune notification</p>
+      } @else {
+      <div class="space-y-2">
+        @for (n of reversedNotifications; track n.id) {
+        <div class="text-sm text-gray-700 border-b border-gray-100 pb-2 last:border-0">
+          @if (n.time) {
+          <p class="text-[10px] text-gray-400 mb-0.5">{{ n.time }}</p>
+          }
+          <p>{{ n.message }}</p>
+        </div>
+        }
+      </div>
+      }
     </div>
     }
   </div>

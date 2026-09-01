@@ -1,3 +1,4 @@
+
 import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -6,7 +7,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { WebsocketService, WsMessage, isValidHostPort, stripWsScheme } from '../../../core/service/websocket.service';
 import { Navbar } from '../../shared/navbar/navbar';
 import { LeftSidebar } from '../../shared/sidebar/left-sidebar/left-sidebar';
-import { BottomBar } from '../../shared/bottom-bar/bottom-bar';
+import { BottomBar, BottomBarNotification } from '../../shared/bottom-bar/bottom-bar';
 import { Subscription } from 'rxjs';
 export interface ServiceItem {
   id: string;
@@ -168,8 +169,8 @@ export class Counter implements OnInit, OnDestroy {
   confirmingCancel = false;
   // ── UI ────────────────────────────────────────────────────────────────────────
   currentTime = signal('');
-  toastVisible = signal(false);
-  toastMessage = signal('');
+  notifications = signal<BottomBarNotification[]>([]);
+  private notificationIdCounter = 0;
   private clockId!: ReturnType<typeof setInterval>;
   private wsSubscription?: Subscription;
   private openSubscription?: Subscription;
@@ -679,9 +680,10 @@ export class Counter implements OnInit, OnDestroy {
     }
   }
   private showToast(msg: string): void {
-    this.toastMessage.set(msg);
-    this.toastVisible.set(true);
-    setTimeout(() => this.toastVisible.set(false), 3000);
+    const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    this.notifications.update((list) =>
+      [...list, { id: ++this.notificationIdCounter, message: msg, time }].slice(-30),
+    );
   }
   private updateClock(): void {
     this.currentTime.set(

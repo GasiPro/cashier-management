@@ -1,15 +1,21 @@
-import { Component, EventEmitter, Input, OnDestroy, OnInit, Output, signal } from '@angular/core';
+
+import { Component, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output, SimpleChanges, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 export type BottomBarRole = 'cashier' | 'counter';
+export interface BottomBarNotification {
+  id: number;
+  message: string;
+  time?: string;
+}
 @Component({
   selector: 'app-bottom-bar',
   standalone: true,
   imports: [CommonModule],
   templateUrl: './bottom-bar.html',
 })
-export class BottomBar implements OnInit, OnDestroy {
+export class BottomBar implements OnInit, OnChanges, OnDestroy {
   @Input({ required: true }) role!: BottomBarRole;
-  @Input() notificationCount = 0;
+  @Input() notifications: BottomBarNotification[] = [];
   @Input() notificationLabel?: string;
   @Input() connected = true;
   @Output() notificationsClick = new EventEmitter<void>();
@@ -18,14 +24,26 @@ export class BottomBar implements OnInit, OnDestroy {
   notificationsPanelOpen = signal(false);
   notificationsExpanded = signal(false);
   private clockInterval?: ReturnType<typeof setInterval>;
+  private autoHideTimeout?: ReturnType<typeof setTimeout>;
+  private previousNotificationsLength = 0;
   ngOnInit(): void {
     this.tick();
     this.clockInterval = setInterval(() => this.tick(), 1000);
+    this.previousNotificationsLength = this.notifications.length;
+  }
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['notifications'] && !changes['notifications'].firstChange) {
+      if (this.notifications.length > this.previousNotificationsLength) {
+        this.showLatestNotification();
+      }
+    }
+    this.previousNotificationsLength = this.notifications.length;
   }
   ngOnDestroy(): void {
     if (this.clockInterval) {
       clearInterval(this.clockInterval);
     }
+    this.clearAutoHide();
   }
   private tick(): void {
     const now = new Date();
@@ -39,12 +57,20 @@ export class BottomBar implements OnInit, OnDestroy {
   }
   get resolvedNotificationLabel(): string {
     if (this.notificationLabel) return this.notificationLabel;
-    return this.role === 'cashier' ? 'Notifications de la caisse' : 'Notifications du comptoir';
+    return 'Notifications';
   }
   get displayNotificationCount(): string {
-    return this.notificationCount > 99 ? '99+' : String(this.notificationCount);
+    const count = this.notifications.length;
+    return count > 99 ? '99+' : String(count);
+  }
+  get latestNotification(): BottomBarNotification | undefined {
+    return this.notifications[this.notifications.length - 1];
+  }
+  get reversedNotifications(): BottomBarNotification[] {
+    return [...this.notifications].reverse();
   }
   onNotificationsClick(): void {
+    this.clearAutoHide();
     this.notificationsPanelOpen.update((open) => !open);
     if (!this.notificationsPanelOpen()) {
       this.notificationsExpanded.set(false);
@@ -52,10 +78,33 @@ export class BottomBar implements OnInit, OnDestroy {
     this.notificationsClick.emit();
   }
   closeNotificationsPanel(): void {
+    this.clearAutoHide();
     this.notificationsPanelOpen.set(false);
     this.notificationsExpanded.set(false);
   }
   toggleNotificationsExpanded(): void {
+    this.clearAutoHide();
     this.notificationsExpanded.update((expanded) => !expanded);
+  }
+  /** Briefly pops the short notification popup open, mirroring the previous toast behaviour. */
+  private showLatestNotification(): void {
+    this.notificationsPanelOpen.set(true);
+    if (!this.notificationsExpanded()) {
+      this.scheduleAutoHide();
+    }
+  }
+  private scheduleAutoHide(): void {
+    this.clearAutoHide();
+    this.autoHideTimeout = setTimeout(() => {
+      if (!this.notificationsExpanded()) {
+        this.notificationsPanelOpen.set(false);
+      }
+    }, 3000);
+  }
+  private clearAutoHide(): void {
+    if (this.autoHideTimeout) {
+      clearTimeout(this.autoHideTimeout);
+      this.autoHideTimeout = undefined;
+    }
   }
 }

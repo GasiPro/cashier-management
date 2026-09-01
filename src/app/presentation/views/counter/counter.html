@@ -1,3 +1,4 @@
+
 <div class="bg-[#FAFAFA] h-screen overflow-hidden flex">
   <app-left-sidebar role="counter"></app-left-sidebar>
   <div class="flex-1 min-w-0 h-screen overflow-hidden flex flex-col">
@@ -556,13 +557,6 @@
     </div>
   </div>
   }
-  @if (toastVisible()) {
-  <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50
-                bg-[#1E3A5F] text-white text-sm font-medium px-5 py-3 rounded-lg shadow-lg"
-       role="status" aria-live="polite">
-    {{ toastMessage() }}
-  </div>
-  }
   <main class="flex-1 min-h-0 overflow-y-auto max-w-6xl w-full mx-auto px-4 sm:px-6 py-6">
     <div class="flex flex-col lg:flex-row gap-6">
       <div class="flex-1 min-w-0">
@@ -875,7 +869,7 @@
       </div>
     </div>
   </main>
-  <app-bottom-bar role="counter" [connected]="wsConnected()"></app-bottom-bar>
+  <app-bottom-bar role="counter" [connected]="wsConnected()" [notifications]="notifications()"></app-bottom-bar>
   @if (selectedGroup(); as group) {
   <div class="fixed inset-0 z-50 flex items-center justify-center px-4" (click)="closeGroupDetail()"
        (keydown.escape)="closeGroupDetail()">

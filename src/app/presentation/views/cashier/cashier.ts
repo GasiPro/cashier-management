@@ -1,3 +1,4 @@
+
 import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
@@ -6,7 +7,7 @@ import { save } from '@tauri-apps/plugin-dialog';
 import { WebsocketService, WsMessage } from '../../../core/service/websocket.service';
 import { Navbar } from '../../shared/navbar/navbar';
 import { LeftSidebar } from '../../shared/sidebar/left-sidebar/left-sidebar';
-import { BottomBar } from '../../shared/bottom-bar/bottom-bar';
+import { BottomBar, BottomBarNotification } from '../../shared/bottom-bar/bottom-bar';
 import { Subscription } from 'rxjs';
 import * as XLSX from 'xlsx';
 export interface Order {
@@ -123,8 +124,8 @@ export class Cashier implements OnInit, OnDestroy {
   );
   showRapport = false;
   showHistorique = false;
-  toastVisible = signal(false);
-  toastMessage = signal('');
+  notifications = signal<BottomBarNotification[]>([]);
+  private notificationIdCounter = 0;
   /** True while the xlsx export is in progress — drives aria-busy/disabled on the export button. */
   exportingRapport = signal(false);
   // ── Rapport: selected period / date ───────────────────────────────────────────
@@ -736,9 +737,10 @@ export class Cashier implements OnInit, OnDestroy {
     this.showRapportDatePicker.set(false);
   }
   private showToast(msg: string): void {
-    this.toastMessage.set(msg);
-    this.toastVisible.set(true);
-    setTimeout(() => this.toastVisible.set(false), 3000);
+    const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    this.notifications.update((list) =>
+      [...list, { id: ++this.notificationIdCounter, message: msg, time }].slice(-30),
+    );
   }
   async exportRapportXlsx(): Promise<void> {
     this.exportingRapport.set(true);
