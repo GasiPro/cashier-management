@@ -1,4 +1,3 @@
-
 import { Component, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output, SimpleChanges, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 export type BottomBarRole = 'cashier' | 'counter';
@@ -23,9 +22,11 @@ export class BottomBar implements OnInit, OnChanges, OnDestroy {
   currentTime = signal('');
   notificationsPanelOpen = signal(false);
   notificationsExpanded = signal(false);
+  hasNewNotifications = signal(false);
   private clockInterval?: ReturnType<typeof setInterval>;
   private autoHideTimeout?: ReturnType<typeof setTimeout>;
   private previousNotificationsLength = 0;
+  private static readonly AUTO_HIDE_DELAY_MS = 5000;
   ngOnInit(): void {
     this.tick();
     this.clockInterval = setInterval(() => this.tick(), 1000);
@@ -34,6 +35,7 @@ export class BottomBar implements OnInit, OnChanges, OnDestroy {
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['notifications'] && !changes['notifications'].firstChange) {
       if (this.notifications.length > this.previousNotificationsLength) {
+        this.hasNewNotifications.set(true);
         this.showLatestNotification();
       }
     }
@@ -71,6 +73,7 @@ export class BottomBar implements OnInit, OnChanges, OnDestroy {
   }
   onNotificationsClick(): void {
     this.clearAutoHide();
+    this.hasNewNotifications.set(false);
     this.notificationsPanelOpen.update((open) => !open);
     if (!this.notificationsPanelOpen()) {
       this.notificationsExpanded.set(false);
@@ -79,6 +82,7 @@ export class BottomBar implements OnInit, OnChanges, OnDestroy {
   }
   closeNotificationsPanel(): void {
     this.clearAutoHide();
+    this.hasNewNotifications.set(false);
     this.notificationsPanelOpen.set(false);
     this.notificationsExpanded.set(false);
   }
@@ -86,7 +90,6 @@ export class BottomBar implements OnInit, OnChanges, OnDestroy {
     this.clearAutoHide();
     this.notificationsExpanded.update((expanded) => !expanded);
   }
-  /** Briefly pops the short notification popup open, mirroring the previous toast behaviour. */
   private showLatestNotification(): void {
     this.notificationsPanelOpen.set(true);
     if (!this.notificationsExpanded()) {
@@ -99,7 +102,7 @@ export class BottomBar implements OnInit, OnChanges, OnDestroy {
       if (!this.notificationsExpanded()) {
         this.notificationsPanelOpen.set(false);
       }
-    }, 3000);
+    }, BottomBar.AUTO_HIDE_DELAY_MS);
   }
   private clearAutoHide(): void {
     if (this.autoHideTimeout) {
