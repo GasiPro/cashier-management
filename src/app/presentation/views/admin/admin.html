@@ -1,0 +1,57 @@
+<div class="fixed inset-0 bg-white flex overflow-hidden">
+    <!-- Sidebar -->
+    <aside class="w-64 shrink-0 border-r border-gray-200 h-full flex flex-col justify-between overflow-y-auto">
+      <div>
+        <nav class="px-4 pt-5 pb-3">
+          <button type="button" (click)="selectSection('accueil')" [class]="navItemClass('accueil')">
+            Accueil
+          </button>
+        </nav>
+        <nav class="px-4 pt-2 space-y-1">
+          @for (item of navItems; track item.id) {
+          <button type="button" (click)="selectSection(item.id)" [class]="navItemClass(item.id)">
+            {{ item.label }}
+          </button>
+          }
+        </nav>
+      </div>
+      <div class="px-4 py-4 border-t border-gray-200">
+        <button type="button"
+          class="w-full flex items-center justify-between text-sm text-gray-700 hover:text-gray-900
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
+          <span class="truncate">{{ username }}</span>
+          <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main content -->
+    <div class="flex-1 flex flex-col min-w-0 h-full">
+      <header class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+        <h1 class="text-base font-semibold text-gray-800">Espace Admin</h1>
+        <div class="flex items-center gap-3">
+          <button type="button" aria-label="Rechercher"
+            class="text-gray-400 hover:text-gray-600 transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.85-5.4a7.25 7.25 0 11-14.5 0 7.25 7.25 0 0114.5 0z" />
+            </svg>
+          </button>
+          <button type="button" aria-label="Compte"
+            class="w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center
+                   hover:bg-gray-200 transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.25a7.5 7.5 0 0115 0" />
+            </svg>
+          </button>
+        </div>
+      </header>
+      <main class="flex-1 p-6 overflow-y-auto">
+        <p class="text-sm text-gray-400">{{ activeLabel() }}</p>
+      </main>
+    </div>
+</div>
