@@ -1,4 +1,3 @@
-
 import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -121,6 +120,12 @@ export class Counter implements OnInit, OnDestroy {
   // ── Menu / panels ────────────────────────────────────────────────────────────
   showServerPanel = false;
   showHistoriquePanel = false;
+  /** Closes every navbar-menu panel so only one can be open at a time. */
+  closeAllPanels(): void {
+    this.showServerPanel = false;
+    this.showHistoriquePanel = false;
+    this.showAccountPanel = false;
+  }
   newCashierHost = '';
   /** Result of probing newCashierHost for a running server, shown as a hint/warning.
    *  'invalid_format' is a synchronous check (bad IP/port shape) and never touches

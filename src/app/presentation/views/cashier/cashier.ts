@@ -1,4 +1,3 @@
-
 import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
@@ -124,12 +123,15 @@ export class Cashier implements OnInit, OnDestroy {
   );
   showRapport = false;
   showHistorique = false;
+  /** Closes every navbar-menu panel so only one can be open at a time. */
+  closeAllPanels(): void {
+    this.showDevicesPanel = false;
+    this.showRapport = false;
+    this.showHistorique = false;
+  }
   notifications = signal<BottomBarNotification[]>([]);
   private notificationIdCounter = 0;
-  /** True while the xlsx export is in progress — drives aria-busy/disabled on the export button. */
   exportingRapport = signal(false);
-  // ── Rapport: selected period / date ───────────────────────────────────────────
-  /** Granularité actuellement affichée : jour, semaine (lundi–samedi), mois civil ou année civile. */
   rapportPeriod = signal<RapportPeriod>('jour');
   rapportSelectedDate = signal<string>(this.formatIsoDate(new Date()));
   showRapportDatePicker = signal(false);

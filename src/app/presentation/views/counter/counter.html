@@ -27,7 +27,7 @@
       </svg>
     </button>
     <ng-container navbarMenuItems>
-      <button role="menuitem" (click)="showServerPanel = true" autofocus
+      <button role="menuitem" (click)="closeAllPanels(); showServerPanel = true" autofocus
         class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
         <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -36,7 +36,7 @@
         </svg>
         Connexion
       </button>
-      <button role="menuitem" (click)="showHistoriquePanel = true"
+      <button role="menuitem" (click)="closeAllPanels(); showHistoriquePanel = true"
         class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
         <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -49,7 +49,7 @@
         </span>
         }
       </button>
-      <button role="menuitem" (click)="openAccountPanel()"
+      <button role="menuitem" (click)="closeAllPanels(); openAccountPanel()"
         class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
         <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">

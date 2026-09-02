@@ -14,7 +14,7 @@
       </div>
     </div>
     <ng-container navbarMenuItems>
-      <button role="menuitem" (click)="showRapport = true" autofocus
+      <button role="menuitem" (click)="closeAllPanels(); showRapport = true" autofocus
         class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
         <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -22,7 +22,7 @@
         </svg>
         Rapport
       </button>
-      <button role="menuitem" (click)="showHistorique = true"
+      <button role="menuitem" (click)="closeAllPanels(); showHistorique = true"
         class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
         <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -30,7 +30,7 @@
         </svg>
         Historique
       </button>
-      <button role="menuitem" (click)="showDevicesPanel = true"
+      <button role="menuitem" (click)="closeAllPanels(); showDevicesPanel = true"
         class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
         <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
