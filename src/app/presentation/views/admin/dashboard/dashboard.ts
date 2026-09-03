@@ -1,5 +1,34 @@
 import { Component, OnInit, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { WebsocketService, WsMessage } from '../../../../core/service/websocket.service';
+import { Subscription } from 'rxjs';
+
+export interface Order {
+  id: number;
+  group_id: number;
+  service_type: string;
+  unit_price: number;
+  original_unit_price: number;
+  quantity: number;
+  status: 'EN_ATTENTE' | 'PAYE' | 'REJETEE';
+  time: string;
+  counter_username: string;
+  created_at: string;
+  paid_at: string | null;
+  observation: string;
+  raison: string | null;
+}
+
+interface OrderGroup {
+  groupId: number;
+  lines: Order[];
+  status: Order['status'];
+  totalAmount: number;
+  time: string;
+  createdAt: string;
+  paidAt: string | null;
+  counterUsername: string;
+}
 
 interface SalesComparisonPoint {
   label: string;
@@ -25,6 +54,10 @@ interface RecentOrder {
   paidLabel: string;
 }
 
+/** Dashboard runs on the same machine as the cashier's local websocket server. */
+const DASHBOARD_LOCAL_WS_URL = 'ws://127.0.0.1:8080';
+const DONUT_CIRCUMFERENCE = 2 * Math.PI * 15.9155; // matches the r=15.9155 circle in dashboard.html
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
@@ -34,46 +67,67 @@ interface RecentOrder {
 export class Dashboard implements OnInit, OnDestroy {
   displayLabel = 'Tableau de bord';
 
-  currentTime = signal<string>(this.formatTime(new Date()));
-  private clockInterval?: ReturnType<typeof setInterval>;
-
-  wsConnected = signal<boolean>(true);
+  currentTime = signal('');
+  wsConnected = signal(false);
   notifications = signal<unknown[]>([]);
 
-  totalSalesYear = signal<number>(0);
-  totalSalesToday = signal<number>(0);
-  totalTransactionsToday = signal<number>(0);
+  totalSalesYear = signal(0);
+  totalSalesToday = signal(0);
+  totalTransactionsToday = signal(0);
 
   salesComparison = signal<SalesComparisonPoint[]>([]);
   performanceSlices = signal<PerformanceSlice[]>([]);
-  performanceScore = signal<number>(0);
+  performanceScore = signal(0);
 
   recentOrders = signal<RecentOrder[]>([]);
 
+  private wsSubscription?: Subscription;
+  private openSubscription?: Subscription;
+
+  constructor(private ws: WebsocketService) {}
+
   ngOnInit(): void {
-    this.clockInterval = setInterval(() => {
-      this.currentTime.set(this.formatTime(new Date()));
-    }, 1000);
-
-    this.loadDashboardData();
-  }
-
-  ngOnDestroy(): void {
-    if (this.clockInterval) {
-      clearInterval(this.clockInterval);
+    this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
+      this.wsConnected.set(true);
+      if (msg.type === 'orders') {
+        this.applyOrders(msg.data as Order[]);
+      } else if (msg.type === 'time') {
+        this.currentTime.set(msg.data as string);
+      }
+    });
+    this.openSubscription = this.ws.onOpened().subscribe(() => {
+      this.ws.send({ type: 'admin_register' });
+    });
+    this.ws.connect(DASHBOARD_LOCAL_WS_URL);
+    if (this.ws.isOpen()) {
+      this.ws.send({ type: 'admin_register' });
     }
   }
 
-  private loadDashboardData(): void {
-    // TODO: replace with real data from the backend/service layer.
-    this.totalSalesYear.set(48250000);
-    this.totalSalesToday.set(1320000);
-    this.totalTransactionsToday.set(87);
+  ngOnDestroy(): void {
+    this.wsSubscription?.unsubscribe();
+    this.openSubscription?.unsubscribe();
+    this.ws.disconnect();
+  }
 
-    const today = 1320000;
-    const yesterday = 980000;
-    const max = Math.max(today, yesterday);
+  private applyOrders(orders: Order[]): void {
+    const paidOrders = orders.filter((o) => o.status === 'PAYE');
 
+    this.totalSalesYear.set(this.sumRevenue(paidOrders.filter((o) => o.paid_at && this.isThisYear(o.paid_at))));
+
+    const todaysPaid = paidOrders.filter((o) => o.paid_at && this.isToday(o.paid_at));
+    this.totalSalesToday.set(this.sumRevenue(todaysPaid));
+    this.totalTransactionsToday.set(new Set(todaysPaid.map((o) => o.group_id)).size);
+
+    const yesterdaysPaid = paidOrders.filter((o) => o.paid_at && this.isYesterday(o.paid_at));
+    this.updateSalesComparison(this.sumRevenue(todaysPaid), this.sumRevenue(yesterdaysPaid));
+
+    this.updatePerformance(orders);
+    this.updateRecentOrders(orders);
+  }
+
+  private updateSalesComparison(today: number, yesterday: number): void {
+    const max = Math.max(today, yesterday, 1);
     this.salesComparison.set([
       {
         label: 'Ventes',
@@ -83,58 +137,131 @@ export class Dashboard implements OnInit, OnDestroy {
         yesterdayPct: (yesterday / max) * 100,
       },
     ]);
+  }
 
-    const slices: Omit<PerformanceSlice, 'dashArray' | 'dashOffset'>[] = [
-      { label: 'Objectif atteint', value: 68, color: '#1E3A5F' },
-      { label: 'Restant', value: 32, color: '#E5E7EB' },
-    ];
+  /** Performance = share of today's order groups that ended up paid vs. pending/refused. */
+  private updatePerformance(orders: Order[]): void {
+    const todaysOrders = orders.filter((o) => this.isToday(o.created_at));
+    const paidCount = this.buildGroups(todaysOrders.filter((o) => o.status === 'PAYE')).length;
+    const pendingCount = this.buildGroups(todaysOrders.filter((o) => o.status === 'EN_ATTENTE')).length;
+    const rejectedCount = this.buildGroups(todaysOrders.filter((o) => o.status === 'REJETEE')).length;
+    const total = paidCount + pendingCount + rejectedCount;
 
-    this.performanceScore.set(slices[0].value);
-    this.performanceSlices.set(this.buildDonutSlices(slices));
+    this.performanceScore.set(total === 0 ? 0 : Math.round((paidCount / total) * 100));
 
-    this.recentOrders.set([
-      {
-        groupId: '#0231',
-        summary: '2x Burger, 1x Frites, 1x Soda',
-        counterUsername: 'Comptoir 1',
-        totalAmount: 42000,
-        paidLabel: '12:04',
-      },
-      {
-        groupId: '#0230',
-        summary: '1x Pizza Margherita, 1x Jus',
-        counterUsername: 'Comptoir 2',
-        totalAmount: 35000,
-        paidLabel: '11:52',
-      },
-      {
-        groupId: '#0229',
-        summary: '3x Sandwich, 2x Eau',
-        counterUsername: 'Comptoir 1',
-        totalAmount: 28000,
-        paidLabel: '11:40',
-      },
-    ]);
+    const rawSlices: Omit<PerformanceSlice, 'dashArray' | 'dashOffset'>[] = [
+      { label: 'Payées', value: total === 0 ? 0 : Math.round((paidCount / total) * 100), color: '#059669' },
+      { label: 'En attente', value: total === 0 ? 0 : Math.round((pendingCount / total) * 100), color: '#D97706' },
+      { label: 'Refusées', value: total === 0 ? 0 : Math.round((rejectedCount / total) * 100), color: '#DC2626' },
+    ].filter((slice) => slice.value > 0);
+
+    this.performanceSlices.set(this.buildDonutSlices(rawSlices));
+  }
+
+  private updateRecentOrders(orders: Order[]): void {
+    const groups = this.buildGroups(orders).slice(0, 5);
+    this.recentOrders.set(
+      groups.map((group) => ({
+        groupId: this.formatGroupId(group.groupId),
+        summary: this.getGroupItemsSummary(group),
+        counterUsername: group.counterUsername,
+        totalAmount: group.totalAmount,
+        paidLabel: this.formatStatusLabel(group),
+      })),
+    );
+  }
+
+  private buildGroups(orders: Order[]): OrderGroup[] {
+    const map = new Map<number, Order[]>();
+    for (const o of orders) {
+      if (!map.has(o.group_id)) map.set(o.group_id, []);
+      map.get(o.group_id)!.push(o);
+    }
+    const groups: OrderGroup[] = [];
+    for (const [groupId, lines] of map.entries()) {
+      groups.push({
+        groupId,
+        lines,
+        status: lines[0].status,
+        totalAmount: lines.reduce((sum, l) => sum + l.quantity * l.unit_price, 0),
+        time: lines[0].time,
+        createdAt: lines[0].created_at,
+        paidAt: lines[0].paid_at,
+        counterUsername: lines[0].counter_username,
+      });
+    }
+    return groups.sort((a, b) => b.groupId - a.groupId);
   }
 
   /** Builds cumulative stroke-dasharray/offset values for a ring donut chart from percentage slices. */
   private buildDonutSlices(
-    slices: Omit<PerformanceSlice, 'dashArray' | 'dashOffset'>[]
+    slices: Omit<PerformanceSlice, 'dashArray' | 'dashOffset'>[],
   ): PerformanceSlice[] {
-    const circumference = 2 * Math.PI * 15.9155; // matches the r=15.9155 circle in the template
     let cumulativePct = 0;
-
     return slices.map((slice) => {
-      const sliceLength = (slice.value / 100) * circumference;
-      const dashArray = `${sliceLength} ${circumference - sliceLength}`;
-      const dashOffset = `${-(cumulativePct / 100) * circumference}`;
+      const sliceLength = (slice.value / 100) * DONUT_CIRCUMFERENCE;
+      const dashArray = `${sliceLength} ${DONUT_CIRCUMFERENCE - sliceLength}`;
+      const dashOffset = `${-(cumulativePct / 100) * DONUT_CIRCUMFERENCE}`;
       cumulativePct += slice.value;
-
       return { ...slice, dashArray, dashOffset };
     });
   }
 
-  private formatTime(date: Date): string {
-    return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  private getGroupItemsSummary(group: OrderGroup): string {
+    const categoryOrder: string[] = [];
+    const byCategory = new Map<string, string[]>();
+    for (const l of group.lines) {
+      const parts = l.service_type.split(' — ');
+      const category = parts.length > 1 ? parts[0] : 'Autre';
+      const label = parts.length > 1 ? parts[1] : l.service_type;
+      if (!byCategory.has(category)) {
+        byCategory.set(category, []);
+        categoryOrder.push(category);
+      }
+      byCategory.get(category)!.push(`${label} x${l.quantity}`);
+    }
+    return categoryOrder
+      .map((category) => `${category}: ${byCategory.get(category)!.join(', ')}`)
+      .join(' • ');
+  }
+
+  private formatGroupId(groupId: number): string {
+    return '#' + String(groupId).padStart(4, '0');
+  }
+
+  private formatStatusLabel(group: OrderGroup): string {
+    if (group.status === 'PAYE' && group.paidAt) {
+      return `Encaissée à ${this.formatTime(group.paidAt)}`;
+    }
+    if (group.status === 'REJETEE') {
+      return 'Refusée';
+    }
+    return 'En attente';
+  }
+
+  private formatTime(iso: string): string {
+    return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  private sumRevenue(orders: Order[]): number {
+    return orders.reduce((sum, o) => sum + o.quantity * o.unit_price, 0);
+  }
+
+  private startOfDay(d: Date): number {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  }
+
+  private isToday(iso: string): boolean {
+    return this.startOfDay(new Date(iso)) === this.startOfDay(new Date());
+  }
+
+  private isYesterday(iso: string): boolean {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return this.startOfDay(new Date(iso)) === this.startOfDay(yesterday);
+  }
+
+  private isThisYear(iso: string): boolean {
+    return new Date(iso).getFullYear() === new Date().getFullYear();
   }
 }
