@@ -1,0 +1,265 @@
+<div class="max-w-4xl">
+  <section aria-labelledby="orders-heading" class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
+    <div class="mb-1 flex items-start justify-between gap-3">
+      <div>
+        <h2 id="orders-heading" class="text-base font-semibold text-[#1A1A1A]">
+          Commandes
+        </h2>
+        <p class="text-xs text-gray-400 mt-0.5">
+          Historique en temps réel des commandes reçues aux postes caisse.
+        </p>
+      </div>
+      <span class="flex-shrink-0 flex items-center gap-1.5 text-xs text-gray-400 whitespace-nowrap mt-0.5">
+        <span class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+          [class.bg-emerald-500]="wsConnected()" [class.bg-gray-300]="!wsConnected()"></span>
+        {{ wsConnected() ? 'Connecté' : 'Connexion…' }}
+      </span>
+    </div>
+    <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+        <p class="text-[11px] text-gray-400 uppercase tracking-wide">Total</p>
+        <p class="text-lg font-semibold text-[#1A1A1A] tabular-nums mt-0.5">{{ totalCount() }}</p>
+      </div>
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+        <p class="text-[11px] text-gray-400 uppercase tracking-wide">Payées</p>
+        <p class="text-lg font-semibold text-emerald-700 tabular-nums mt-0.5">{{ paidCount() }}</p>
+      </div>
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+        <p class="text-[11px] text-gray-400 uppercase tracking-wide">En attente</p>
+        <p class="text-lg font-semibold text-amber-700 tabular-nums mt-0.5">{{ pendingCount() }}</p>
+      </div>
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+        <p class="text-[11px] text-gray-400 uppercase tracking-wide">Chiffre encaissé</p>
+        <p class="text-lg font-semibold text-[#1E3A5F] tabular-nums mt-0.5">{{ totalRevenue() | number:'1.0-0' }} Ar</p>
+      </div>
+    </div>
+    <div class="mt-5 relative">
+      <svg class="w-4 h-4 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+        fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.85-5.4a7.25 7.25 0 11-14.5 0 7.25 7.25 0 0114.5 0z" />
+      </svg>
+      <label for="order-search" class="sr-only">Rechercher une commande</label>
+      <input id="order-search" type="search" name="orderSearch"
+        [ngModel]="searchTerm()" (ngModelChange)="searchTerm.set($event)"
+        placeholder="Rechercher un n° de commande, un comptoir ou un article…"
+        class="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm text-[#1A1A1A]
+               focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+    </div>
+    <div class="mt-4 mb-3 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filtrer par statut">
+      <button type="button" (click)="setStatusFilter('all')" [attr.aria-pressed]="isStatusFilterActive('all')"
+        class="flex-shrink-0 text-xs font-semibold border px-4 py-1.5 rounded-full transition-colors
+               whitespace-nowrap hover:border-gray-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
+        [class.bg-[#1E3A5F]]="isStatusFilterActive('all')"
+        [class.text-white]="isStatusFilterActive('all')"
+        [class.border-[#1E3A5F]]="isStatusFilterActive('all')"
+        [class.bg-white]="!isStatusFilterActive('all')"
+        [class.text-gray-600]="!isStatusFilterActive('all')"
+        [class.border-gray-200]="!isStatusFilterActive('all')">
+        Tous
+      </button>
+      <button type="button" (click)="setStatusFilter('EN_ATTENTE')" [attr.aria-pressed]="isStatusFilterActive('EN_ATTENTE')"
+        class="flex-shrink-0 text-xs font-semibold border px-4 py-1.5 rounded-full transition-colors
+               whitespace-nowrap hover:border-gray-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
+        [class.bg-[#1E3A5F]]="isStatusFilterActive('EN_ATTENTE')"
+        [class.text-white]="isStatusFilterActive('EN_ATTENTE')"
+        [class.border-[#1E3A5F]]="isStatusFilterActive('EN_ATTENTE')"
+        [class.bg-white]="!isStatusFilterActive('EN_ATTENTE')"
+        [class.text-gray-600]="!isStatusFilterActive('EN_ATTENTE')"
+        [class.border-gray-200]="!isStatusFilterActive('EN_ATTENTE')">
+        En attente
+      </button>
+      <button type="button" (click)="setStatusFilter('PAYE')" [attr.aria-pressed]="isStatusFilterActive('PAYE')"
+        class="flex-shrink-0 text-xs font-semibold border px-4 py-1.5 rounded-full transition-colors
+               whitespace-nowrap hover:border-gray-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
+        [class.bg-[#1E3A5F]]="isStatusFilterActive('PAYE')"
+        [class.text-white]="isStatusFilterActive('PAYE')"
+        [class.border-[#1E3A5F]]="isStatusFilterActive('PAYE')"
+        [class.bg-white]="!isStatusFilterActive('PAYE')"
+        [class.text-gray-600]="!isStatusFilterActive('PAYE')"
+        [class.border-gray-200]="!isStatusFilterActive('PAYE')">
+        Payées
+      </button>
+      <button type="button" (click)="setStatusFilter('REJETEE')" [attr.aria-pressed]="isStatusFilterActive('REJETEE')"
+        class="flex-shrink-0 text-xs font-semibold border px-4 py-1.5 rounded-full transition-colors
+               whitespace-nowrap hover:border-gray-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
+        [class.bg-[#1E3A5F]]="isStatusFilterActive('REJETEE')"
+        [class.text-white]="isStatusFilterActive('REJETEE')"
+        [class.border-[#1E3A5F]]="isStatusFilterActive('REJETEE')"
+        [class.bg-white]="!isStatusFilterActive('REJETEE')"
+        [class.text-gray-600]="!isStatusFilterActive('REJETEE')"
+        [class.border-gray-200]="!isStatusFilterActive('REJETEE')">
+        Refusées
+      </button>
+    </div>
+    <div class="mb-6 flex items-center justify-between gap-2">
+      @if (filtersActive()) {
+      <button type="button" (click)="resetFilters()"
+        class="text-xs text-gray-400 hover:text-[#1E3A5F] transition-colors underline underline-offset-2
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
+        Réinitialiser les filtres
+      </button>
+      } @else {
+      <span></span>
+      }
+      <div class="flex items-center gap-2">
+        <label for="order-sort" class="text-xs text-gray-400 whitespace-nowrap">Trier par</label>
+        <select id="order-sort" name="orderSort"
+          [ngModel]="sortKey()" (ngModelChange)="sortKey.set($event)"
+          class="text-xs border border-gray-200 rounded-md pl-2 pr-7 py-1.5 text-gray-600 bg-white
+                 focus:outline-none focus:border-[#1E3A5F] transition-colors">
+          <option value="date-desc">Plus récentes</option>
+          <option value="date-asc">Plus anciennes</option>
+          <option value="amount-desc">Montant décroissant</option>
+          <option value="amount-asc">Montant croissant</option>
+        </select>
+      </div>
+    </div>
+    @if (!wsConnected() && totalCount() === 0) {
+    <p class="text-sm text-gray-400 italic py-4">Connexion au poste caisse…</p>
+    } @else if (totalCount() === 0) {
+    <p class="text-sm text-gray-400 py-4">Aucune commande enregistrée pour le moment.</p>
+    } @else if (filteredGroups().length === 0) {
+    <p class="text-sm text-gray-400 py-4">Aucune commande ne correspond à ces filtres.</p>
+    } @else {
+    <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg"
+      [attr.aria-label]="filteredGroups().length + ' commande(s) affichée(s)'">
+      @for (group of filteredGroups(); track group.groupId) {
+      <li>
+        <div class="flex items-center gap-3 px-3 py-2.5">
+          <button type="button" [id]="'order-toggle-btn-' + group.groupId"
+            (click)="toggleExpand(group)"
+            [attr.aria-expanded]="isExpanded(group)"
+            [attr.aria-controls]="'order-detail-panel-' + group.groupId"
+            [attr.aria-label]="(isExpanded(group) ? 'Masquer le détail de la commande ' : 'Voir le détail de la commande ') + formatGroupId(group.groupId)"
+            class="min-w-0 flex-1 flex items-center gap-3 text-left
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded-md">
+            <svg class="w-3.5 h-3.5 text-gray-300 flex-shrink-0 transition-transform"
+              [class.rotate-90]="isExpanded(group)"
+              fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <p class="text-sm font-mono font-semibold text-gray-700">{{ formatGroupId(group.groupId) }}</p>
+                <span [class]="statusBadgeClass(group.status)">
+                  {{ statusLabel(group.status) }}
+                </span>
+              </div>
+              <p class="text-xs text-gray-400 truncate max-w-[220px] xs:max-w-xs md:max-w-md">
+                {{ getGroupItemsSummary(group) }}
+              </p>
+            </div>
+          </button>
+          <p class="text-xs text-gray-400 hidden sm:block flex-shrink-0 whitespace-nowrap">{{ group.counterUsername }}</p>
+          <p class="text-sm font-semibold text-[#1A1A1A] tabular-nums flex-shrink-0 whitespace-nowrap">
+            {{ group.totalAmount | number:'1.0-0' }} Ar
+          </p>
+          @if (group.status === 'EN_ATTENTE') {
+          <button type="button" [id]="'order-reject-btn-' + group.groupId"
+            (click)="confirmingRejectGroupId() === group.groupId ? cancelRejectGroup() : requestRejectGroup(group)"
+            [attr.aria-expanded]="confirmingRejectGroupId() === group.groupId"
+            [attr.aria-controls]="'order-reject-panel-' + group.groupId"
+            [attr.aria-label]="'Refuser la commande ' + formatGroupId(group.groupId)"
+            class="text-gray-400 hover:text-red-600 p-2 rounded-md transition-colors flex-shrink-0
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          }
+        </div>
+        @if (confirmingRejectGroupId() === group.groupId) {
+        <div [id]="'order-reject-panel-' + group.groupId" role="group"
+          [attr.aria-label]="'Confirmer le refus de la commande ' + formatGroupId(group.groupId)"
+          (keydown.escape)="cancelRejectGroup()"
+          class="px-3 pb-3">
+          <div class="bg-red-50 border border-red-200 rounded-lg p-3">
+            <p class="text-xs text-red-800">
+              Refuser la commande {{ formatGroupId(group.groupId) }} de {{ group.counterUsername }} ?
+              Cette action est <strong>irréversible</strong>.
+            </p>
+            <label [attr.for]="'order-reject-raison-' + group.groupId"
+              class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mt-3 mb-1.5">
+              Motif (optionnel)
+            </label>
+            <input [id]="'order-reject-raison-' + group.groupId" type="text"
+              [name]="'orderRejectRaison-' + group.groupId"
+              [ngModel]="rejectReason()" (ngModelChange)="rejectReason.set($event)"
+              placeholder="ex : Erreur de saisie"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A] bg-white
+                     focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+            @if (rejectGroupError()) {
+            <p role="alert" aria-live="assertive" class="text-xs text-red-700 font-medium mt-2">
+              {{ rejectGroupError() }}
+            </p>
+            }
+            <div class="flex items-center gap-2 mt-3">
+              <button type="button" [id]="'order-reject-confirm-btn-' + group.groupId"
+                (click)="confirmRejectGroup(group)"
+                [disabled]="rejectingGroup()"
+                [attr.aria-busy]="rejectingGroup()"
+                class="bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-md
+                       hover:bg-red-700 active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
+                       disabled:opacity-40 disabled:hover:bg-red-600 disabled:active:scale-100
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600">
+                {{ rejectingGroup() ? 'Refus…' : 'Refuser la commande' }}
+              </button>
+              <button type="button" (click)="cancelRejectGroup()"
+                [disabled]="rejectingGroup()"
+                class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+        }
+        @if (isExpanded(group)) {
+        <div [id]="'order-detail-panel-' + group.groupId" role="group"
+          [attr.aria-label]="'Détail de la commande ' + formatGroupId(group.groupId)"
+          class="px-3 pb-4">
+          <div class="bg-gray-50 border border-gray-200 rounded-lg overflow-x-auto">
+            <table class="w-full text-sm min-w-[320px] table-auto">
+              <thead>
+                <tr class="border-b border-gray-200">
+                  <th class="text-left px-3 py-2 text-[11px] text-gray-400 font-medium uppercase tracking-wide">Article</th>
+                  <th class="text-right px-3 py-2 text-[11px] text-gray-400 font-medium uppercase tracking-wide">Qté</th>
+                  <th class="text-right px-3 py-2 text-[11px] text-gray-400 font-medium uppercase tracking-wide">PU</th>
+                  <th class="text-right px-3 py-2 text-[11px] text-gray-400 font-medium uppercase tracking-wide">Sous-total</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (line of group.lines; track line.id) {
+                <tr class="border-b border-gray-100 last:border-0">
+                  <td class="px-3 py-2 text-gray-600">{{ line.service_type }}</td>
+                  <td class="px-3 py-2 text-right text-gray-500 tabular-nums">{{ line.quantity }}</td>
+                  <td class="px-3 py-2 text-right text-gray-500 tabular-nums whitespace-nowrap">{{ line.unit_price | number:'1.0-0' }} Ar</td>
+                  <td class="px-3 py-2 text-right font-medium text-[#1A1A1A] tabular-nums whitespace-nowrap">
+                    {{ line.quantity * line.unit_price | number:'1.0-0' }} Ar
+                  </td>
+                </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400">
+            <span>Comptoir : <span class="text-gray-600 font-medium">{{ group.counterUsername }}</span></span>
+            <span>Créée à {{ formatDateTime(group.createdAt) }}</span>
+            @if (group.status === 'PAYE' && group.paidAt) {
+            <span>Encaissée à {{ formatTime(group.paidAt) }}</span>
+            }
+            @if (group.status === 'REJETEE' && group.raison) {
+            <span>Motif : <span class="text-gray-600">{{ group.raison }}</span></span>
+            }
+          </div>
+          @if (group.observation) {
+          <p class="mt-2 text-xs text-gray-400 italic">{{ group.observation }}</p>
+          }
+        </div>
+        }
+      </li>
+      }
+    </ul>
+    }
+  </section>
+</div>
