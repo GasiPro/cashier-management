@@ -1,8 +1,8 @@
-
 import { Component, ElementRef, OnInit, signal, computed, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { invoke } from '@tauri-apps/api/core';
+import { Product } from './product/product';
 const LS_USERNAME = 'gasipro:username';
 const MIN_USERNAME_LEN = 3;
 const MAX_USERNAME_LEN = 32;
@@ -31,7 +31,7 @@ interface CashierAccountView {
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, Product],
   templateUrl: './admin.html',
   styleUrl: './admin.css',
 })

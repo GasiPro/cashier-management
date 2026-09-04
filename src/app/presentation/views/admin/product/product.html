@@ -1,1 +1,408 @@
-<p>product works!</p>
+<div class="max-w-3xl">
+  <section aria-labelledby="pricing-heading" class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
+    <div class="mb-1 flex items-start justify-between gap-3">
+      <div>
+        <h2 id="pricing-heading" class="text-base font-semibold text-[#1A1A1A]">
+          Grille tarifaire
+        </h2>
+        <p class="text-xs text-gray-400 mt-0.5">
+          Gérez les services et produits proposés, leur catégorie et leur prix. Les modifications
+          s'appliquent immédiatement aux postes caisse connectés.
+        </p>
+      </div>
+      @if (!loadingItems() && !loadError()) {
+      <span class="flex-shrink-0 text-xs text-gray-400 tabular-nums whitespace-nowrap mt-0.5">
+        {{ serviceCount() }} service{{ serviceCount() > 1 ? 's' : '' }} · {{ productCount() }} produit{{ productCount() > 1 ? 's' : '' }}
+      </span>
+      }
+    </div>
+
+    <div class="mt-4 relative">
+      <svg class="w-4 h-4 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+        fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.85-5.4a7.25 7.25 0 11-14.5 0 7.25 7.25 0 0114.5 0z" />
+      </svg>
+      <label for="pricing-search" class="sr-only">Rechercher un tarif</label>
+      <input id="pricing-search" type="search" name="pricingSearch"
+        [ngModel]="searchTerm()" (ngModelChange)="searchTerm.set($event)"
+        placeholder="Rechercher un libellé ou une catégorie…"
+        class="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm text-[#1A1A1A]
+               focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+    </div>
+
+    <div class="mt-4 mb-3 flex gap-2" role="group" aria-label="Filtrer par type">
+      <button type="button" (click)="setTypeFilter('all')" [attr.aria-pressed]="isTypeFilterActive('all')"
+        class="flex-shrink-0 text-xs font-semibold border px-4 py-1.5 rounded-full transition-colors
+               whitespace-nowrap hover:border-gray-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
+        [class.bg-[#1E3A5F]]="isTypeFilterActive('all')"
+        [class.text-white]="isTypeFilterActive('all')"
+        [class.border-[#1E3A5F]]="isTypeFilterActive('all')"
+        [class.bg-white]="!isTypeFilterActive('all')"
+        [class.text-gray-600]="!isTypeFilterActive('all')"
+        [class.border-gray-200]="!isTypeFilterActive('all')">
+        Tous
+      </button>
+      <button type="button" (click)="setTypeFilter('service')" [attr.aria-pressed]="isTypeFilterActive('service')"
+        class="flex-shrink-0 text-xs font-semibold border px-4 py-1.5 rounded-full transition-colors
+               whitespace-nowrap hover:border-gray-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
+        [class.bg-[#1E3A5F]]="isTypeFilterActive('service')"
+        [class.text-white]="isTypeFilterActive('service')"
+        [class.border-[#1E3A5F]]="isTypeFilterActive('service')"
+        [class.bg-white]="!isTypeFilterActive('service')"
+        [class.text-gray-600]="!isTypeFilterActive('service')"
+        [class.border-gray-200]="!isTypeFilterActive('service')">
+        Services
+      </button>
+      <button type="button" (click)="setTypeFilter('product')" [attr.aria-pressed]="isTypeFilterActive('product')"
+        class="flex-shrink-0 text-xs font-semibold border px-4 py-1.5 rounded-full transition-colors
+               whitespace-nowrap hover:border-gray-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
+        [class.bg-[#1E3A5F]]="isTypeFilterActive('product')"
+        [class.text-white]="isTypeFilterActive('product')"
+        [class.border-[#1E3A5F]]="isTypeFilterActive('product')"
+        [class.bg-white]="!isTypeFilterActive('product')"
+        [class.text-gray-600]="!isTypeFilterActive('product')"
+        [class.border-gray-200]="!isTypeFilterActive('product')">
+        Produits
+      </button>
+    </div>
+
+    @if (categories().length > 0) {
+    <div class="mb-4 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filtrer par catégorie">
+      <button type="button" (click)="setCategoryFilter('all')" [attr.aria-pressed]="isCategoryFilterActive('all')"
+        class="flex-shrink-0 text-xs font-medium border px-3 py-1 rounded-full transition-colors
+               whitespace-nowrap hover:border-gray-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
+        [class.bg-[#EFF4FA]]="isCategoryFilterActive('all')"
+        [class.text-[#1E3A5F]]="isCategoryFilterActive('all')"
+        [class.border-[#1E3A5F]]="isCategoryFilterActive('all')"
+        [class.bg-white]="!isCategoryFilterActive('all')"
+        [class.text-gray-500]="!isCategoryFilterActive('all')"
+        [class.border-gray-200]="!isCategoryFilterActive('all')">
+        Tous
+      </button>
+      @for (category of categories(); track category) {
+      <button type="button" (click)="setCategoryFilter(category)" [attr.aria-pressed]="isCategoryFilterActive(category)"
+        class="flex-shrink-0 text-xs font-medium border px-3 py-1 rounded-full transition-colors
+               whitespace-nowrap hover:border-gray-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
+        [class.bg-[#EFF4FA]]="isCategoryFilterActive(category)"
+        [class.text-[#1E3A5F]]="isCategoryFilterActive(category)"
+        [class.border-[#1E3A5F]]="isCategoryFilterActive(category)"
+        [class.bg-white]="!isCategoryFilterActive(category)"
+        [class.text-gray-500]="!isCategoryFilterActive(category)"
+        [class.border-gray-200]="!isCategoryFilterActive(category)">
+        {{ category }}
+      </button>
+      }
+    </div>
+    }
+
+    <div class="mb-6 flex items-center justify-between gap-2">
+      @if (filtersActive()) {
+      <button type="button" (click)="resetFilters()"
+        class="text-xs text-gray-400 hover:text-[#1E3A5F] transition-colors underline underline-offset-2
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
+        Réinitialiser les filtres
+      </button>
+      } @else {
+      <span></span>
+      }
+      <div class="flex items-center gap-2">
+        <label for="pricing-sort" class="text-xs text-gray-400 whitespace-nowrap">Trier par</label>
+        <select id="pricing-sort" name="pricingSort"
+          [ngModel]="sortKey()" (ngModelChange)="sortKey.set($event)"
+          class="text-xs border border-gray-200 rounded-md pl-2 pr-7 py-1.5 text-gray-600 bg-white
+                 focus:outline-none focus:border-[#1E3A5F] transition-colors">
+          <option value="category">Catégorie</option>
+          <option value="label">Libellé (A→Z)</option>
+          <option value="price-asc">Prix croissant</option>
+          <option value="price-desc">Prix décroissant</option>
+        </select>
+      </div>
+    </div>
+
+    @if (itemStatusMessage()) {
+    <p role="status" aria-live="polite" class="text-xs mb-4"
+      [class.text-emerald-700]="!itemStatusIsError()" [class.text-red-600]="itemStatusIsError()">
+      {{ itemStatusMessage() }}
+    </p>
+    }
+
+    <div class="mb-6">
+      <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+        Tarifs existants
+      </h3>
+      @if (loadingItems()) {
+      <p class="text-sm text-gray-400 italic py-4">Chargement…</p>
+      } @else if (loadError()) {
+      <p role="alert" class="text-sm text-red-600 py-4">{{ loadError() }}</p>
+      } @else if (items().length === 0) {
+      <p class="text-sm text-gray-400 py-4">Aucun tarif configuré pour le moment.</p>
+      } @else if (filteredItems().length === 0) {
+      <p class="text-sm text-gray-400 py-4">Aucun tarif ne correspond à ces filtres.</p>
+      } @else {
+      <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg"
+        [attr.aria-label]="filteredItems().length + ' tarif(s) affiché(s)'">
+        @for (item of filteredItems(); track item.id) {
+        <li>
+          <div class="flex items-center gap-3 px-3 py-2.5">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <p class="text-sm font-medium text-[#1A1A1A] truncate">{{ item.label }}</p>
+                <span [class]="typeBadgeClass(item.type)">
+                  {{ typeLabel(item.type) }}
+                </span>
+              </div>
+              <p class="text-xs text-gray-400 truncate">{{ item.category }}</p>
+            </div>
+            <p class="text-sm font-semibold text-[#1E3A5F] tabular-nums flex-shrink-0">
+              {{ item.price | number:'1.0-0' }} Ar
+            </p>
+            <div class="flex items-center flex-shrink-0 gap-0.5">
+              <button type="button" (click)="duplicateItem(item)"
+                [disabled]="duplicatingId() === item.id"
+                [attr.aria-busy]="duplicatingId() === item.id"
+                [attr.aria-label]="'Dupliquer ' + item.label"
+                class="text-gray-400 hover:text-[#1E3A5F] p-2 rounded-md transition-colors
+                       disabled:opacity-40
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3a2.25 2.25 0 00-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185.639-.074 1.28-.135 1.927-.184" />
+                </svg>
+              </button>
+              <button type="button" [id]="'item-edit-btn-' + item.id"
+                (click)="editingId() === item.id ? cancelEditItem() : startEditItem(item)"
+                [attr.aria-expanded]="editingId() === item.id"
+                [attr.aria-controls]="'item-edit-panel-' + item.id"
+                [attr.aria-label]="(editingId() === item.id ? 'Fermer la modification de ' : 'Modifier ') + item.label"
+                class="text-gray-400 hover:text-[#1E3A5F] p-2 rounded-md transition-colors
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 12v6.75a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18.75V6.75A2.25 2.25 0 015.25 4.5h6.75" />
+                </svg>
+              </button>
+              <button type="button" [id]="'item-delete-btn-' + item.id"
+                (click)="confirmingDeleteId() === item.id ? cancelDeleteItem() : requestDeleteItem(item)"
+                [attr.aria-expanded]="confirmingDeleteId() === item.id"
+                [attr.aria-controls]="'item-delete-panel-' + item.id"
+                [attr.aria-label]="'Supprimer ' + item.label"
+                class="text-gray-400 hover:text-red-600 p-2 rounded-md transition-colors
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          @if (confirmingDeleteId() === item.id) {
+          <div [id]="'item-delete-panel-' + item.id" role="group"
+            [attr.aria-label]="'Confirmer la suppression de ' + item.label"
+            (keydown.escape)="cancelDeleteItem()"
+            class="px-3 pb-3">
+            <div class="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p class="text-xs text-red-800">
+                Supprimer définitivement le tarif « {{ item.label }} » ? Cette action est
+                <strong>irréversible</strong> et retire immédiatement l'article des postes caisse.
+              </p>
+              @if (deleteItemError()) {
+              <p role="alert" aria-live="assertive" class="text-xs text-red-700 font-medium mt-2">
+                {{ deleteItemError() }}
+              </p>
+              }
+              <div class="flex items-center gap-2 mt-3">
+                <button type="button" [id]="'item-delete-confirm-btn-' + item.id"
+                  (click)="confirmDeleteItem(item)"
+                  [disabled]="deletingItem()"
+                  [attr.aria-busy]="deletingItem()"
+                  class="bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-md
+                         hover:bg-red-700 active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
+                         disabled:opacity-40 disabled:hover:bg-red-600 disabled:active:scale-100
+                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600">
+                  {{ deletingItem() ? 'Suppression…' : 'Supprimer définitivement' }}
+                </button>
+                <button type="button" (click)="cancelDeleteItem()"
+                  [disabled]="deletingItem()"
+                  class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
+                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                  Annuler
+                </button>
+              </div>
+            </div>
+          </div>
+          }
+          @if (editingId() === item.id) {
+          <div [id]="'item-edit-panel-' + item.id" role="group"
+            [attr.aria-label]="'Modifier ' + item.label"
+            (keydown.escape)="cancelEditItem()"
+            class="px-3 pb-4 space-y-4">
+            <div>
+              <label [attr.for]="'edit-item-label-' + item.id"
+                class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Libellé
+              </label>
+              <input [id]="'edit-item-label-' + item.id" type="text"
+                [name]="'editItemLabel-' + item.id"
+                [ngModel]="editLabel()" (ngModelChange)="editLabel.set($event)"
+                [attr.maxlength]="maxLabelLen"
+                placeholder="ex : Lavage complet"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A]
+                       focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+            </div>
+            <div class="flex gap-4">
+              <div class="flex-1">
+                <label [attr.for]="'edit-item-category-' + item.id"
+                  class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  Catégorie
+                </label>
+                <input [id]="'edit-item-category-' + item.id" type="text" list="pricing-category-options"
+                  [name]="'editItemCategory-' + item.id"
+                  [ngModel]="editCategory()" (ngModelChange)="editCategory.set($event)"
+                  [attr.maxlength]="maxCategoryLen"
+                  placeholder="ex : Lavage"
+                  class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A]
+                         focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+              </div>
+              <div class="w-32 flex-shrink-0">
+                <label [attr.for]="'edit-item-price-' + item.id"
+                  class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                  Prix (Ar)
+                </label>
+                <input [id]="'edit-item-price-' + item.id" type="number" min="0"
+                  [name]="'editItemPrice-' + item.id"
+                  [ngModel]="editPrice()" (ngModelChange)="editPrice.set($event)"
+                  class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A]
+                         focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+              </div>
+            </div>
+            <div>
+              <span class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Type
+              </span>
+              <div class="flex gap-2" role="radiogroup" [attr.aria-label]="'Type de ' + item.label">
+                @for (option of typeOptions; track option.value) {
+                <button type="button" role="radio" [attr.aria-checked]="editType() === option.value"
+                  (click)="setEditType(option.value)"
+                  class="flex-1 text-sm font-medium border rounded-lg px-4 py-2 transition-colors
+                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
+                  [class.bg-[#EFF4FA]]="editType() === option.value"
+                  [class.text-[#1E3A5F]]="editType() === option.value"
+                  [class.border-[#1E3A5F]]="editType() === option.value"
+                  [class.bg-white]="editType() !== option.value"
+                  [class.text-gray-600]="editType() !== option.value"
+                  [class.border-gray-200]="editType() !== option.value">
+                  {{ option.label }}
+                </button>
+                }
+              </div>
+            </div>
+            <p role="alert" aria-live="assertive" class="text-xs text-red-600">{{ editItemError() }}</p>
+            <div class="flex items-center gap-2">
+              <button type="button" (click)="saveEditItem(item)"
+                [disabled]="!canSubmitEditItem()"
+                [attr.aria-busy]="savingItem()"
+                class="bg-[#1E3A5F] text-white text-sm font-semibold px-4 py-2 rounded-md
+                       hover:bg-[#16304f] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
+                       disabled:opacity-40 disabled:hover:bg-[#1E3A5F] disabled:active:scale-100
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                {{ savingItem() ? 'Enregistrement…' : 'Enregistrer' }}
+              </button>
+              <button type="button" (click)="cancelEditItem()"
+                [disabled]="savingItem()"
+                class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                Annuler
+              </button>
+            </div>
+          </div>
+          }
+        </li>
+        }
+      </ul>
+      }
+    </div>
+
+    <form novalidate (ngSubmit)="createItem()">
+      <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+        Nouveau tarif
+      </h3>
+      <div class="space-y-4">
+        <div>
+          <label for="new-pricing-label"
+            class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+            Libellé
+          </label>
+          <input #newItemLabelInput id="new-pricing-label" type="text" name="newPricingLabel"
+            [ngModel]="newItemLabel()" (ngModelChange)="newItemLabel.set($event)"
+            [attr.maxlength]="maxLabelLen"
+            placeholder="ex : Lavage complet"
+            class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-[#1A1A1A]
+                   focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+        </div>
+        <div class="flex gap-4">
+          <div class="flex-1">
+            <label for="new-pricing-category"
+              class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+              Catégorie
+            </label>
+            <input id="new-pricing-category" type="text" list="pricing-category-options" name="newPricingCategory"
+              [ngModel]="newItemCategory()" (ngModelChange)="newItemCategory.set($event)"
+              [attr.maxlength]="maxCategoryLen"
+              placeholder="ex : Lavage"
+              class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-[#1A1A1A]
+                     focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+          </div>
+          <div class="w-40 flex-shrink-0">
+            <label for="new-pricing-price"
+              class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+              Prix (Ar)
+            </label>
+            <input id="new-pricing-price" type="number" name="newPricingPrice" min="0"
+              [ngModel]="newItemPrice()" (ngModelChange)="newItemPrice.set($event)"
+              placeholder="0"
+              class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-[#1A1A1A]
+                     focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+          </div>
+        </div>
+        <div>
+          <span class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+            Type
+          </span>
+          <div class="flex gap-2" role="radiogroup" aria-label="Type de tarif">
+            @for (option of typeOptions; track option.value) {
+            <button type="button" role="radio" [attr.aria-checked]="newItemType() === option.value"
+              (click)="setNewItemType(option.value)"
+              class="flex-1 text-sm font-medium border rounded-lg px-4 py-2.5 transition-colors
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
+              [class.bg-[#EFF4FA]]="newItemType() === option.value"
+              [class.text-[#1E3A5F]]="newItemType() === option.value"
+              [class.border-[#1E3A5F]]="newItemType() === option.value"
+              [class.bg-white]="newItemType() !== option.value"
+              [class.text-gray-600]="newItemType() !== option.value"
+              [class.border-gray-200]="newItemType() !== option.value">
+              {{ option.label }}
+            </button>
+            }
+          </div>
+        </div>
+      </div>
+      <p role="alert" aria-live="assertive" class="text-xs text-red-600 mt-3">{{ newItemFormError() }}</p>
+      <div class="flex items-center gap-2 mt-2">
+        <button type="submit"
+          [disabled]="!canSubmitNewItem()"
+          [attr.aria-busy]="creatingItem()"
+          class="bg-[#1E3A5F] text-white text-sm font-semibold px-4 py-2 rounded-md
+                 hover:bg-[#16304f] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
+                 disabled:opacity-40 disabled:hover:bg-[#1E3A5F] disabled:active:scale-100
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+          {{ creatingItem() ? 'Ajout…' : 'Ajouter le tarif' }}
+        </button>
+      </div>
+    </form>
+
+    <datalist id="pricing-category-options">
+      @for (category of categories(); track category) {
+      <option [value]="category"></option>
+      }
+    </datalist>
+  </section>
+</div>
