@@ -2,7 +2,6 @@ import { Component, OnInit, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { WebsocketService, WsMessage } from '../../../../core/service/websocket.service';
 import { Subscription } from 'rxjs';
-
 export interface Order {
   id: number;
   group_id: number;
@@ -18,7 +17,6 @@ export interface Order {
   observation: string;
   raison: string | null;
 }
-
 interface OrderGroup {
   groupId: number;
   lines: Order[];
@@ -29,7 +27,6 @@ interface OrderGroup {
   paidAt: string | null;
   counterUsername: string;
 }
-
 interface SalesComparisonPoint {
   label: string;
   today: number;
@@ -37,7 +34,6 @@ interface SalesComparisonPoint {
   todayPct: number;
   yesterdayPct: number;
 }
-
 interface PerformanceSlice {
   label: string;
   value: number;
@@ -45,7 +41,6 @@ interface PerformanceSlice {
   dashArray: string;
   dashOffset: string;
 }
-
 interface RecentOrder {
   groupId: string;
   summary: string;
@@ -53,11 +48,8 @@ interface RecentOrder {
   totalAmount: number;
   paidLabel: string;
 }
-
-/** Dashboard runs on the same machine as the cashier's local websocket server. */
 const DASHBOARD_LOCAL_WS_URL = 'ws://127.0.0.1:8080';
-const DONUT_CIRCUMFERENCE = 2 * Math.PI * 15.9155; // matches the r=15.9155 circle in dashboard.html
-
+const DONUT_CIRCUMFERENCE = 2 * Math.PI * 15.9155;
 @Component({
   selector: 'app-dashboard',
   standalone: true,
@@ -66,26 +58,20 @@ const DONUT_CIRCUMFERENCE = 2 * Math.PI * 15.9155; // matches the r=15.9155 circ
 })
 export class Dashboard implements OnInit, OnDestroy {
   displayLabel = 'Tableau de bord';
-
   currentTime = signal('');
   wsConnected = signal(false);
   notifications = signal<unknown[]>([]);
-
   totalSalesYear = signal(0);
   totalSalesToday = signal(0);
   totalTransactionsToday = signal(0);
-
   salesComparison = signal<SalesComparisonPoint[]>([]);
   performanceSlices = signal<PerformanceSlice[]>([]);
   performanceScore = signal(0);
-
   recentOrders = signal<RecentOrder[]>([]);
-
   private wsSubscription?: Subscription;
   private openSubscription?: Subscription;
-
+  private closeSubscription?: Subscription;
   constructor(private ws: WebsocketService) {}
-
   ngOnInit(): void {
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
       this.wsConnected.set(true);
@@ -98,34 +84,35 @@ export class Dashboard implements OnInit, OnDestroy {
     this.openSubscription = this.ws.onOpened().subscribe(() => {
       this.ws.send({ type: 'admin_register' });
     });
+    /** Keeps the connection indicator honest: without this, a dropped socket
+     *  (network blip, server restart) would leave `wsConnected` stuck at
+     *  `true` from the last received message, hiding the outage from the
+     *  admin until a new message happens to arrive after reconnecting. */
+    this.closeSubscription = this.ws.onClosed().subscribe(() => {
+      this.wsConnected.set(false);
+    });
     this.ws.connect(DASHBOARD_LOCAL_WS_URL);
     if (this.ws.isOpen()) {
       this.ws.send({ type: 'admin_register' });
     }
   }
-
   ngOnDestroy(): void {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
+    this.closeSubscription?.unsubscribe();
     this.ws.disconnect();
   }
-
   private applyOrders(orders: Order[]): void {
     const paidOrders = orders.filter((o) => o.status === 'PAYE');
-
     this.totalSalesYear.set(this.sumRevenue(paidOrders.filter((o) => o.paid_at && this.isThisYear(o.paid_at))));
-
     const todaysPaid = paidOrders.filter((o) => o.paid_at && this.isToday(o.paid_at));
     this.totalSalesToday.set(this.sumRevenue(todaysPaid));
     this.totalTransactionsToday.set(new Set(todaysPaid.map((o) => o.group_id)).size);
-
     const yesterdaysPaid = paidOrders.filter((o) => o.paid_at && this.isYesterday(o.paid_at));
     this.updateSalesComparison(this.sumRevenue(todaysPaid), this.sumRevenue(yesterdaysPaid));
-
     this.updatePerformance(orders);
     this.updateRecentOrders(orders);
   }
-
   private updateSalesComparison(today: number, yesterday: number): void {
     const max = Math.max(today, yesterday, 1);
     this.salesComparison.set([
@@ -138,26 +125,20 @@ export class Dashboard implements OnInit, OnDestroy {
       },
     ]);
   }
-
-  /** Performance = share of today's order groups that ended up paid vs. pending/refused. */
   private updatePerformance(orders: Order[]): void {
     const todaysOrders = orders.filter((o) => this.isToday(o.created_at));
     const paidCount = this.buildGroups(todaysOrders.filter((o) => o.status === 'PAYE')).length;
     const pendingCount = this.buildGroups(todaysOrders.filter((o) => o.status === 'EN_ATTENTE')).length;
     const rejectedCount = this.buildGroups(todaysOrders.filter((o) => o.status === 'REJETEE')).length;
     const total = paidCount + pendingCount + rejectedCount;
-
     this.performanceScore.set(total === 0 ? 0 : Math.round((paidCount / total) * 100));
-
     const rawSlices: Omit<PerformanceSlice, 'dashArray' | 'dashOffset'>[] = [
       { label: 'Payées', value: total === 0 ? 0 : Math.round((paidCount / total) * 100), color: '#059669' },
       { label: 'En attente', value: total === 0 ? 0 : Math.round((pendingCount / total) * 100), color: '#D97706' },
       { label: 'Refusées', value: total === 0 ? 0 : Math.round((rejectedCount / total) * 100), color: '#DC2626' },
     ].filter((slice) => slice.value > 0);
-
     this.performanceSlices.set(this.buildDonutSlices(rawSlices));
   }
-
   private updateRecentOrders(orders: Order[]): void {
     const groups = this.buildGroups(orders).slice(0, 5);
     this.recentOrders.set(
@@ -170,7 +151,6 @@ export class Dashboard implements OnInit, OnDestroy {
       })),
     );
   }
-
   private buildGroups(orders: Order[]): OrderGroup[] {
     const map = new Map<number, Order[]>();
     for (const o of orders) {
@@ -192,8 +172,6 @@ export class Dashboard implements OnInit, OnDestroy {
     }
     return groups.sort((a, b) => b.groupId - a.groupId);
   }
-
-  /** Builds cumulative stroke-dasharray/offset values for a ring donut chart from percentage slices. */
   private buildDonutSlices(
     slices: Omit<PerformanceSlice, 'dashArray' | 'dashOffset'>[],
   ): PerformanceSlice[] {
@@ -206,7 +184,6 @@ export class Dashboard implements OnInit, OnDestroy {
       return { ...slice, dashArray, dashOffset };
     });
   }
-
   private getGroupItemsSummary(group: OrderGroup): string {
     const categoryOrder: string[] = [];
     const byCategory = new Map<string, string[]>();
@@ -224,11 +201,9 @@ export class Dashboard implements OnInit, OnDestroy {
       .map((category) => `${category}: ${byCategory.get(category)!.join(', ')}`)
       .join(' • ');
   }
-
   private formatGroupId(groupId: number): string {
     return '#' + String(groupId).padStart(4, '0');
   }
-
   private formatStatusLabel(group: OrderGroup): string {
     if (group.status === 'PAYE' && group.paidAt) {
       return `Encaissée à ${this.formatTime(group.paidAt)}`;
@@ -238,29 +213,23 @@ export class Dashboard implements OnInit, OnDestroy {
     }
     return 'En attente';
   }
-
   private formatTime(iso: string): string {
     return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   }
-
   private sumRevenue(orders: Order[]): number {
     return orders.reduce((sum, o) => sum + o.quantity * o.unit_price, 0);
   }
-
   private startOfDay(d: Date): number {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   }
-
   private isToday(iso: string): boolean {
     return this.startOfDay(new Date(iso)) === this.startOfDay(new Date());
   }
-
   private isYesterday(iso: string): boolean {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     return this.startOfDay(new Date(iso)) === this.startOfDay(yesterday);
   }
-
   private isThisYear(iso: string): boolean {
     return new Date(iso).getFullYear() === new Date().getFullYear();
   }

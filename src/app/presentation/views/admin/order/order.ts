@@ -46,6 +46,7 @@ export class Order implements OnInit, OnDestroy {
   private rawOrders = signal<OrderLine[]>([]);
   private wsSubscription?: Subscription;
   private openSubscription?: Subscription;
+  private closeSubscription?: Subscription;
   constructor(private ws: WebsocketService) {}
   ngOnInit(): void {
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
@@ -57,6 +58,13 @@ export class Order implements OnInit, OnDestroy {
     this.openSubscription = this.ws.onOpened().subscribe(() => {
       this.ws.send({ type: 'admin_register' });
     });
+    /** Keeps the connection indicator honest: without this, a dropped socket
+     *  (network blip, server restart) would leave `wsConnected` stuck at
+     *  `true` from the last received message, hiding the outage from the
+     *  admin until a new message happens to arrive after reconnecting. */
+    this.closeSubscription = this.ws.onClosed().subscribe(() => {
+      this.wsConnected.set(false);
+    });
     this.ws.connect(ADMIN_LOCAL_WS_URL);
     if (this.ws.isOpen()) {
       this.ws.send({ type: 'admin_register' });
@@ -65,6 +73,7 @@ export class Order implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
+    this.closeSubscription?.unsubscribe();
     this.ws.disconnect();
   }
   readonly groups = computed<OrderGroup[]>(() => {

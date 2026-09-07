@@ -73,6 +73,7 @@ export class Report implements OnInit, OnDestroy {
   private rawOrders = signal<OrderLine[]>([]);
   private wsSubscription?: Subscription;
   private openSubscription?: Subscription;
+  private closeSubscription?: Subscription;
   constructor(private ws: WebsocketService) {}
   ngOnInit(): void {
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
@@ -84,6 +85,13 @@ export class Report implements OnInit, OnDestroy {
     this.openSubscription = this.ws.onOpened().subscribe(() => {
       this.ws.send({ type: 'admin_register' });
     });
+    /** Keeps the connection indicator honest: without this, a dropped socket
+     *  (network blip, server restart) would leave `wsConnected` stuck at
+     *  `true` from the last received message, hiding the outage from the
+     *  admin until a new message happens to arrive after reconnecting. */
+    this.closeSubscription = this.ws.onClosed().subscribe(() => {
+      this.wsConnected.set(false);
+    });
     this.ws.connect(REPORT_LOCAL_WS_URL);
     if (this.ws.isOpen()) {
       this.ws.send({ type: 'admin_register' });
@@ -92,6 +100,7 @@ export class Report implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
+    this.closeSubscription?.unsubscribe();
     this.ws.disconnect();
   }
   private readonly paidOrders = computed(() => this.rawOrders().filter((o) => o.status === 'PAYE'));
@@ -306,7 +315,6 @@ export class Report implements OnInit, OnDestroy {
     const day = this.formatIsoDate(new Date(iso));
     return day >= bounds.start && day <= bounds.end;
   }
-  /** Paid orders within the selected period and, if set, the selected counter. */
   private readonly periodOrders = computed<OrderLine[]>(() => {
     const bounds = this.periodBounds();
     const counter = this.counterFilter();
@@ -333,7 +341,6 @@ export class Report implements OnInit, OnDestroy {
     return clients === 0 ? 0 : this.revenue() / clients;
   });
   readonly itemsCount = computed(() => this.periodOrders().reduce((sum, o) => sum + o.quantity, 0));
-  /** Pending/rejected order counts within the period, for a fuller activity picture. */
   private readonly rawOrdersInPeriod = computed<OrderLine[]>(() => {
     const bounds = this.periodBounds();
     const counter = this.counterFilter();
