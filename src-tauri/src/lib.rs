@@ -15,7 +15,6 @@ use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 use config::accounts;
 use config::connections;
-use config::pricing_matrix::PRICING_MATRIX;
 use config::settings;
 use domain::order::price_calculator::{CartItem, ServiceItem, ServiceItemType as PriceCalculatorItemType};
 use service::order_api_service::Order;
@@ -33,6 +32,7 @@ type Accounts = Arc<SyncMutex<Vec<accounts::StoredAccount>>>;
 type AppHandleSlot = Arc<SyncMutex<Option<tauri::AppHandle>>>;
 type Blacklist = Arc<SyncMutex<Vec<connections::BlacklistEntry>>>;
 type ConnectionHistory = Arc<SyncMutex<Vec<connections::ConnectionHistoryEntry>>>;
+type PricingStore = Arc<SyncMutex<Vec<ServiceItem>>>;
 pub struct AppState {
     pub order_service: Arc<OrderService>,
     pub peers: PeerMap,
@@ -40,6 +40,7 @@ pub struct AppState {
     pub accounts: Accounts,
     pub blacklist: Blacklist,
     pub connection_history: ConnectionHistory,
+    pub pricing: PricingStore,
 }
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -202,20 +203,82 @@ fn get_ws_address() -> String {
     "127.0.0.1:8080".to_string()
 }
 #[tauri::command]
-fn get_pricing_matrix() -> Vec<ServiceItem> {
-    PRICING_MATRIX
-        .iter()
-        .map(|item| ServiceItem {
-            id: item.id.to_string(),
-            item_type: match item.item_type {
-                config::pricing_matrix::ServiceItemType::Service => PriceCalculatorItemType::Service,
-                config::pricing_matrix::ServiceItemType::Product => PriceCalculatorItemType::Product,
-            },
-            category: item.category.to_string(),
-            label: item.label.to_string(),
-            price: item.price,
-        })
-        .collect()
+fn get_pricing_matrix(state: State<'_, AppState>) -> Vec<ServiceItem> {
+    state.pricing.lock().unwrap().clone()
+}
+/// Add a new item (service or product) to the pricing matrix. Persists to
+/// disk and returns the created item, including its generated `id`.
+#[tauri::command]
+async fn create_pricing_item(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    category: String,
+    label: String,
+    price: u32,
+    item_type: PriceCalculatorItemType,
+) -> Result<ServiceItem, String> {
+    let category = config::pricing_matrix::validate_category(&category)?;
+    let label = config::pricing_matrix::validate_label(&label)?;
+    let mut guard = state.pricing.lock().unwrap();
+    let item = ServiceItem {
+        id: config::pricing_matrix::generate_id(),
+        item_type,
+        category,
+        label,
+        price,
+    };
+    guard.push(item);
+    config::pricing_matrix::save(&app, &guard)?;
+    Ok(guard.last().expect("item was just pushed").clone())
+}
+/// Modify an existing pricing matrix item. Only the provided fields are
+/// changed; omitted fields keep their current value.
+#[tauri::command]
+async fn update_pricing_item(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+    category: Option<String>,
+    label: Option<String>,
+    price: Option<u32>,
+    item_type: Option<PriceCalculatorItemType>,
+) -> Result<ServiceItem, String> {
+    let category = match category {
+        Some(c) => Some(config::pricing_matrix::validate_category(&c)?),
+        None => None,
+    };
+    let label = match label {
+        Some(l) => Some(config::pricing_matrix::validate_label(&l)?),
+        None => None,
+    };
+    let mut guard = state.pricing.lock().unwrap();
+    let item = config::pricing_matrix::find_item_mut(&mut guard, &id)
+        .ok_or_else(|| "Article introuvable.".to_string())?;
+    if let Some(category) = category {
+        item.category = category;
+    }
+    if let Some(label) = label {
+        item.label = label;
+    }
+    if let Some(price) = price {
+        item.price = price;
+    }
+    if let Some(item_type) = item_type {
+        item.item_type = item_type;
+    }
+    let updated = item.clone();
+    config::pricing_matrix::save(&app, &guard)?;
+    Ok(updated)
+}
+/// Remove an item from the pricing matrix.
+#[tauri::command]
+async fn delete_pricing_item(app: tauri::AppHandle, state: State<'_, AppState>, id: String) -> Result<(), String> {
+    let mut guard = state.pricing.lock().unwrap();
+    if !config::pricing_matrix::remove_item(&mut guard, &id) {
+        return Err("Article introuvable.".to_string());
+    }
+    config::pricing_matrix::save(&app, &guard)?;
+    Ok(())
 }
 #[tauri::command]
 fn get_orders(state: State<'_, AppState>) -> Vec<Order> {
@@ -500,13 +563,6 @@ async fn set_theme(app: tauri::AppHandle, value: String) -> Result<String, Strin
     settings::update(&app, current)?;
     Ok(theme.as_str().to_string())
 }
-/// Authenticate an administrator against the accounts store. Only accounts
-/// with `user_type: admin` are accepted here — cashiers and comptoir devices
-/// authenticate through their own dedicated flows. Unlike a plain
-/// `Result<Account, String>`, invalid credentials and a suspended account are
-/// reported back as an unsuccessful `AuthResult` rather than a hard error, so
-/// the caller can distinguish "server couldn't process the request" from
-/// "these credentials didn't work".
 #[tauri::command]
 async fn authenticate_admin(
     app: tauri::AppHandle,
@@ -619,7 +675,6 @@ async fn update_account(
 }
 /// Suspend an account: a reversible block. The account and its history are
 /// left untouched on disk — it's only flagged so it can no longer
-/// authenticate.
 #[tauri::command]
 async fn suspend_account(
     app: tauri::AppHandle,
@@ -666,24 +721,20 @@ async fn delete_account(app: tauri::AppHandle, state: State<'_, AppState>, usern
 fn list_account_activities(state: State<'_, AppState>) -> Vec<accounts::AccountActivity> {
     accounts::list_activities(&state.accounts.lock().unwrap())
 }
-/// Write raw bytes to an absolute path chosen by the user (e.g. via a save dialog).
-/// Used by the cashier UI to export the daily report (rapport du jour) as an Excel file.
 #[tauri::command]
 fn save_binary_file(path: String, data: Vec<u8>) -> Result<(), String> {
     std::fs::write(&path, data).map_err(|e| e.to_string())
 }
-// ── Application Entry Point ───────────────────────────────────────────────────
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let order_service = Arc::new(OrderService::new());
     let peers: PeerMap = Arc::new(Mutex::new(HashMap::new()));
-    // Real value is loaded from disk (or defaulted) in `.setup()` below, once an
-    // AppHandle is available to resolve the app's config directory.
     let max_connected_devices: MaxConnectedDevices = Arc::new(SyncMutex::new(settings::DEFAULT_MAX_CONNECTED_DEVICES));
     let accounts_store: Accounts = Arc::new(SyncMutex::new(Vec::new()));
     let app_handle_slot: AppHandleSlot = Arc::new(SyncMutex::new(None));
     let blacklist: Blacklist = Arc::new(SyncMutex::new(Vec::new()));
     let connection_history: ConnectionHistory = Arc::new(SyncMutex::new(Vec::new()));
+    let pricing_store: PricingStore = Arc::new(SyncMutex::new(Vec::new()));
     let ws_order_service = order_service.clone();
     let ws_peers = peers.clone();
     let ws_max_connected_devices = max_connected_devices.clone();
@@ -1021,6 +1072,7 @@ pub fn run() {
     let setup_app_handle_slot = app_handle_slot.clone();
     let setup_blacklist = blacklist.clone();
     let setup_connection_history = connection_history.clone();
+    let setup_pricing = pricing_store.clone();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
@@ -1036,6 +1088,7 @@ pub fn run() {
             *setup_accounts.lock().unwrap() = config::accounts::load_or_bootstrap(app.handle());
             *setup_blacklist.lock().unwrap() = connections::load_blacklist(app.handle());
             *setup_connection_history.lock().unwrap() = connections::load_history(app.handle());
+            *setup_pricing.lock().unwrap() = config::pricing_matrix::load_or_bootstrap(app.handle());
             *setup_app_handle_slot.lock().unwrap() = Some(app.handle().clone());
             Ok(())
         })
@@ -1046,10 +1099,14 @@ pub fn run() {
             accounts: accounts_store,
             blacklist,
             connection_history,
+            pricing: pricing_store,
         })
                 .invoke_handler(tauri::generate_handler![
             get_ws_address,
             get_pricing_matrix,
+            create_pricing_item,
+            update_pricing_item,
+            delete_pricing_item,
             get_orders,
             get_pending_orders,
             get_paid_orders,
