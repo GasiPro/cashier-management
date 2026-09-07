@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -75,6 +75,14 @@ export class LoginComponent implements OnInit, OnDestroy {
     // Only disconnect WS if we're NOT handing it off to the counter view.
     if (!this.navigatingToCounter) {
       this.ws.disconnect();
+    }
+  }
+  /** Ctrl+Alt+A on the login screen jumps straight to the admin space. */
+  @HostListener('document:keydown', ['$event'])
+  handleGlobalKeydown(event: KeyboardEvent): void {
+    if (event.ctrlKey && event.altKey && event.key.toLowerCase() === 'a') {
+      event.preventDefault();
+      this.router.navigate(['/admin']);
     }
   }
   private updateClock(): void {
