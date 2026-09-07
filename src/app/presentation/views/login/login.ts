@@ -77,12 +77,69 @@ export class LoginComponent implements OnInit, OnDestroy {
       this.ws.disconnect();
     }
   }
-  /** Ctrl+Alt+A on the login screen jumps straight to the admin space. */
+  // Hidden admin access
+  showAdminModal = signal(false);
+  adminUsername = '';
+  adminPassword = '';
+  showAdminPassword = signal(false);
+  authenticatingAdmin = signal(false);
+  adminError = signal('');
+  /** Ctrl+Alt+A on the login screen reveals a hidden admin login popup. */
   @HostListener('document:keydown', ['$event'])
   handleGlobalKeydown(event: KeyboardEvent): void {
     if (event.ctrlKey && event.altKey && event.key.toLowerCase() === 'a') {
       event.preventDefault();
+      this.openAdminModal();
+    }
+  }
+  openAdminModal(): void {
+    if (this.showAdminModal()) return;
+    this.adminUsername = '';
+    this.adminPassword = '';
+    this.showAdminPassword.set(false);
+    this.adminError.set('');
+    this.showAdminModal.set(true);
+  }
+  closeAdminModal(): void {
+    if (this.authenticatingAdmin()) return;
+    this.showAdminModal.set(false);
+    this.adminUsername = '';
+    this.adminPassword = '';
+    this.adminError.set('');
+  }
+  toggleAdminPasswordVisibility(): void {
+    this.showAdminPassword.update((v) => !v);
+  }
+  /** Verifies the credentials belong to an admin account before leaving the login screen. */
+  async submitAdminLogin(): Promise<void> {
+    if (this.authenticatingAdmin()) return;
+    const username = this.adminUsername.trim();
+    const password = this.adminPassword;
+    if (!username || !password) {
+      this.adminError.set('Identifiant et mot de passe requis.');
+      return;
+    }
+    this.adminError.set('');
+    this.authenticatingAdmin.set(true);
+    try {
+      const account = await invoke<{ user_type: string; display_name: string }>('authenticate_admin', {
+        username,
+        password,
+      });
+      if (account.user_type !== 'admin') {
+        this.adminError.set('Ce compte n\'a pas les droits administrateur.');
+        return;
+      }
+      localStorage.setItem(LS_USERNAME, username);
+      localStorage.setItem(LS_DISPLAY_NAME, account.display_name ?? '');
+      this.showAdminModal.set(false);
       this.router.navigate(['/admin']);
+    } catch (e) {
+      console.error('authenticate_admin failed', e);
+      const message = typeof e === 'string' ? e : 'Identifiants invalides.';
+      this.adminError.set(message);
+    } finally {
+      this.authenticatingAdmin.set(false);
     }
   }
   private updateClock(): void {
