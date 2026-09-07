@@ -21,6 +21,11 @@ const MAX_USERNAME_LEN = 32;
 const MIN_PASSWORD_LEN = 8;
 const PASSWORD_HAS_LETTER = /[A-Za-z]/;
 const PASSWORD_HAS_DIGIT = /\d/;
+interface AuthResult<T> {
+  success: boolean;
+  account: T | null;
+  error: string | null;
+}
 @Component({
   selector: 'app-login',
   standalone: true,
@@ -77,7 +82,6 @@ export class LoginComponent implements OnInit, OnDestroy {
       this.ws.disconnect();
     }
   }
-  // Hidden admin access
   showAdminModal = signal(false);
   adminUsername = '';
   adminPassword = '';
@@ -122,16 +126,20 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.adminError.set('');
     this.authenticatingAdmin.set(true);
     try {
-      const account = await invoke<{ user_type: string; display_name: string }>('authenticate_admin', {
-        username,
-        password,
-      });
-      if (account.user_type !== 'admin') {
+      const result = await invoke<AuthResult<{ user_type: string; display_name: string }>>(
+        'authenticate_admin',
+        { username, password },
+      );
+      if (!result.success || !result.account) {
+        this.adminError.set(result.error ?? 'Identifiants invalides.');
+        return;
+      }
+      if (result.account.user_type !== 'admin') {
         this.adminError.set('Ce compte n\'a pas les droits administrateur.');
         return;
       }
       localStorage.setItem(LS_USERNAME, username);
-      localStorage.setItem(LS_DISPLAY_NAME, account.display_name ?? '');
+      localStorage.setItem(LS_DISPLAY_NAME, result.account.display_name ?? '');
       this.showAdminModal.set(false);
       this.router.navigate(['/admin']);
     } catch (e) {

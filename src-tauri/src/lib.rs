@@ -1,4 +1,3 @@
-
 pub mod config;
 pub mod domain;
 pub mod service;
@@ -625,6 +624,45 @@ async fn authenticate_admin(
         error: None,
     })
 }
+#[tauri::command]
+async fn authenticate_cashier(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    username: String,
+    password: String,
+) -> Result<accounts::AuthResult, String> {
+    let username = accounts::validate_username(&username)?;
+    accounts::validate_password(&password)?;
+    let mut guard = state.accounts.lock().unwrap();
+    let account = guard.iter_mut().find(|a| {
+        a.username.eq_ignore_ascii_case(&username) && a.user_type == accounts::UserType::Caissier
+    });
+    let account = match account {
+        Some(a) if accounts::verify_password(&password, &a.password_hash) => a,
+        _ => {
+            return Ok(accounts::AuthResult {
+                success: false,
+                account: None,
+                error: Some("Nom d'utilisateur ou mot de passe incorrect.".to_string()),
+            })
+        }
+    };
+    if account.status == accounts::AccountStatus::Suspended {
+        return Ok(accounts::AuthResult {
+            success: false,
+            account: None,
+            error: Some("Ce compte a été suspendu. Contactez un administrateur.".to_string()),
+        });
+    }
+    account.last_sign_in_at = Some(chrono::Local::now().to_rfc3339());
+    let view = accounts::Account::from(&*account);
+    accounts::save(&app, &guard)?;
+    Ok(accounts::AuthResult {
+        success: true,
+        account: Some(view),
+        error: None,
+    })
+}
 /// Create a new account. The username is validated, checked for uniqueness
 /// (case-insensitive) against every existing account, and — once created —
 /// is never changed: there is deliberately no "rename" command.
@@ -672,7 +710,7 @@ async fn create_account(
 fn list_accounts(state: State<'_, AppState>) -> Vec<accounts::Account> {
     state.accounts.lock().unwrap().iter().map(accounts::Account::from).collect()
 }
-/// Modify an existing account's display name and/or user type.
+/// Modify an existing account's display name, user type, and/or password.
 #[tauri::command]
 async fn update_account(
     app: tauri::AppHandle,
@@ -680,9 +718,17 @@ async fn update_account(
     username: String,
     display_name: Option<String>,
     user_type: Option<accounts::UserType>,
+    password: Option<String>,
 ) -> Result<accounts::Account, String> {
     let display_name = match display_name {
         Some(name) => Some(accounts::validate_display_name(&name)?),
+        None => None,
+    };
+    if let Some(ref pwd) = password {
+        accounts::validate_password(pwd)?;
+    }
+    let new_password_hash = match password {
+        Some(pwd) => Some(accounts::hash_password(&pwd)?),
         None => None,
     };
     let mut guard = state.accounts.lock().unwrap();
@@ -694,6 +740,9 @@ async fn update_account(
     }
     if let Some(user_type) = user_type {
         account.user_type = user_type;
+    }
+    if let Some(hash) = new_password_hash {
+        account.password_hash = hash;
     }
     accounts::record_activity(account, accounts::ActivityKind::Modified, None);
     let updated = accounts::Account::from(&*account);
@@ -1216,6 +1265,7 @@ pub fn run() {
             set_font_size,
             set_theme,
             authenticate_admin,
+            authenticate_cashier,
             create_account,
             list_accounts,
             update_account,

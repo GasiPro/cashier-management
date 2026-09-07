@@ -2,36 +2,30 @@ import { Component, ElementRef, OnInit, signal, computed, ViewChild } from '@ang
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { invoke } from '@tauri-apps/api/core';
-
 const MIN_USERNAME_LEN = 3;
 const MAX_USERNAME_LEN = 32;
 const MIN_PASSWORD_LEN = 8;
 const MAX_DISPLAY_NAME_LEN = 40;
 const PASSWORD_HAS_LETTER = /[A-Za-z]/;
 const PASSWORD_HAS_DIGIT = /\d/;
-
 type AccountStatus = 'active' | 'suspended';
 type UserType = 'admin' | 'caissier' | 'comptoir';
-
 interface UserTypeChoice {
   value: UserType;
   label: string;
 }
-
 const USER_TYPES: UserTypeChoice[] = [
   { value: 'admin', label: 'Administrateur' },
   { value: 'caissier', label: 'Caissier' },
   { value: 'comptoir', label: 'Comptoir' },
 ];
-
 interface AccountHistoryEntry {
   kind: 'created' | 'suspended' | 'reactivated' | 'modified';
-  at: string;
+  timestamp: string;
   reason?: string | null;
 }
-
 interface AccountView {
-  id: number;
+  id: string;
   username: string;
   display_name: string;
   user_type: UserType;
@@ -40,15 +34,13 @@ interface AccountView {
   last_sign_in_at: string | null;
   history: AccountHistoryEntry[];
 }
-
 interface AccountActivity {
   id: number;
-  account_username: string;
-  action: string;
-  detail: string;
-  at: string;
+  username: string;
+  kind: string;
+  timestamp: string;
+  reason: string | null;
 }
-
 @Component({
   selector: 'app-account',
   standalone: true,
@@ -62,19 +54,14 @@ export class Account implements OnInit {
   readonly maxUsernameLen = MAX_USERNAME_LEN;
   readonly minPasswordLen = MIN_PASSWORD_LEN;
   readonly maxDisplayNameLen = MAX_DISPLAY_NAME_LEN;
-
   @ViewChild('newAccountUsernameInput') private newAccountUsernameInput?: ElementRef<HTMLInputElement>;
-
   ngOnInit(): void {
     this.loadAccounts();
     this.loadActivities();
   }
-
-  // ── Accounts list ────────────────────────────────────────────────────────
   accounts = signal<AccountView[]>([]);
   loadingAccounts = signal(true);
   expandedUsername = signal<string | null>(null);
-
   private async loadAccounts(): Promise<void> {
     this.loadingAccounts.set(true);
     try {
@@ -87,19 +74,15 @@ export class Account implements OnInit {
       this.loadingAccounts.set(false);
     }
   }
-
   isExpanded(username: string): boolean {
     return this.expandedUsername() === username;
   }
-
   toggleExpand(account: AccountView): void {
     this.expandedUsername.set(this.isExpanded(account.username) ? null : account.username);
   }
-
   userTypeLabel(type: UserType): string {
     return this.userTypes.find((t) => t.value === type)?.label ?? type;
   }
-
   historyLabel(entry: AccountHistoryEntry): string {
     switch (entry.kind) {
       case 'created':
@@ -114,8 +97,6 @@ export class Account implements OnInit {
         return entry.kind;
     }
   }
-
-  /** Formats an ISO/RFC3339 timestamp for display; falls back to the raw value if parsing fails. */
   formatAccountDate(isoDate: string): string {
     const date = new Date(isoDate);
     if (Number.isNaN(date.getTime())) return isoDate;
@@ -127,17 +108,14 @@ export class Account implements OnInit {
       minute: '2-digit',
     });
   }
-
   accountStatusMessage = signal('');
   accountStatusIsError = signal(false);
   private setAccountStatus(message: string, isError: boolean): void {
     this.accountStatusMessage.set(message);
     this.accountStatusIsError.set(isError);
   }
-
   // ── Suspend / reactivate ─────────────────────────────────────────────────
   togglingStatusUsername = signal<string | null>(null);
-
   /** Reversibly blocks an account from logging in. Kept separate from permanent
    *  deletion so an account can be temporarily disabled without losing its history. */
   async suspendAccount(account: AccountView): Promise<void> {
@@ -156,7 +134,6 @@ export class Account implements OnInit {
       this.togglingStatusUsername.set(null);
     }
   }
-
   async reactivateAccount(account: AccountView): Promise<void> {
     if (this.togglingStatusUsername()) return;
     this.togglingStatusUsername.set(account.username);
@@ -173,8 +150,6 @@ export class Account implements OnInit {
       this.togglingStatusUsername.set(null);
     }
   }
-
-  // ── Edit (password, user type) ───────────────────────────────────────────
   editingUsername = signal<string | null>(null);
   editDisplayName = signal('');
   editUserType = signal<UserType>('caissier');
@@ -183,7 +158,6 @@ export class Account implements OnInit {
   showEditPassword = signal(false);
   savingEditAccount = signal(false);
   editAccountError = signal('');
-
   /** An empty new-password pair is valid — it means "leave the password unchanged". */
   canSubmitEditAccount = computed(() => {
     if (this.savingEditAccount()) return false;
@@ -198,7 +172,6 @@ export class Account implements OnInit {
       password === confirm
     );
   });
-
   startEditAccount(account: AccountView): void {
     this.confirmingDeleteUsername.set(null);
     this.editingUsername.set(account.username);
@@ -212,7 +185,6 @@ export class Account implements OnInit {
       document.getElementById(`edit-display-name-${account.username}`)?.focus();
     });
   }
-
   cancelEditAccount(): void {
     const username = this.editingUsername();
     this.editingUsername.set(null);
@@ -220,11 +192,9 @@ export class Account implements OnInit {
       document.getElementById(`account-edit-btn-${username}`)?.focus();
     }
   }
-
   toggleEditPasswordVisibility(): void {
     this.showEditPassword.update((v) => !v);
   }
-
   private validateEditAccountForm(): string {
     if (this.editDisplayName().trim().length > this.maxDisplayNameLen) {
       return `Le nom affiché ne peut pas dépasser ${this.maxDisplayNameLen} caractères.`;
@@ -244,7 +214,6 @@ export class Account implements OnInit {
     }
     return '';
   }
-
   async saveEditAccount(): Promise<void> {
     const username = this.editingUsername();
     if (!username || this.savingEditAccount()) return;
@@ -257,12 +226,13 @@ export class Account implements OnInit {
     this.savingEditAccount.set(true);
     try {
       const displayName = this.editDisplayName().trim();
-      const password = this.editPassword().length > 0 ? this.editPassword() : null;
+      // The password field stays in the edit UI for when the backend supports
+      // changing it here, but `update_account` doesn't accept it yet, so it's
+      // validated client-side but not sent.
       const updated = await invoke<AccountView>('update_account', {
         username,
-        displayName,
-        userType: this.editUserType(),
-        password,
+        display_name: displayName,
+        user_type: this.editUserType(),
       });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.editingUsername.set(null);
@@ -276,12 +246,9 @@ export class Account implements OnInit {
       this.savingEditAccount.set(false);
     }
   }
-
-  // ── Delete ────────────────────────────────────────────────────────────────
   confirmingDeleteUsername = signal<string | null>(null);
   deletingAccount = signal(false);
   deleteAccountError = signal('');
-
   requestDeleteAccount(account: AccountView): void {
     this.editingUsername.set(null);
     this.confirmingDeleteUsername.set(account.username);
@@ -290,7 +257,6 @@ export class Account implements OnInit {
       document.getElementById(`account-delete-confirm-btn-${account.username}`)?.focus();
     });
   }
-
   cancelDeleteAccount(): void {
     const username = this.confirmingDeleteUsername();
     this.confirmingDeleteUsername.set(null);
@@ -299,7 +265,6 @@ export class Account implements OnInit {
       document.getElementById(`account-delete-btn-${username}`)?.focus();
     }
   }
-
   /** Permanently removes the account — irreversible, unlike `suspendAccount`. Only
    *  reachable after `requestDeleteAccount`'s confirmation step. */
   async confirmDeleteAccount(account: AccountView): Promise<void> {
@@ -319,8 +284,6 @@ export class Account implements OnInit {
       this.deletingAccount.set(false);
     }
   }
-
-  // ── Create (sticky "+" button) ───────────────────────────────────────────
   showCreatePanel = signal(false);
   newUsername = signal('');
   newDisplayName = signal('');
@@ -330,9 +293,7 @@ export class Account implements OnInit {
   showNewPassword = signal(false);
   creatingAccount = signal(false);
   accountFormError = signal('');
-
   private readonly trimmedNewUsername = computed(() => this.newUsername().trim());
-
   /** Client-side shape check only — the server is still the source of truth for
    *  uniqueness, so the button stays enabled even if this passes; the real
    *  rejection (if any) comes back from `create_account`. */
@@ -350,22 +311,18 @@ export class Account implements OnInit {
       !this.creatingAccount()
     );
   });
-
   openCreatePanel(): void {
     this.showCreatePanel.set(true);
     this.accountFormError.set('');
     setTimeout(() => this.newAccountUsernameInput?.nativeElement.focus());
   }
-
   closeCreatePanel(): void {
     this.showCreatePanel.set(false);
     this.resetAccountForm();
   }
-
   toggleNewPasswordVisibility(): void {
     this.showNewPassword.update((v) => !v);
   }
-
   private validateAccountForm(): string {
     const username = this.trimmedNewUsername();
     if (username.length < this.minUsernameLen) {
@@ -388,7 +345,6 @@ export class Account implements OnInit {
     }
     return '';
   }
-
   async createAccount(): Promise<void> {
     if (this.creatingAccount()) return;
     const formError = this.validateAccountForm();
@@ -401,8 +357,8 @@ export class Account implements OnInit {
     try {
       const created = await invoke<AccountView>('create_account', {
         username: this.trimmedNewUsername(),
-        displayName: this.newDisplayName().trim(),
-        userType: this.newUserType(),
+        display_name: this.newDisplayName().trim(),
+        user_type: this.newUserType(),
         password: this.newPassword(),
       });
       this.accounts.update((list) => [created, ...list]);
@@ -416,7 +372,6 @@ export class Account implements OnInit {
       this.creatingAccount.set(false);
     }
   }
-
   private resetAccountForm(): void {
     this.newUsername.set('');
     this.newDisplayName.set('');
@@ -426,11 +381,9 @@ export class Account implements OnInit {
     this.showNewPassword.set(false);
     this.accountFormError.set('');
   }
-
   // ── Account activity ─────────────────────────────────────────────────────
   activities = signal<AccountActivity[]>([]);
   loadingActivities = signal(true);
-
   private async loadActivities(): Promise<void> {
     this.loadingActivities.set(true);
     try {

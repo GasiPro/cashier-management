@@ -16,10 +16,12 @@ const PASSWORD_HAS_LETTER = /[A-Za-z]/;
 const PASSWORD_HAS_DIGIT = /\d/;
 const LS_USERNAME = 'gasipro:username';
 const LS_DISPLAY_NAME = 'gasipro:displayName';
+const CASHIER_USER_TYPE = 'caissier';
 type AccountStatus = 'active' | 'suspended';
 interface CashierAccountView {
   username: string;
   display_name: string;
+  user_type: string;
   created_at: string;
   status: AccountStatus;
 }
@@ -73,7 +75,7 @@ export class Setting implements OnInit, OnDestroy {
   private readonly trimmedNewAccountUsername = computed(() => this.newAccountUsername().trim());
   /** Client-side shape check only — the server is still the source of truth for
    *  uniqueness, so the button stays enabled even if this passes; the real
-   *  rejection (if any) comes back from `create_cashier_account`. */
+   *  rejection (if any) comes back from `create_account`. */
   canSubmitAccount = computed(() => {
     const username = this.trimmedNewAccountUsername();
     const password = this.newAccountPassword();
@@ -114,9 +116,6 @@ export class Setting implements OnInit, OnDestroy {
       now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
     );
   }
-  /** Re-fetches just the connected-devices count (not the configured limit, which this
-   *  page itself owns) — used by the background poll started in `ngOnInit`. Silently
-   *  ignored on failure so a transient IPC hiccup doesn't spam the status region. */
   private async refreshConnectedDevicesCount(): Promise<void> {
     try {
       const connected = await invoke<number>('get_connected_devices_count');
@@ -185,11 +184,13 @@ export class Setting implements OnInit, OnDestroy {
     this.statusMessage.set(message);
     this.statusIsError.set(isError);
   }
+  /** This page only manages cashier-type accounts, so the shared account list
+   *  is filtered down to `user_type === 'caissier'` after loading. */
   private async loadAccounts(): Promise<void> {
     this.loadingAccounts.set(true);
     try {
-      const accounts = await invoke<CashierAccountView[]>('list_cashier_accounts');
-      this.accounts.set(accounts);
+      const accounts = await invoke<CashierAccountView[]>('list_accounts');
+      this.accounts.set(accounts.filter((a) => a.user_type === CASHIER_USER_TYPE));
     } catch (e) {
       console.error('failed to load cashier accounts', e);
       this.setAccountStatus('Impossible de charger la liste des comptes caissier.', true);
@@ -234,8 +235,10 @@ export class Setting implements OnInit, OnDestroy {
     this.creatingAccount.set(true);
     this.setAccountStatus('', false);
     try {
-      const created = await invoke<CashierAccountView>('create_cashier_account', {
+      const created = await invoke<CashierAccountView>('create_account', {
         username: this.trimmedNewAccountUsername(),
+        display_name: '',
+        user_type: CASHIER_USER_TYPE,
         password: this.newAccountPassword(),
       });
       this.accounts.update((list) => [created, ...list]);
@@ -243,7 +246,7 @@ export class Setting implements OnInit, OnDestroy {
       this.resetAccountForm();
       this.newAccountUsernameInput?.nativeElement.focus();
     } catch (e) {
-      console.error('create_cashier_account failed', e);
+      console.error('create_account failed', e);
       const message = typeof e === 'string' ? e : "Échec de la création du compte. Réessayez.";
       this.setAccountStatus(message, true);
     } finally {
@@ -349,18 +352,20 @@ export class Setting implements OnInit, OnDestroy {
     this.savingEditAccount.set(true);
     try {
       const displayName = this.editDisplayName().trim();
-      const password = this.editPassword().length > 0 ? this.editPassword() : null;
-      const updated = await invoke<CashierAccountView>('update_cashier_account', {
+      // The password field stays in the edit UI for when the backend supports
+      // changing it here, but `update_account` doesn't accept it yet, so it's
+      // left out of this call (mirrors the admin account page's edit flow).
+      const updated = await invoke<CashierAccountView>('update_account', {
         username,
-        displayName,
-        password,
+        display_name: displayName,
+        user_type: CASHIER_USER_TYPE,
       });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.editingUsername.set(null);
       this.setAccountStatus(`Compte « ${updated.username} » mis à jour.`, false);
       document.getElementById(`account-edit-btn-${updated.username}`)?.focus();
     } catch (e) {
-      console.error('update_cashier_account failed', e);
+      console.error('update_account failed', e);
       const message = typeof e === 'string' ? e : 'Échec de la mise à jour du compte. Réessayez.';
       this.editAccountError.set(message);
     } finally {
@@ -379,13 +384,13 @@ export class Setting implements OnInit, OnDestroy {
     this.togglingStatusUsername.set(account.username);
     this.setAccountStatus('', false);
     try {
-      const updated = await invoke<CashierAccountView>('suspend_cashier_account', {
+      const updated = await invoke<CashierAccountView>('suspend_account', {
         username: account.username,
       });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.setAccountStatus(`Compte « ${updated.username} » suspendu.`, false);
     } catch (e) {
-      console.error('suspend_cashier_account failed', e);
+      console.error('suspend_account failed', e);
       const message = typeof e === 'string' ? e : 'Échec de la suspension du compte. Réessayez.';
       this.setAccountStatus(message, true);
     } finally {
@@ -397,13 +402,13 @@ export class Setting implements OnInit, OnDestroy {
     this.togglingStatusUsername.set(account.username);
     this.setAccountStatus('', false);
     try {
-      const updated = await invoke<CashierAccountView>('reactivate_cashier_account', {
+      const updated = await invoke<CashierAccountView>('reactivate_account', {
         username: account.username,
       });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.setAccountStatus(`Compte « ${updated.username} » réactivé.`, false);
     } catch (e) {
-      console.error('reactivate_cashier_account failed', e);
+      console.error('reactivate_account failed', e);
       const message = typeof e === 'string' ? e : 'Échec de la réactivation du compte. Réessayez.';
       this.setAccountStatus(message, true);
     } finally {
@@ -434,13 +439,13 @@ export class Setting implements OnInit, OnDestroy {
     this.deletingAccount.set(true);
     this.deleteAccountError.set('');
     try {
-      await invoke<void>('delete_cashier_account', { username: account.username });
+      await invoke<void>('delete_account', { username: account.username });
       this.accounts.update((list) => list.filter((a) => a.username !== account.username));
       this.confirmingDeleteUsername.set(null);
       this.setAccountStatus(`Compte « ${account.username} » supprimé définitivement.`, false);
       this.newAccountUsernameInput?.nativeElement.focus();
     } catch (e) {
-      console.error('delete_cashier_account failed', e);
+      console.error('delete_account failed', e);
       const message = typeof e === 'string' ? e : 'Échec de la suppression du compte. Réessayez.';
       this.deleteAccountError.set(message);
     } finally {
