@@ -1,3 +1,4 @@
+
 pub mod config;
 pub mod domain;
 pub mod service;
@@ -187,7 +188,9 @@ fn record_connection_history(
         },
     );
     if let Some(app) = app {
-        let _ = connections::save_history(app, &guard);
+        if let Err(err) = connections::save_history(app, &guard) {
+            log::error!("Échec de l'enregistrement de l'historique des connexions : {err}");
+        }
     }
 }
 #[tauri::command]
@@ -227,12 +230,13 @@ async fn create_pricing_item(
         label,
         price,
     };
-    guard.push(item);
-    config::pricing_matrix::save(&app, &guard)?;
-    Ok(guard.last().expect("item was just pushed").clone())
+    guard.push(item.clone());
+    if let Err(err) = config::pricing_matrix::save(&app, &guard) {
+        guard.pop();
+        return Err(format!("Échec de l'enregistrement de l'article : {err}"));
+    }
+    Ok(item)
 }
-/// Modify an existing pricing matrix item. Only the provided fields are
-/// changed; omitted fields keep their current value.
 #[tauri::command]
 async fn update_pricing_item(
     app: tauri::AppHandle,
@@ -254,6 +258,7 @@ async fn update_pricing_item(
     let mut guard = state.pricing.lock().unwrap();
     let item = config::pricing_matrix::find_item_mut(&mut guard, &id)
         .ok_or_else(|| "Article introuvable.".to_string())?;
+    let previous = item.clone();
     if let Some(category) = category {
         item.category = category;
     }
@@ -267,17 +272,27 @@ async fn update_pricing_item(
         item.item_type = item_type;
     }
     let updated = item.clone();
-    config::pricing_matrix::save(&app, &guard)?;
+    if let Err(err) = config::pricing_matrix::save(&app, &guard) {
+        if let Some(item) = config::pricing_matrix::find_item_mut(&mut guard, &id) {
+            *item = previous;
+        }
+        return Err(format!("Échec de l'enregistrement de l'article : {err}"));
+    }
     Ok(updated)
 }
 /// Remove an item from the pricing matrix.
 #[tauri::command]
 async fn delete_pricing_item(app: tauri::AppHandle, state: State<'_, AppState>, id: String) -> Result<(), String> {
     let mut guard = state.pricing.lock().unwrap();
-    if !config::pricing_matrix::remove_item(&mut guard, &id) {
-        return Err("Article introuvable.".to_string());
+    let index = guard
+        .iter()
+        .position(|item| item.id == id)
+        .ok_or_else(|| "Article introuvable.".to_string())?;
+    let removed = guard.remove(index);
+    if let Err(err) = config::pricing_matrix::save(&app, &guard) {
+        guard.insert(index, removed);
+        return Err(format!("Échec de l'enregistrement de la suppression : {err}"));
     }
-    config::pricing_matrix::save(&app, &guard)?;
     Ok(())
 }
 #[tauri::command]
@@ -294,13 +309,13 @@ fn get_paid_orders(state: State<'_, AppState>) -> Vec<Order> {
 }
 #[tauri::command]
 async fn create_order(state: State<'_, AppState>, cart: Vec<CartItem>, counter_username: String) -> Result<(), String> {
-    state.order_service.create_order(&cart, &counter_username);
+    state.order_service.create_order(&cart, &counter_username)?;
     broadcast_orders_to_approved(&state.peers, &state.order_service.get_orders()).await;
     Ok(())
 }
 #[tauri::command]
 async fn mark_group_as_paid(state: State<'_, AppState>, group_id: i64) -> Result<(), String> {
-    state.order_service.mark_group_as_paid(group_id);
+    state.order_service.mark_group_as_paid(group_id)?;
     broadcast_orders_to_approved(&state.peers, &state.order_service.get_orders()).await;
     Ok(())
 }
@@ -308,7 +323,7 @@ async fn mark_group_as_paid(state: State<'_, AppState>, group_id: i64) -> Result
 /// `raison` is an optional reason for the cancellation.
 #[tauri::command]
 async fn reject_group(state: State<'_, AppState>, group_id: i64, raison: Option<String>) -> Result<(), String> {
-    state.order_service.reject_group(group_id, raison);
+    state.order_service.reject_group(group_id, raison)?;
     broadcast_orders_to_approved(&state.peers, &state.order_service.get_orders()).await;
     Ok(())
 }
@@ -446,7 +461,10 @@ async fn block_device(app: tauri::AppHandle, state: State<'_, AppState>, addr: S
                 reason: None,
                 created_at: chrono::Local::now().to_rfc3339(),
             });
-            connections::save_blacklist(&app, &guard)?;
+            if let Err(err) = connections::save_blacklist(&app, &guard) {
+                guard.pop();
+                return Err(format!("Échec de l'enregistrement de la liste noire : {err}"));
+            }
         }
     }
     record_connection_history(
@@ -491,16 +509,23 @@ async fn add_blacklist_entry(
         created_at: chrono::Local::now().to_rfc3339(),
     };
     guard.push(entry.clone());
-    connections::save_blacklist(&app, &guard)?;
+    if let Err(err) = connections::save_blacklist(&app, &guard) {
+        guard.pop();
+        return Err(format!("Échec de l'enregistrement de la liste noire : {err}"));
+    }
     Ok(entry)
 }
 #[tauri::command]
 async fn remove_blacklist_entry(app: tauri::AppHandle, state: State<'_, AppState>, addr: String) -> Result<(), String> {
     let mut guard = state.blacklist.lock().unwrap();
+    let snapshot = guard.clone();
     if !connections::remove_blacklist_entry(&mut guard, &addr) {
         return Err("Adresse introuvable sur liste noire.".to_string());
     }
-    connections::save_blacklist(&app, &guard)?;
+    if let Err(err) = connections::save_blacklist(&app, &guard) {
+        *guard = snapshot;
+        return Err(format!("Échec de l'enregistrement de la liste noire : {err}"));
+    }
     Ok(())
 }
 /// Current cap on connected comptoir devices (`0` = unlimited). Called from the
@@ -519,13 +544,11 @@ async fn get_connected_devices_count(state: State<'_, AppState>) -> Result<usize
 #[tauri::command]
 async fn set_max_connected_devices(app: tauri::AppHandle, state: State<'_, AppState>, value: u32) -> Result<u32, String> {
     let clamped = settings::clamp_max_connected_devices(value);
-    {
-        let mut guard = state.max_connected_devices.lock().unwrap();
-        *guard = clamped;
-    }
     let mut current = settings::load(&app);
     current.max_connected_devices = clamped;
-    settings::update(&app, current)?;
+    settings::update(&app, current)
+        .map_err(|err| format!("Échec de l'enregistrement du paramètre : {err}"))?;
+    *state.max_connected_devices.lock().unwrap() = clamped;
     Ok(clamped)
 }
 #[tauri::command]
@@ -639,7 +662,10 @@ async fn create_account(
         }],
     };
     guard.push(account);
-    accounts::save(&app, &guard)?;
+    if let Err(err) = accounts::save(&app, &guard) {
+        guard.pop();
+        return Err(format!("Échec de l'enregistrement du compte : {err}"));
+    }
     Ok(accounts::Account::from(guard.last().expect("account was just pushed")))
 }
 #[tauri::command]
@@ -662,6 +688,7 @@ async fn update_account(
     let mut guard = state.accounts.lock().unwrap();
     let account = accounts::find_account_mut(&mut guard, &username)
         .ok_or_else(|| "Compte introuvable.".to_string())?;
+    let previous = account.clone();
     if let Some(display_name) = display_name {
         account.display_name = display_name;
     }
@@ -670,7 +697,12 @@ async fn update_account(
     }
     accounts::record_activity(account, accounts::ActivityKind::Modified, None);
     let updated = accounts::Account::from(&*account);
-    accounts::save(&app, &guard)?;
+    if let Err(err) = accounts::save(&app, &guard) {
+        if let Some(account) = accounts::find_account_mut(&mut guard, &username) {
+            *account = previous;
+        }
+        return Err(format!("Échec de l'enregistrement du compte : {err}"));
+    }
     Ok(updated)
 }
 /// Suspend an account: a reversible block. The account and its history are
@@ -685,9 +717,15 @@ async fn suspend_account(
     let mut guard = state.accounts.lock().unwrap();
     let account =
         accounts::find_account_mut(&mut guard, &username).ok_or_else(|| "Compte introuvable.".to_string())?;
+    let previous = account.clone();
     accounts::suspend(account, reason);
     let updated = accounts::Account::from(&*account);
-    accounts::save(&app, &guard)?;
+    if let Err(err) = accounts::save(&app, &guard) {
+        if let Some(account) = accounts::find_account_mut(&mut guard, &username) {
+            *account = previous;
+        }
+        return Err(format!("Échec de l'enregistrement de la suspension : {err}"));
+    }
     Ok(updated)
 }
 /// Reactivate a previously suspended account, restoring its access. Called
@@ -701,18 +739,29 @@ async fn reactivate_account(
     let mut guard = state.accounts.lock().unwrap();
     let account =
         accounts::find_account_mut(&mut guard, &username).ok_or_else(|| "Compte introuvable.".to_string())?;
+    let previous = account.clone();
     accounts::reactivate(account);
     let updated = accounts::Account::from(&*account);
-    accounts::save(&app, &guard)?;
+    if let Err(err) = accounts::save(&app, &guard) {
+        if let Some(account) = accounts::find_account_mut(&mut guard, &username) {
+            *account = previous;
+        }
+        return Err(format!("Échec de l'enregistrement de la réactivation : {err}"));
+    }
     Ok(updated)
 }
 #[tauri::command]
 async fn delete_account(app: tauri::AppHandle, state: State<'_, AppState>, username: String) -> Result<(), String> {
     let mut guard = state.accounts.lock().unwrap();
-    if !accounts::remove_account(&mut guard, &username) {
-        return Err("Compte introuvable.".to_string());
+    let index = guard
+        .iter()
+        .position(|a| a.username.eq_ignore_ascii_case(&username))
+        .ok_or_else(|| "Compte introuvable.".to_string())?;
+    let removed = guard.remove(index);
+    if let Err(err) = accounts::save(&app, &guard) {
+        guard.insert(index, removed);
+        return Err(format!("Échec de l'enregistrement de la suppression : {err}"));
     }
-    accounts::save(&app, &guard)?;
     Ok(())
 }
 /// The activity log (created/suspended/reactivated/modified) across every
@@ -875,12 +924,20 @@ pub fn run() {
                                     }
                                 };
                                 if is_approved {
-                                    order_service_inner.create_order(&cart, &counter_username);
-                                    broadcast_orders_to_approved(
-                                        &peers_inner,
-                                        &order_service_inner.get_orders(),
-                                    )
-                                    .await;
+                                    match order_service_inner.create_order(&cart, &counter_username) {
+                                        Ok(()) => {
+                                            broadcast_orders_to_approved(
+                                                &peers_inner,
+                                                &order_service_inner.get_orders(),
+                                            )
+                                            .await;
+                                        }
+                                        Err(err) => {
+                                            log::error!(
+                                                "create_order failed for {counter_username} ({addr}): {err}"
+                                            );
+                                        }
+                                    }
                                 }
                             }
                             Ok(ClientMessage::UpdateOrder { id, quantity, unit_price }) => {
@@ -889,12 +946,18 @@ pub fn run() {
                                     guard.get(&addr).map(|s| s.approved).unwrap_or(false)
                                 };
                                 if is_approved {
-                                    order_service_inner.update_order(id, quantity, unit_price);
-                                    broadcast_orders_to_approved(
-                                        &peers_inner,
-                                        &order_service_inner.get_orders(),
-                                    )
-                                    .await;
+                                    match order_service_inner.update_order(id, quantity, unit_price) {
+                                        Ok(()) => {
+                                            broadcast_orders_to_approved(
+                                                &peers_inner,
+                                                &order_service_inner.get_orders(),
+                                            )
+                                            .await;
+                                        }
+                                        Err(err) => {
+                                            log::error!("update_order {id} failed ({addr}): {err}");
+                                        }
+                                    }
                                 }
                             }
                             Ok(ClientMessage::DeleteOrder { id }) => {
@@ -903,12 +966,18 @@ pub fn run() {
                                     guard.get(&addr).map(|s| s.approved).unwrap_or(false)
                                 };
                                 if is_approved {
-                                    order_service_inner.delete_order(id);
-                                    broadcast_orders_to_approved(
-                                        &peers_inner,
-                                        &order_service_inner.get_orders(),
-                                    )
-                                    .await;
+                                    match order_service_inner.delete_order(id) {
+                                        Ok(()) => {
+                                            broadcast_orders_to_approved(
+                                                &peers_inner,
+                                                &order_service_inner.get_orders(),
+                                            )
+                                            .await;
+                                        }
+                                        Err(err) => {
+                                            log::error!("delete_order {id} failed ({addr}): {err}");
+                                        }
+                                    }
                                 }
                             }
                             Ok(ClientMessage::DeleteOrderGroup { group_id }) => {
@@ -917,12 +986,20 @@ pub fn run() {
                                     guard.get(&addr).map(|s| s.approved).unwrap_or(false)
                                 };
                                 if is_approved {
-                                    order_service_inner.delete_order_group(group_id);
-                                    broadcast_orders_to_approved(
-                                        &peers_inner,
-                                        &order_service_inner.get_orders(),
-                                    )
-                                    .await;
+                                    match order_service_inner.delete_order_group(group_id) {
+                                        Ok(()) => {
+                                            broadcast_orders_to_approved(
+                                                &peers_inner,
+                                                &order_service_inner.get_orders(),
+                                            )
+                                            .await;
+                                        }
+                                        Err(err) => {
+                                            log::error!(
+                                                "delete_order_group {group_id} failed ({addr}): {err}"
+                                            );
+                                        }
+                                    }
                                 }
                             }
                             Ok(ClientMessage::RequestOrders) => {
@@ -998,13 +1075,19 @@ pub fn run() {
                                     let mut guard = accounts_inner.lock().unwrap();
                                     let account = accounts::find_account_mut(&mut guard, &username)
                                         .ok_or_else(|| "Compte introuvable.".to_string())?;
+                                    let previous = account.clone();
                                     account.display_name = display_name;
                                     if let Some(hash) = new_password_hash {
                                         account.password_hash = hash;
                                     }
                                     accounts::record_activity(account, accounts::ActivityKind::Modified, None);
                                     let updated = accounts::Account::from(&*account);
-                                    accounts::save(&app_handle, &guard)?;
+                                    if let Err(err) = accounts::save(&app_handle, &guard) {
+                                        if let Some(account) = accounts::find_account_mut(&mut guard, &username) {
+                                            *account = previous;
+                                        }
+                                        return Err(format!("Échec de l'enregistrement du compte : {err}"));
+                                    }
                                     Ok(updated)
                                 })();
                                 match result {
