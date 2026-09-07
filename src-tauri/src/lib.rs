@@ -14,6 +14,7 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 use config::accounts;
+use config::connections;
 use config::pricing_matrix::PRICING_MATRIX;
 use config::settings;
 use domain::order::price_calculator::{CartItem, ServiceItem, ServiceItemType as PriceCalculatorItemType};
@@ -29,15 +30,16 @@ pub struct PeerState {
 type PeerMap = Arc<Mutex<HashMap<SocketAddr, PeerState>>>;
 type MaxConnectedDevices = Arc<SyncMutex<u32>>;
 type CashierAccounts = Arc<SyncMutex<Vec<accounts::CashierAccount>>>;
-/// Populated once `.setup()` has resolved the app's config directory, so the
-/// WebSocket task (spawned before the Tauri builder runs) can still persist
-/// account edits via `accounts::save`, which needs an `AppHandle`.
 type AppHandleSlot = Arc<SyncMutex<Option<tauri::AppHandle>>>;
+type Blacklist = Arc<SyncMutex<Vec<connections::BlacklistEntry>>>;
+type ConnectionHistory = Arc<SyncMutex<Vec<connections::ConnectionHistoryEntry>>>;
 pub struct AppState {
     pub order_service: Arc<OrderService>,
     pub peers: PeerMap,
     pub max_connected_devices: MaxConnectedDevices,
     pub cashier_accounts: CashierAccounts,
+    pub blacklist: Blacklist,
+    pub connection_history: ConnectionHistory,
 }
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -49,12 +51,7 @@ enum ClientMessage {
     DeleteOrder { id: i64 },
     DeleteOrderGroup { group_id: i64 },
     RequestOrders,
-    /// Comptoir: fetch the account view for the peer's own authenticated account,
-    /// to prefill the account-settings form.
     GetAccount,
-    /// Comptoir: self-service edit of the peer's own display name and/or password.
-    /// `password: None` means "leave the password unchanged", mirroring
-    /// `update_cashier_account`.
     UpdateAccount { display_name: String, password: Option<String> },
 }
 #[derive(Debug, Serialize, Clone)]
@@ -62,6 +59,7 @@ struct ConnectionRequest {
     addr: String,
     username: String,
 }
+type PendingConnection = ConnectionRequest;
 #[derive(Debug, Serialize, Clone)]
 struct ConnectedDevice {
     addr: String,
@@ -170,6 +168,31 @@ async fn is_at_connected_devices_capacity(peers: &PeerMap, max_connected_devices
     let max = *max_connected_devices.lock().unwrap();
     max > 0 && get_connected_devices_list(peers).await.len() >= max as usize
 }
+/// Appends a connection-lifecycle event to the in-memory log and, when an
+/// `AppHandle` is available, persists it to disk. `app` is `None` in
+/// contexts (like the WebSocket accept loop before setup finishes) where the
+/// handle hasn't been captured yet; the event is still kept in memory.
+fn record_connection_history(
+    history: &ConnectionHistory,
+    app: Option<&tauri::AppHandle>,
+    addr: &str,
+    username: &str,
+    event: connections::ConnectionEvent,
+) {
+    let mut guard = history.lock().unwrap();
+    connections::push_history_entry(
+        &mut guard,
+        connections::ConnectionHistoryEntry {
+            addr: addr.to_string(),
+            username: username.to_string(),
+            event,
+            timestamp: chrono::Local::now().to_rfc3339(),
+        },
+    );
+    if let Some(app) = app {
+        let _ = connections::save_history(app, &guard);
+    }
+}
 #[tauri::command]
 fn get_ws_address() -> String {
     use std::net::UdpSocket;
@@ -231,7 +254,7 @@ async fn reject_group(state: State<'_, AppState>, group_id: i64, raison: Option<
     Ok(())
 }
 #[tauri::command]
-async fn approve_connection(state: State<'_, AppState>, addr: String) -> Result<(), String> {
+async fn approve_connection(app: tauri::AppHandle, state: State<'_, AppState>, addr: String) -> Result<(), String> {
     let socket_addr: SocketAddr = addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
     if is_at_connected_devices_capacity(&state.peers, &state.max_connected_devices).await {
         let max = *state.max_connected_devices.lock().unwrap();
@@ -240,10 +263,12 @@ async fn approve_connection(state: State<'_, AppState>, addr: String) -> Result<
         ));
     }
     let orders = state.order_service.get_orders();
+    let mut approved_username = String::new();
     {
         let mut guard = state.peers.lock().await;
         if let Some(peer) = guard.get_mut(&socket_addr) {
             peer.approved = true;
+            approved_username = peer.username.clone();
             let scoped = scope_orders_for_peer(&orders, peer);
             let _ = peer.tx.send(Message::Text(
                 serde_json::to_string(&ServerMessage::ConnectionApproved)
@@ -257,6 +282,13 @@ async fn approve_connection(state: State<'_, AppState>, addr: String) -> Result<
             ));
         }
     }
+    record_connection_history(
+        &state.connection_history,
+        Some(&app),
+        &addr,
+        &approved_username,
+        connections::ConnectionEvent::Approved,
+    );
     let pending = get_pending_requests_list(&state.peers).await;
     let connected = get_connected_devices_list(&state.peers).await;
     notify_cashier(&state.peers, &ServerMessage::ConnectionRequests { data: pending }).await;
@@ -265,11 +297,13 @@ async fn approve_connection(state: State<'_, AppState>, addr: String) -> Result<
 }
 /// Reject a pending counter connection. Called from the cashier UI via invoke().
 #[tauri::command]
-async fn reject_connection(state: State<'_, AppState>, addr: String) -> Result<(), String> {
+async fn reject_connection(app: tauri::AppHandle, state: State<'_, AppState>, addr: String) -> Result<(), String> {
     let socket_addr: SocketAddr = addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
+    let mut rejected_username = String::new();
     {
         let mut guard = state.peers.lock().await;
         if let Some(peer) = guard.get(&socket_addr) {
+            rejected_username = peer.username.clone();
             let _ = peer.tx.send(Message::Text(
                 serde_json::to_string(&ServerMessage::ConnectionRejected)
                     .unwrap_or_default()
@@ -278,16 +312,25 @@ async fn reject_connection(state: State<'_, AppState>, addr: String) -> Result<(
         }
         guard.remove(&socket_addr);
     }
+    record_connection_history(
+        &state.connection_history,
+        Some(&app),
+        &addr,
+        &rejected_username,
+        connections::ConnectionEvent::Rejected,
+    );
     let pending = get_pending_requests_list(&state.peers).await;
     notify_cashier(&state.peers, &ServerMessage::ConnectionRequests { data: pending }).await;
     Ok(())
 }
 #[tauri::command]
-async fn disconnect_device(state: State<'_, AppState>, addr: String) -> Result<(), String> {
+async fn disconnect_device(app: tauri::AppHandle, state: State<'_, AppState>, addr: String) -> Result<(), String> {
     let socket_addr: SocketAddr = addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
+    let mut disconnected_username = String::new();
     {
         let mut guard = state.peers.lock().await;
         if let Some(peer) = guard.get(&socket_addr) {
+            disconnected_username = peer.username.clone();
             let _ = peer.tx.send(Message::Text(
                 serde_json::to_string(&ServerMessage::ConnectionBlocked)
                     .unwrap_or_default()
@@ -296,8 +339,116 @@ async fn disconnect_device(state: State<'_, AppState>, addr: String) -> Result<(
         }
         guard.remove(&socket_addr);
     }
+    record_connection_history(
+        &state.connection_history,
+        Some(&app),
+        &addr,
+        &disconnected_username,
+        connections::ConnectionEvent::Disconnected,
+    );
     let connected = get_connected_devices_list(&state.peers).await;
     notify_cashier(&state.peers, &ServerMessage::ConnectedDevices { data: connected }).await;
+    Ok(())
+}
+/// List counters currently awaiting cashier approval. Called from the
+/// cashier UI via invoke() as a one-off fetch (in addition to the live
+/// `ConnectionRequests` push over the WebSocket).
+#[tauri::command]
+async fn list_pending_connections(state: State<'_, AppState>) -> Result<Vec<PendingConnection>, String> {
+    Ok(get_pending_requests_list(&state.peers).await)
+}
+/// List counters currently approved and connected. Called from the cashier
+/// UI via invoke() as a one-off fetch (in addition to the live
+/// `ConnectedDevices` push over the WebSocket).
+#[tauri::command]
+async fn list_connected_devices(state: State<'_, AppState>) -> Result<Vec<ConnectedDevice>, String> {
+    Ok(get_connected_devices_list(&state.peers).await)
+}
+/// Disconnect a device (like `disconnect_device`) and, unlike it, also add
+/// the device's address to the persistent blacklist so it can't reconnect.
+#[tauri::command]
+async fn block_device(app: tauri::AppHandle, state: State<'_, AppState>, addr: String) -> Result<(), String> {
+    let socket_addr: SocketAddr = addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
+    let mut blocked_username = String::new();
+    {
+        let mut guard = state.peers.lock().await;
+        if let Some(peer) = guard.get(&socket_addr) {
+            blocked_username = peer.username.clone();
+            let _ = peer.tx.send(Message::Text(
+                serde_json::to_string(&ServerMessage::ConnectionBlocked)
+                    .unwrap_or_default()
+                    .into(),
+            ));
+        }
+        guard.remove(&socket_addr);
+    }
+    {
+        let mut guard = state.blacklist.lock().unwrap();
+        if !connections::is_blacklisted(&guard, &addr) {
+            guard.push(connections::BlacklistEntry {
+                addr: addr.clone(),
+                reason: None,
+                created_at: chrono::Local::now().to_rfc3339(),
+            });
+            connections::save_blacklist(&app, &guard)?;
+        }
+    }
+    record_connection_history(
+        &state.connection_history,
+        Some(&app),
+        &addr,
+        &blocked_username,
+        connections::ConnectionEvent::Blocked,
+    );
+    let pending = get_pending_requests_list(&state.peers).await;
+    let connected = get_connected_devices_list(&state.peers).await;
+    notify_cashier(&state.peers, &ServerMessage::ConnectionRequests { data: pending }).await;
+    notify_cashier(&state.peers, &ServerMessage::ConnectedDevices { data: connected }).await;
+    Ok(())
+}
+/// The connection lifecycle log (requested/approved/rejected/disconnected/
+/// blocked), most recent last. Called from the cashier UI via invoke().
+#[tauri::command]
+fn list_connection_history(state: State<'_, AppState>) -> Vec<connections::ConnectionHistoryEntry> {
+    state.connection_history.lock().unwrap().clone()
+}
+/// Addresses currently barred from connecting. Called from the cashier UI
+/// via invoke().
+#[tauri::command]
+fn list_blacklist_entries(state: State<'_, AppState>) -> Vec<connections::BlacklistEntry> {
+    state.blacklist.lock().unwrap().clone()
+}
+/// Add an address to the blacklist without needing an active connection to
+/// block (unlike `block_device`). Called from the cashier UI via invoke().
+#[tauri::command]
+async fn add_blacklist_entry(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    addr: String,
+    reason: Option<String>,
+) -> Result<connections::BlacklistEntry, String> {
+    let mut guard = state.blacklist.lock().unwrap();
+    if connections::is_blacklisted(&guard, &addr) {
+        return Err("Cette adresse est déjà sur liste noire.".to_string());
+    }
+    let entry = connections::BlacklistEntry {
+        addr,
+        reason,
+        created_at: chrono::Local::now().to_rfc3339(),
+    };
+    guard.push(entry.clone());
+    connections::save_blacklist(&app, &guard)?;
+    Ok(entry)
+}
+/// Remove an address from the blacklist, allowing it to connect again.
+/// Called from the cashier UI via invoke().
+#[tauri::command]
+async fn remove_blacklist_entry(app: tauri::AppHandle, state: State<'_, AppState>, addr: String) -> Result<(), String> {
+    let mut guard = state.blacklist.lock().unwrap();
+    if !connections::remove_blacklist_entry(&mut guard, &addr) {
+        return Err("Adresse introuvable sur liste noire.".to_string());
+    }
+    connections::save_blacklist(&app, &guard)?;
     Ok(())
 }
 /// Current cap on connected comptoir devices (`0` = unlimited). Called from the
@@ -310,10 +461,6 @@ fn get_max_connected_devices(state: State<'_, AppState>) -> u32 {
 async fn get_connected_devices_count(state: State<'_, AppState>) -> Result<usize, String> {
     Ok(get_connected_devices_list(&state.peers).await.len())
 }
-
-
-
-
 /// Update the cap on connected comptoir devices. Persists to disk and takes effect
 /// immediately for new connection requests; already-connected devices are left
 /// untouched. Returns the value actually applied (clamped to a sane range).
@@ -329,7 +476,6 @@ async fn set_max_connected_devices(app: tauri::AppHandle, state: State<'_, AppSt
     settings::update(&app, current)?;
     Ok(clamped)
 }
-
 #[tauri::command]
 fn get_theme(app: tauri::AppHandle) -> String {
     settings::load(&app).theme.as_str().to_string()
@@ -365,8 +511,6 @@ async fn set_theme(app: tauri::AppHandle, value: String) -> Result<String, Strin
     settings::update(&app, current)?;
     Ok(theme.as_str().to_string())
 }
-
-
 #[tauri::command]
 fn authenticate_cashier(
     state: State<'_, AppState>,
@@ -510,14 +654,16 @@ pub fn run() {
     // AppHandle is available to resolve the app's config directory.
     let max_connected_devices: MaxConnectedDevices = Arc::new(SyncMutex::new(settings::DEFAULT_MAX_CONNECTED_DEVICES));
     let cashier_accounts: CashierAccounts = Arc::new(SyncMutex::new(Vec::new()));
-    // Set once `.setup()` resolves an `AppHandle`; read by the WebSocket task so
-    // `ClientMessage::UpdateAccount` can persist edits via `accounts::save`.
     let app_handle_slot: AppHandleSlot = Arc::new(SyncMutex::new(None));
+    let blacklist: Blacklist = Arc::new(SyncMutex::new(Vec::new()));
+    let connection_history: ConnectionHistory = Arc::new(SyncMutex::new(Vec::new()));
     let ws_order_service = order_service.clone();
     let ws_peers = peers.clone();
     let ws_max_connected_devices = max_connected_devices.clone();
     let ws_cashier_accounts = cashier_accounts.clone();
     let ws_app_handle_slot = app_handle_slot.clone();
+    let ws_blacklist = blacklist.clone();
+    let ws_connection_history = connection_history.clone();
     tauri::async_runtime::spawn(async move {
         let listener = TcpListener::bind("0.0.0.0:8080")
             .await
@@ -528,7 +674,16 @@ pub fn run() {
             let max_connected_devices_inner = ws_max_connected_devices.clone();
             let cashier_accounts_inner = ws_cashier_accounts.clone();
             let app_handle_inner = ws_app_handle_slot.clone();
+            let blacklist_inner = ws_blacklist.clone();
+            let connection_history_inner = ws_connection_history.clone();
             tauri::async_runtime::spawn(async move {
+                let is_blacklisted = {
+                    let guard = blacklist_inner.lock().unwrap();
+                    connections::is_blacklisted(&guard, &addr.to_string())
+                };
+                if is_blacklisted {
+                    return;
+                }
                 let ws_stream = match accept_async(stream).await {
                     Ok(s) => s,
                     Err(_) => return,
@@ -609,9 +764,20 @@ pub fn run() {
                                         {
                                             let mut guard = peers_inner.lock().await;
                                             if let Some(state) = guard.get_mut(&addr) {
-                                                state.username = username;
+                                                state.username = username.clone();
                                             }
                                         }
+                                        let app_handle = {
+                                            let guard = app_handle_inner.lock().unwrap();
+                                            guard.clone()
+                                        };
+                                        record_connection_history(
+                                            &connection_history_inner,
+                                            app_handle.as_ref(),
+                                            &addr.to_string(),
+                                            &username,
+                                            connections::ConnectionEvent::Requested,
+                                        );
                                         let pending = get_pending_requests_list(&peers_inner).await;
                                         notify_cashier(
                                             &peers_inner,
@@ -741,8 +907,6 @@ pub fn run() {
                                     .await;
                                     continue;
                                 };
-                                // Reuses the exact same validation/hashing/persistence logic as
-                                // `update_cashier_account` (the Réglages UI's own account editor).
                                 let result: Result<accounts::CashierAccountView, String> = (|| {
                                     let display_name = accounts::validate_display_name(&display_name)?;
                                     if let Some(ref pwd) = password {
@@ -778,13 +942,27 @@ pub fn run() {
                         }
                     }
                 }
-                let was_counter = {
+                let (was_counter, disconnected_username) = {
                     let guard = peers_inner.lock().await;
-                    guard.get(&addr).map(|s| !s.is_cashier).unwrap_or(false)
+                    match guard.get(&addr) {
+                        Some(s) => (!s.is_cashier, s.username.clone()),
+                        None => (false, String::new()),
+                    }
                 };
                 peers_inner.lock().await.remove(&addr);
                 ws_writer.abort();
                 if was_counter {
+                    let app_handle = {
+                        let guard = app_handle_inner.lock().unwrap();
+                        guard.clone()
+                    };
+                    record_connection_history(
+                        &connection_history_inner,
+                        app_handle.as_ref(),
+                        &addr.to_string(),
+                        &disconnected_username,
+                        connections::ConnectionEvent::Disconnected,
+                    );
                     let pending = get_pending_requests_list(&peers_inner).await;
                     let connected = get_connected_devices_list(&peers_inner).await;
                     notify_cashier(
@@ -812,6 +990,8 @@ pub fn run() {
     let setup_max_connected_devices = max_connected_devices.clone();
     let setup_cashier_accounts = cashier_accounts.clone();
     let setup_app_handle_slot = app_handle_slot.clone();
+    let setup_blacklist = blacklist.clone();
+    let setup_connection_history = connection_history.clone();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
@@ -825,10 +1005,19 @@ pub fn run() {
             let loaded_settings = config::settings::load(app.handle());
             *setup_max_connected_devices.lock().unwrap() = loaded_settings.max_connected_devices;
             *setup_cashier_accounts.lock().unwrap() = config::accounts::load_or_bootstrap(app.handle());
+            *setup_blacklist.lock().unwrap() = connections::load_blacklist(app.handle());
+            *setup_connection_history.lock().unwrap() = connections::load_history(app.handle());
             *setup_app_handle_slot.lock().unwrap() = Some(app.handle().clone());
             Ok(())
         })
-        .manage(AppState { order_service, peers, max_connected_devices, cashier_accounts })
+        .manage(AppState {
+            order_service,
+            peers,
+            max_connected_devices,
+            cashier_accounts,
+            blacklist,
+            connection_history,
+        })
                 .invoke_handler(tauri::generate_handler![
             get_ws_address,
             get_pricing_matrix,
@@ -841,6 +1030,13 @@ pub fn run() {
             approve_connection,
             reject_connection,
             disconnect_device,
+            list_pending_connections,
+            list_connected_devices,
+            block_device,
+            list_connection_history,
+            list_blacklist_entries,
+            add_blacklist_entry,
+            remove_blacklist_entry,
             get_max_connected_devices,
             get_connected_devices_count,
             set_max_connected_devices,
