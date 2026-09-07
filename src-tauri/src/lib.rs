@@ -29,7 +29,7 @@ pub struct PeerState {
 }
 type PeerMap = Arc<Mutex<HashMap<SocketAddr, PeerState>>>;
 type MaxConnectedDevices = Arc<SyncMutex<u32>>;
-type CashierAccounts = Arc<SyncMutex<Vec<accounts::CashierAccount>>>;
+type Accounts = Arc<SyncMutex<Vec<accounts::StoredAccount>>>;
 type AppHandleSlot = Arc<SyncMutex<Option<tauri::AppHandle>>>;
 type Blacklist = Arc<SyncMutex<Vec<connections::BlacklistEntry>>>;
 type ConnectionHistory = Arc<SyncMutex<Vec<connections::ConnectionHistoryEntry>>>;
@@ -37,7 +37,7 @@ pub struct AppState {
     pub order_service: Arc<OrderService>,
     pub peers: PeerMap,
     pub max_connected_devices: MaxConnectedDevices,
-    pub cashier_accounts: CashierAccounts,
+    pub accounts: Accounts,
     pub blacklist: Blacklist,
     pub connection_history: ConnectionHistory,
 }
@@ -75,8 +75,8 @@ enum ServerMessage {
     ConnectionApproved,
     ConnectionRejected,
     ConnectionBlocked,
-    Account { data: accounts::CashierAccountView },
-    AccountUpdated { data: accounts::CashierAccountView },
+    Account { data: accounts::Account },
+    AccountUpdated { data: accounts::Account },
     AccountUpdateError { data: String },
 }
 async fn send_to_addr(peers: &PeerMap, addr: SocketAddr, msg: &ServerMessage) {
@@ -168,10 +168,6 @@ async fn is_at_connected_devices_capacity(peers: &PeerMap, max_connected_devices
     let max = *max_connected_devices.lock().unwrap();
     max > 0 && get_connected_devices_list(peers).await.len() >= max as usize
 }
-/// Appends a connection-lifecycle event to the in-memory log and, when an
-/// `AppHandle` is available, persists it to disk. `app` is `None` in
-/// contexts (like the WebSocket accept loop before setup finishes) where the
-/// handle hasn't been captured yet; the event is still kept in memory.
 fn record_connection_history(
     history: &ConnectionHistory,
     app: Option<&tauri::AppHandle>,
@@ -357,9 +353,6 @@ async fn disconnect_device(app: tauri::AppHandle, state: State<'_, AppState>, ad
 async fn list_pending_connections(state: State<'_, AppState>) -> Result<Vec<PendingConnection>, String> {
     Ok(get_pending_requests_list(&state.peers).await)
 }
-/// List counters currently approved and connected. Called from the cashier
-/// UI via invoke() as a one-off fetch (in addition to the live
-/// `ConnectedDevices` push over the WebSocket).
 #[tauri::command]
 async fn list_connected_devices(state: State<'_, AppState>) -> Result<Vec<ConnectedDevice>, String> {
     Ok(get_connected_devices_list(&state.peers).await)
@@ -412,8 +405,6 @@ async fn block_device(app: tauri::AppHandle, state: State<'_, AppState>, addr: S
 fn list_connection_history(state: State<'_, AppState>) -> Vec<connections::ConnectionHistoryEntry> {
     state.connection_history.lock().unwrap().clone()
 }
-/// Addresses currently barred from connecting. Called from the cashier UI
-/// via invoke().
 #[tauri::command]
 fn list_blacklist_entries(state: State<'_, AppState>) -> Vec<connections::BlacklistEntry> {
     state.blacklist.lock().unwrap().clone()
@@ -440,8 +431,6 @@ async fn add_blacklist_entry(
     connections::save_blacklist(&app, &guard)?;
     Ok(entry)
 }
-/// Remove an address from the blacklist, allowing it to connect again.
-/// Called from the cashier UI via invoke().
 #[tauri::command]
 async fn remove_blacklist_entry(app: tauri::AppHandle, state: State<'_, AppState>, addr: String) -> Result<(), String> {
     let mut guard = state.blacklist.lock().unwrap();
@@ -511,133 +500,171 @@ async fn set_theme(app: tauri::AppHandle, value: String) -> Result<String, Strin
     settings::update(&app, current)?;
     Ok(theme.as_str().to_string())
 }
+/// Authenticate an administrator against the accounts store. Only accounts
+/// with `user_type: admin` are accepted here — cashiers and comptoir devices
+/// authenticate through their own dedicated flows. Unlike a plain
+/// `Result<Account, String>`, invalid credentials and a suspended account are
+/// reported back as an unsuccessful `AuthResult` rather than a hard error, so
+/// the caller can distinguish "server couldn't process the request" from
+/// "these credentials didn't work".
 #[tauri::command]
-fn authenticate_cashier(
-    state: State<'_, AppState>,
-    username: String,
-    password: String,
-) -> Result<accounts::CashierAccountView, String> {
-    let username = accounts::validate_username(&username)?;
-    accounts::validate_password(&password)?;
-    let guard = state.cashier_accounts.lock().unwrap();
-    let account = guard.iter().find(|a| a.username.eq_ignore_ascii_case(&username));
-    let account = match account {
-        Some(a) if accounts::verify_password(&password, &a.password_hash) => a,
-        _ => return Err("Nom d'utilisateur ou mot de passe incorrect.".to_string()),
-    };
-    if account.status == accounts::AccountStatus::Suspended {
-        return Err("Ce compte a été suspendu. Contactez un administrateur.".to_string());
-    }
-    Ok(accounts::CashierAccountView::from(account))
-}
-/// Create a new cashier account. The username is validated, checked for
-/// uniqueness (case-insensitive) against every existing account, and — once
-/// created — is never changed: there is deliberately no "rename" command,
-#[tauri::command]
-async fn create_cashier_account(
+async fn authenticate_admin(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     username: String,
     password: String,
-) -> Result<accounts::CashierAccountView, String> {
+) -> Result<accounts::AuthResult, String> {
     let username = accounts::validate_username(&username)?;
     accounts::validate_password(&password)?;
-    let mut guard = state.cashier_accounts.lock().unwrap();
+    let mut guard = state.accounts.lock().unwrap();
+    let account = guard.iter_mut().find(|a| {
+        a.username.eq_ignore_ascii_case(&username) && a.user_type == accounts::UserType::Admin
+    });
+    let account = match account {
+        Some(a) if accounts::verify_password(&password, &a.password_hash) => a,
+        _ => {
+            return Ok(accounts::AuthResult {
+                success: false,
+                account: None,
+                error: Some("Nom d'utilisateur ou mot de passe incorrect.".to_string()),
+            })
+        }
+    };
+    if account.status == accounts::AccountStatus::Suspended {
+        return Ok(accounts::AuthResult {
+            success: false,
+            account: None,
+            error: Some("Ce compte a été suspendu. Contactez un administrateur.".to_string()),
+        });
+    }
+    account.last_sign_in_at = Some(chrono::Local::now().to_rfc3339());
+    let view = accounts::Account::from(&*account);
+    accounts::save(&app, &guard)?;
+    Ok(accounts::AuthResult {
+        success: true,
+        account: Some(view),
+        error: None,
+    })
+}
+/// Create a new account. The username is validated, checked for uniqueness
+/// (case-insensitive) against every existing account, and — once created —
+/// is never changed: there is deliberately no "rename" command.
+#[tauri::command]
+async fn create_account(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    username: String,
+    password: String,
+    display_name: String,
+    user_type: accounts::UserType,
+) -> Result<accounts::Account, String> {
+    let username = accounts::validate_username(&username)?;
+    accounts::validate_password(&password)?;
+    let display_name = accounts::validate_display_name(&display_name)?;
+    let mut guard = state.accounts.lock().unwrap();
     if accounts::username_exists(&guard, &username) {
         return Err("Ce nom d'utilisateur est déjà utilisé.".to_string());
     }
     let password_hash = accounts::hash_password(&password)?;
-    let account = accounts::CashierAccount {
+    let now = chrono::Local::now().to_rfc3339();
+    let account = accounts::StoredAccount {
+        id: accounts::generate_id(),
         username,
-        display_name: String::new(),
+        display_name,
         password_hash,
-        created_at: chrono::Local::now().to_rfc3339(),
+        user_type,
         status: accounts::AccountStatus::Active,
+        created_at: now.clone(),
+        last_sign_in_at: None,
+        history: vec![accounts::AccountActivityEntry {
+            kind: accounts::ActivityKind::Created,
+            timestamp: now,
+            reason: None,
+        }],
     };
     guard.push(account);
     accounts::save(&app, &guard)?;
-    Ok(accounts::CashierAccountView::from(guard.last().expect("account was just pushed")))
+    Ok(accounts::Account::from(guard.last().expect("account was just pushed")))
 }
 #[tauri::command]
-fn list_cashier_accounts(state: State<'_, AppState>) -> Vec<accounts::CashierAccountView> {
-    state
-        .cashier_accounts
-        .lock()
-        .unwrap()
-        .iter()
-        .map(accounts::CashierAccountView::from)
-        .collect()
+fn list_accounts(state: State<'_, AppState>) -> Vec<accounts::Account> {
+    state.accounts.lock().unwrap().iter().map(accounts::Account::from).collect()
 }
-/// Modify an existing cashier account's display name and/or password.
+/// Modify an existing account's display name and/or user type.
 #[tauri::command]
-async fn update_cashier_account(
+async fn update_account(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     username: String,
-    display_name: String,
-    password: Option<String>,
-) -> Result<accounts::CashierAccountView, String> {
-    let display_name = accounts::validate_display_name(&display_name)?;
-    if let Some(ref pwd) = password {
-        accounts::validate_password(pwd)?;
-    }
-    // Hash before touching the account so a hashing failure never leaves the
-    // in-memory list mutated without a matching write to disk.
-    let new_password_hash = match password {
-        Some(pwd) => Some(accounts::hash_password(&pwd)?),
+    display_name: Option<String>,
+    user_type: Option<accounts::UserType>,
+) -> Result<accounts::Account, String> {
+    let display_name = match display_name {
+        Some(name) => Some(accounts::validate_display_name(&name)?),
         None => None,
     };
-    let mut guard = state.cashier_accounts.lock().unwrap();
+    let mut guard = state.accounts.lock().unwrap();
     let account = accounts::find_account_mut(&mut guard, &username)
         .ok_or_else(|| "Compte introuvable.".to_string())?;
-    account.display_name = display_name;
-    if let Some(hash) = new_password_hash {
-        account.password_hash = hash;
+    if let Some(display_name) = display_name {
+        account.display_name = display_name;
     }
-    let updated = accounts::CashierAccountView::from(&*account);
+    if let Some(user_type) = user_type {
+        account.user_type = user_type;
+    }
+    accounts::record_activity(account, accounts::ActivityKind::Modified, None);
+    let updated = accounts::Account::from(&*account);
     accounts::save(&app, &guard)?;
     Ok(updated)
 }
-/// Suspend a cashier account: a reversible block. The account and its order
-/// history are left untouched on disk — it's only flagged so it can no
+/// Suspend an account: a reversible block. The account and its history are
+/// left untouched on disk — it's only flagged so it can no longer
+/// authenticate.
 #[tauri::command]
-async fn suspend_cashier_account(
+async fn suspend_account(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     username: String,
-) -> Result<accounts::CashierAccountView, String> {
-    let mut guard = state.cashier_accounts.lock().unwrap();
+    reason: Option<String>,
+) -> Result<accounts::Account, String> {
+    let mut guard = state.accounts.lock().unwrap();
     let account =
         accounts::find_account_mut(&mut guard, &username).ok_or_else(|| "Compte introuvable.".to_string())?;
-    accounts::suspend(account);
-    let updated = accounts::CashierAccountView::from(&*account);
+    accounts::suspend(account, reason);
+    let updated = accounts::Account::from(&*account);
     accounts::save(&app, &guard)?;
     Ok(updated)
 }
-/// Reactivate a previously suspended cashier account, restoring its access.
-/// Called from the Réglages UI via invoke().
+/// Reactivate a previously suspended account, restoring its access. Called
+/// from the Réglages UI via invoke().
 #[tauri::command]
-async fn reactivate_cashier_account(
+async fn reactivate_account(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     username: String,
-) -> Result<accounts::CashierAccountView, String> {
-    let mut guard = state.cashier_accounts.lock().unwrap();
+) -> Result<accounts::Account, String> {
+    let mut guard = state.accounts.lock().unwrap();
     let account =
         accounts::find_account_mut(&mut guard, &username).ok_or_else(|| "Compte introuvable.".to_string())?;
     accounts::reactivate(account);
-    let updated = accounts::CashierAccountView::from(&*account);
+    let updated = accounts::Account::from(&*account);
     accounts::save(&app, &guard)?;
     Ok(updated)
 }
 #[tauri::command]
-async fn delete_cashier_account(app: tauri::AppHandle, state: State<'_, AppState>, username: String) -> Result<(), String> {
-    let mut guard = state.cashier_accounts.lock().unwrap();
+async fn delete_account(app: tauri::AppHandle, state: State<'_, AppState>, username: String) -> Result<(), String> {
+    let mut guard = state.accounts.lock().unwrap();
     if !accounts::remove_account(&mut guard, &username) {
         return Err("Compte introuvable.".to_string());
     }
     accounts::save(&app, &guard)?;
     Ok(())
+}
+/// The activity log (created/suspended/reactivated/modified) across every
+/// account, most recent first. Called from the Réglages UI via invoke().
+#[tauri::command]
+fn list_account_activities(state: State<'_, AppState>) -> Vec<accounts::AccountActivity> {
+    accounts::list_activities(&state.accounts.lock().unwrap())
 }
 /// Write raw bytes to an absolute path chosen by the user (e.g. via a save dialog).
 /// Used by the cashier UI to export the daily report (rapport du jour) as an Excel file.
@@ -653,14 +680,14 @@ pub fn run() {
     // Real value is loaded from disk (or defaulted) in `.setup()` below, once an
     // AppHandle is available to resolve the app's config directory.
     let max_connected_devices: MaxConnectedDevices = Arc::new(SyncMutex::new(settings::DEFAULT_MAX_CONNECTED_DEVICES));
-    let cashier_accounts: CashierAccounts = Arc::new(SyncMutex::new(Vec::new()));
+    let accounts_store: Accounts = Arc::new(SyncMutex::new(Vec::new()));
     let app_handle_slot: AppHandleSlot = Arc::new(SyncMutex::new(None));
     let blacklist: Blacklist = Arc::new(SyncMutex::new(Vec::new()));
     let connection_history: ConnectionHistory = Arc::new(SyncMutex::new(Vec::new()));
     let ws_order_service = order_service.clone();
     let ws_peers = peers.clone();
     let ws_max_connected_devices = max_connected_devices.clone();
-    let ws_cashier_accounts = cashier_accounts.clone();
+    let ws_accounts = accounts_store.clone();
     let ws_app_handle_slot = app_handle_slot.clone();
     let ws_blacklist = blacklist.clone();
     let ws_connection_history = connection_history.clone();
@@ -672,7 +699,7 @@ pub fn run() {
             let peers_inner = ws_peers.clone();
             let order_service_inner = ws_order_service.clone();
             let max_connected_devices_inner = ws_max_connected_devices.clone();
-            let cashier_accounts_inner = ws_cashier_accounts.clone();
+            let accounts_inner = ws_accounts.clone();
             let app_handle_inner = ws_app_handle_slot.clone();
             let blacklist_inner = ws_blacklist.clone();
             let connection_history_inner = ws_connection_history.clone();
@@ -743,9 +770,10 @@ pub fn run() {
                                 let format_ok = accounts::validate_username(&username).is_ok()
                                     && accounts::validate_password(&password).is_ok();
                                 let credentials_ok = format_ok && {
-                                    let guard = cashier_accounts_inner.lock().unwrap();
+                                    let guard = accounts_inner.lock().unwrap();
                                     guard.iter().any(|a| {
                                         a.username.eq_ignore_ascii_case(username.trim())
+                                            && a.user_type == accounts::UserType::Comptoir
                                             && a.status == accounts::AccountStatus::Active
                                             && accounts::verify_password(&password, &a.password_hash)
                                     })
@@ -870,11 +898,11 @@ pub fn run() {
                                 };
                                 if let Some(username) = username {
                                     let view = {
-                                        let guard = cashier_accounts_inner.lock().unwrap();
+                                        let guard = accounts_inner.lock().unwrap();
                                         guard
                                             .iter()
                                             .find(|a| a.username.eq_ignore_ascii_case(&username))
-                                            .map(accounts::CashierAccountView::from)
+                                            .map(accounts::Account::from)
                                     };
                                     if let Some(view) = view {
                                         send_to_addr(&peers_inner, addr, &ServerMessage::Account { data: view }).await;
@@ -907,7 +935,7 @@ pub fn run() {
                                     .await;
                                     continue;
                                 };
-                                let result: Result<accounts::CashierAccountView, String> = (|| {
+                                let result: Result<accounts::Account, String> = (|| {
                                     let display_name = accounts::validate_display_name(&display_name)?;
                                     if let Some(ref pwd) = password {
                                         accounts::validate_password(pwd)?;
@@ -916,14 +944,15 @@ pub fn run() {
                                         Some(pwd) => Some(accounts::hash_password(&pwd)?),
                                         None => None,
                                     };
-                                    let mut guard = cashier_accounts_inner.lock().unwrap();
+                                    let mut guard = accounts_inner.lock().unwrap();
                                     let account = accounts::find_account_mut(&mut guard, &username)
                                         .ok_or_else(|| "Compte introuvable.".to_string())?;
                                     account.display_name = display_name;
                                     if let Some(hash) = new_password_hash {
                                         account.password_hash = hash;
                                     }
-                                    let updated = accounts::CashierAccountView::from(&*account);
+                                    accounts::record_activity(account, accounts::ActivityKind::Modified, None);
+                                    let updated = accounts::Account::from(&*account);
                                     accounts::save(&app_handle, &guard)?;
                                     Ok(updated)
                                 })();
@@ -988,7 +1017,7 @@ pub fn run() {
         }
     });
     let setup_max_connected_devices = max_connected_devices.clone();
-    let setup_cashier_accounts = cashier_accounts.clone();
+    let setup_accounts = accounts_store.clone();
     let setup_app_handle_slot = app_handle_slot.clone();
     let setup_blacklist = blacklist.clone();
     let setup_connection_history = connection_history.clone();
@@ -1004,7 +1033,7 @@ pub fn run() {
             }
             let loaded_settings = config::settings::load(app.handle());
             *setup_max_connected_devices.lock().unwrap() = loaded_settings.max_connected_devices;
-            *setup_cashier_accounts.lock().unwrap() = config::accounts::load_or_bootstrap(app.handle());
+            *setup_accounts.lock().unwrap() = config::accounts::load_or_bootstrap(app.handle());
             *setup_blacklist.lock().unwrap() = connections::load_blacklist(app.handle());
             *setup_connection_history.lock().unwrap() = connections::load_history(app.handle());
             *setup_app_handle_slot.lock().unwrap() = Some(app.handle().clone());
@@ -1014,7 +1043,7 @@ pub fn run() {
             order_service,
             peers,
             max_connected_devices,
-            cashier_accounts,
+            accounts: accounts_store,
             blacklist,
             connection_history,
         })
@@ -1046,13 +1075,14 @@ pub fn run() {
             set_background_color,
             set_font_size,
             set_theme,
-            authenticate_cashier,
-            create_cashier_account,
-            list_cashier_accounts,
-            update_cashier_account,
-            suspend_cashier_account,
-            reactivate_cashier_account,
-            delete_cashier_account,
+            authenticate_admin,
+            create_account,
+            list_accounts,
+            update_account,
+            suspend_account,
+            reactivate_account,
+            delete_account,
+            list_account_activities,
             save_binary_file,
         ])
         .run(tauri::generate_context!())

@@ -1,127 +1,119 @@
-//! Persisted cashier accounts (username + hashed password).
-//!
-//! Mirrors the persistence pattern used by `settings`: a JSON file inside the
-//! app's config directory, loaded once at startup and rewritten whenever it
-//! changes. Passwords are never stored, logged, or sent back to the frontend
-//! in plain text — only an Argon2 hash ever touches disk.
-//!
-//! This module currently supports creating, listing, modifying, suspending,
-//! reactivating and permanently deleting accounts. Usernames are immutable by
-//! design: there is deliberately no "rename" function, since the rest of the
-//! app (the login flow's `LS_USERNAME` identity) treats the username as a
-//! stable identifier. The display name and password, on the other hand, can
-//! both be changed after creation — see `find_account_mut`, used by the
-//! "modify", "suspend"/"reactivate" and "delete" commands to locate an
-//! account by its (unchanging) username.
-//!
-//! Deleting an account comes in two distinct forms, and the difference
-//! matters enough to be worth spelling out here:
-//! - **Suspend** (`suspend`/`reactivate`) is reversible. The account and its
-//!   history stay on disk; it's just flagged as unable to log in until
-//!   reactivated. This is the right choice for e.g. a cashier who's
-//!   temporarily off rotation.
-//! - **Permanently delete** (`remove_account`) is irreversible. The account
-//!   is dropped from the list entirely — there is no "undo" or "trash" to
-//!   recover it from. Callers (the Tauri command layer) are expected to gate
-//!   this behind an explicit confirmation step in the UI.
-
-use argon2::password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
+use argon2::password_hash::{
+    rand_core::{OsRng, RngCore},
+    PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
+};
 use argon2::Argon2;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
-
-/// Username length bounds, enforced both client- and server-side.
 pub const MIN_USERNAME_LEN: usize = 3;
 pub const MAX_USERNAME_LEN: usize = 32;
-/// Minimum password length. Combined with the letter+digit requirement in
-/// `validate_password`, this enforces the app's baseline password policy —
-/// applied identically whether the account is created/edited from Réglages
-/// or the password is checked at cashier login.
 pub const MIN_PASSWORD_LEN: usize = 8;
-/// Maximum length for the optional display name.
 pub const MAX_DISPLAY_NAME_LEN: usize = 40;
-
-const ACCOUNTS_FILE_NAME: &str = "cashier_accounts.json";
-
-/// Username and password for the cashier account automatically created by
-/// `load_or_bootstrap` on a fresh installation (no accounts file, or an
-/// empty account list). This is the only place the plaintext default
-/// password appears — it is hashed immediately via `hash_password` before
-/// the account is ever persisted, so it never reaches disk in plain text.
+const ACCOUNTS_FILE_NAME: &str = "accounts.json";
 const DEFAULT_USERNAME: &str = "admin";
 const DEFAULT_PASSWORD: &str = "admin123";
-
-/// Whether a cashier account can currently be used. `Suspended` is a
-/// reversible block — the account and its history are kept, just unable to
-/// log in until an admin reactivates it — as opposed to permanent deletion,
-/// which removes the account from the list entirely and has no equivalent
-/// status (a deleted account simply isn't in the list anymore).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AccountStatus {
     Active,
     Suspended,
 }
-
 impl Default for AccountStatus {
     fn default() -> Self {
         AccountStatus::Active
     }
 }
-
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UserType {
+    Admin,
+    Caissier,
+    Comptoir,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ActivityKind {
+    Created,
+    Suspended,
+    Reactivated,
+    Modified,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CashierAccount {
-    /// Immutable once created — the same identifier used by the existing
-    /// username-based login/identity flow (`LS_USERNAME` on the frontend).
+pub struct AccountActivityEntry {
+    pub kind: ActivityKind,
+    pub timestamp: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+/// On-disk representation of an account, including its password hash.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StoredAccount {
+    pub id: String,
     pub username: String,
-    /// Friendlier label shown in place of the raw username where that helps
-    /// (e.g. account lists). Empty by default: the counter operating this
-    /// account is expected to fill it in, and an admin can set or correct it
-    /// later from Réglages. `#[serde(default)]` keeps accounts persisted
-    /// before this field existed loading correctly as `""`.
     #[serde(default)]
     pub display_name: String,
     pub password_hash: String,
-    pub created_at: String,
-    /// `#[serde(default)]` keeps accounts persisted before this field
-    /// existed loading correctly as `Active`.
+    pub user_type: UserType,
     #[serde(default)]
     pub status: AccountStatus,
+    pub created_at: String,
+    #[serde(default)]
+    pub last_sign_in_at: Option<String>,
+    #[serde(default)]
+    pub history: Vec<AccountActivityEntry>,
 }
-
-/// Public view of an account — the only shape ever sent across the Tauri IPC
-/// boundary. Never carries the password hash.
+/// Public view of an account, safe to send to the frontend (no password hash).
 #[derive(Debug, Clone, Serialize)]
-pub struct CashierAccountView {
+pub struct Account {
+    pub id: String,
     pub username: String,
     pub display_name: String,
-    pub created_at: String,
+    pub user_type: UserType,
     pub status: AccountStatus,
+    pub created_at: String,
+    pub last_sign_in_at: Option<String>,
+    pub history: Vec<AccountActivityEntry>,
 }
-
-impl From<&CashierAccount> for CashierAccountView {
-    fn from(account: &CashierAccount) -> Self {
+impl From<&StoredAccount> for Account {
+    fn from(account: &StoredAccount) -> Self {
         Self {
+            id: account.id.clone(),
             username: account.username.clone(),
             display_name: account.display_name.clone(),
-            created_at: account.created_at.clone(),
+            user_type: account.user_type,
             status: account.status,
+            created_at: account.created_at.clone(),
+            last_sign_in_at: account.last_sign_in_at.clone(),
+            history: account.history.clone(),
         }
     }
 }
-
+/// A single activity entry flattened with its owning account's identity, as
+/// returned by `list_account_activities`.
+#[derive(Debug, Clone, Serialize)]
+pub struct AccountActivity {
+    pub account_id: String,
+    pub username: String,
+    pub kind: ActivityKind,
+    pub timestamp: String,
+    pub reason: Option<String>,
+}
+/// Result of an admin authentication attempt. Kept distinct from a bare
+/// `Result<Account, String>` so a suspended/invalid attempt can be reported
+/// to the caller without being treated as a hard command error.
+#[derive(Debug, Clone, Serialize)]
+pub struct AuthResult {
+    pub success: bool,
+    pub account: Option<Account>,
+    pub error: Option<String>,
+}
 fn accounts_file_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.join(ACCOUNTS_FILE_NAME))
 }
-
-/// Loads persisted accounts from disk. Falls back to an empty list if the
-/// file is missing, unreadable, or malformed — a broken or absent accounts
-/// file should never stop the app from starting (same contract as
-/// `settings::load`).
-pub fn load(app: &AppHandle) -> Vec<CashierAccount> {
+pub fn load(app: &AppHandle) -> Vec<StoredAccount> {
     let Ok(path) = accounts_file_path(app) else {
         return Vec::new();
     };
@@ -130,54 +122,44 @@ pub fn load(app: &AppHandle) -> Vec<CashierAccount> {
         .and_then(|raw| serde_json::from_str(&raw).ok())
         .unwrap_or_default()
 }
-
-/// Persists the full account list to disk.
-pub fn save(app: &AppHandle, accounts: &[CashierAccount]) -> Result<(), String> {
+pub fn save(app: &AppHandle, accounts: &[StoredAccount]) -> Result<(), String> {
     let path = accounts_file_path(app)?;
     let raw = serde_json::to_string_pretty(accounts).map_err(|e| e.to_string())?;
     std::fs::write(&path, raw).map_err(|e| e.to_string())
 }
-
-/// Loads persisted accounts the same way `load` does, but also handles the
-/// very first launch: if there are zero existing accounts (no accounts file
-/// yet, or one that persisted an empty list), a single default account
-/// (`admin` / `admin123`) is created, hashed with `hash_password` and
-/// persisted via `save`, so Réglages — itself reachable only after cashier
-/// login — is never permanently locked behind an account that can't yet
-/// exist. If at least one account already exists, this is equivalent to
-/// plain `load` and never touches disk or the existing accounts. Intended to
-/// be called once, at app setup, before the login screen is reachable.
-pub fn load_or_bootstrap(app: &AppHandle) -> Vec<CashierAccount> {
+pub fn load_or_bootstrap(app: &AppHandle) -> Vec<StoredAccount> {
     let accounts = load(app);
     if !accounts.is_empty() {
         return accounts;
     }
-
+    let now = chrono::Local::now().to_rfc3339();
     let default_account = match hash_password(DEFAULT_PASSWORD) {
-        Ok(password_hash) => CashierAccount {
+        Ok(password_hash) => StoredAccount {
+            id: generate_id(),
             username: DEFAULT_USERNAME.to_string(),
             display_name: String::new(),
             password_hash,
-            created_at: chrono::Local::now().to_rfc3339(),
+            user_type: UserType::Admin,
             status: AccountStatus::Active,
+            created_at: now.clone(),
+            last_sign_in_at: None,
+            history: vec![AccountActivityEntry {
+                kind: ActivityKind::Created,
+                timestamp: now,
+                reason: None,
+            }],
         },
-        // Hashing failures are effectively unreachable (Argon2 with a
-        // freshly generated salt), but if it ever happens, fall back to no
-        // accounts rather than risk anything unhashed touching disk.
         Err(_) => return accounts,
     };
-
     let accounts = vec![default_account];
-    // A failed write here still leaves the default account usable for this
-    // session (login checks the in-memory list); it will simply be
-    // recreated on the next launch, same as any other unwritable-disk case.
     let _ = save(app, &accounts);
     accounts
 }
-
-/// Hashes a password with a freshly generated random salt. The returned
-/// string is the full PHC-formatted hash (algorithm, salt and digest
-/// together) — no separate salt storage is needed.
+pub fn generate_id() -> String {
+    let mut bytes = [0u8; 16];
+    OsRng.fill_bytes(&mut bytes);
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
 pub fn hash_password(password: &str) -> Result<String, String> {
     let salt = SaltString::generate(&mut OsRng);
     Argon2::default()
@@ -185,10 +167,6 @@ pub fn hash_password(password: &str) -> Result<String, String> {
         .map(|hash| hash.to_string())
         .map_err(|e| e.to_string())
 }
-
-/// Verifies a plain-text password against a previously hashed one. Used by
-/// the cashier login flow's `authenticate_cashier` command, kept alongside
-/// `hash_password` so the two stay in sync.
 pub fn verify_password(password: &str, hash: &str) -> bool {
     let Ok(parsed_hash) = PasswordHash::new(hash) else {
         return false;
@@ -197,10 +175,6 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
         .verify_password(password.as_bytes(), &parsed_hash)
         .is_ok()
 }
-
-/// Validates and normalizes a candidate username (trims surrounding
-/// whitespace, checks length bounds). Uniqueness is checked separately via
-/// `username_exists`, since that requires the current account list.
 pub fn validate_username(username: &str) -> Result<String, String> {
     let trimmed = username.trim();
     if trimmed.chars().count() < MIN_USERNAME_LEN {
@@ -215,12 +189,6 @@ pub fn validate_username(username: &str) -> Result<String, String> {
     }
     Ok(trimmed.to_string())
 }
-
-/// Validates a candidate password's length and format (at least one letter
-/// and one digit, i.e. "word + number"). Never logs or persists the raw
-/// value beyond this check. Applied identically to account creation/edit
-/// (Réglages) and to the password submitted at cashier login, so the two
-/// can never drift apart.
 pub fn validate_password(password: &str) -> Result<(), String> {
     if password.chars().count() < MIN_PASSWORD_LEN {
         return Err(format!(
@@ -234,10 +202,6 @@ pub fn validate_password(password: &str) -> Result<(), String> {
     }
     Ok(())
 }
-
-/// Validates and normalizes a candidate display name (trims surrounding
-/// whitespace, checks the max length). Unlike the username, an empty display
-/// name is valid — it just means the account doesn't have one set yet.
 pub fn validate_display_name(display_name: &str) -> Result<String, String> {
     let trimmed = display_name.trim();
     if trimmed.chars().count() > MAX_DISPLAY_NAME_LEN {
@@ -247,43 +211,50 @@ pub fn validate_display_name(display_name: &str) -> Result<String, String> {
     }
     Ok(trimmed.to_string())
 }
-
-/// `true` if `username` is already taken by an existing account. Compared
-/// case-insensitively, since the existing username-based login/identity flow
-/// treats e.g. "Caisse1" and "caisse1" as the same identity.
-pub fn username_exists(accounts: &[CashierAccount], username: &str) -> bool {
+pub fn username_exists(accounts: &[StoredAccount], username: &str) -> bool {
     accounts.iter().any(|a| a.username.eq_ignore_ascii_case(username))
 }
-
-/// Locates a mutable reference to an account by username, compared the same
-/// case-insensitive way as `username_exists`. Used to apply a "modify" (never
-/// a rename — the caller only ever changes the fields on the returned
-/// account, not its username) once the request has already been validated.
-pub fn find_account_mut<'a>(accounts: &'a mut [CashierAccount], username: &str) -> Option<&'a mut CashierAccount> {
+pub fn find_account_mut<'a>(accounts: &'a mut [StoredAccount], username: &str) -> Option<&'a mut StoredAccount> {
     accounts.iter_mut().find(|a| a.username.eq_ignore_ascii_case(username))
 }
-
+/// Appends an activity entry to an account's history.
+pub fn record_activity(account: &mut StoredAccount, kind: ActivityKind, reason: Option<String>) {
+    account.history.push(AccountActivityEntry {
+        kind,
+        timestamp: chrono::Local::now().to_rfc3339(),
+        reason,
+    });
+}
 /// Flags an account as suspended. Reversible via `reactivate` — the account
 /// and its history are left untouched on disk, it's just blocked from
-/// logging in until an admin lifts the suspension. Idempotent: suspending an
-/// already-suspended account is a no-op.
-pub fn suspend(account: &mut CashierAccount) {
+/// authenticating.
+pub fn suspend(account: &mut StoredAccount, reason: Option<String>) {
     account.status = AccountStatus::Suspended;
+    record_activity(account, ActivityKind::Suspended, reason);
 }
-
-/// Lifts a suspension previously applied by `suspend`, restoring normal
-/// access. Idempotent: reactivating an already-active account is a no-op.
-pub fn reactivate(account: &mut CashierAccount) {
+pub fn reactivate(account: &mut StoredAccount) {
     account.status = AccountStatus::Active;
+    record_activity(account, ActivityKind::Reactivated, None);
 }
-
-/// Permanently removes an account from the list — unlike `suspend`, there is
-/// no way back from this short of recreating the account from scratch under
-/// the same username. Returns `true` if a matching account was found and
-/// removed (case-insensitive, same matching rule as `username_exists`), or
-/// `false` if no account with that username existed.
-pub fn remove_account(accounts: &mut Vec<CashierAccount>, username: &str) -> bool {
+pub fn remove_account(accounts: &mut Vec<StoredAccount>, username: &str) -> bool {
     let len_before = accounts.len();
     accounts.retain(|a| !a.username.eq_ignore_ascii_case(username));
     accounts.len() != len_before
+}
+/// Flattens every account's history into a single list, most recent first.
+pub fn list_activities(accounts: &[StoredAccount]) -> Vec<AccountActivity> {
+    let mut activities: Vec<AccountActivity> = accounts
+        .iter()
+        .flat_map(|account| {
+            account.history.iter().map(move |entry| AccountActivity {
+                account_id: account.id.clone(),
+                username: account.username.clone(),
+                kind: entry.kind,
+                timestamp: entry.timestamp.clone(),
+                reason: entry.reason.clone(),
+            })
+        })
+        .collect();
+    activities.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    activities
 }
