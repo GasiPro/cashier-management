@@ -123,7 +123,6 @@ export class Cashier implements OnInit, OnDestroy {
   );
   showRapport = false;
   showHistorique = false;
-  /** Closes every navbar-menu panel so only one can be open at a time. */
   closeAllPanels(): void {
     this.showDevicesPanel = false;
     this.showRapport = false;
@@ -136,8 +135,20 @@ export class Cashier implements OnInit, OnDestroy {
   rapportSelectedDate = signal<string>(this.formatIsoDate(new Date()));
   showRapportDatePicker = signal(false);
   wsAddress = signal('');
-  /** Order group currently shown in the full-detail modal, if any. */
-  selectedGroup = signal<OrderGroup | null>(null);
+  /** Id of the order group currently shown in the full-detail modal, if any. */
+  private selectedGroupId = signal<number | null>(null);
+  /** Derived from the live pendingGroups/paidGroups lists, so it stays in sync (or
+   *  clears itself) when a push from the server changes or removes the underlying
+   *  group, instead of holding on to a stale snapshot taken when the modal opened. */
+  selectedGroup = computed<OrderGroup | null>(() => {
+    const id = this.selectedGroupId();
+    if (id === null) return null;
+    return (
+      this.pendingGroups().find((g) => g.groupId === id) ??
+      this.paidGroups().find((g) => g.groupId === id) ??
+      null
+    );
+  });
   // ── Reject (cancel) order dialog ─────────────────────────────────────────────
   /** Group currently targeted by the reject confirmation dialog, if any. */
   rejectGroupTarget = signal<OrderGroup | null>(null);
@@ -247,7 +258,12 @@ export class Cashier implements OnInit, OnDestroy {
     }
   }
   async markGroupAsPaid(groupId: number): Promise<void> {
-    await invoke('mark_group_as_paid', { groupId });
+    try {
+      await invoke('mark_group_as_paid', { groupId });
+    } catch (e) {
+      console.error('mark_group_as_paid failed', e);
+      this.showToast(typeof e === 'string' ? e : "Impossible d'encaisser cette commande.");
+    }
   }
   async rejectGroup(groupId: number, raison?: string): Promise<void> {
     try {
@@ -259,7 +275,7 @@ export class Cashier implements OnInit, OnDestroy {
   openRejectDialog(group: OrderGroup): void {
     this.rejectReason.set('');
     this.rejectGroupTarget.set(group);
-    this.selectedGroup.set(null);
+    this.selectedGroupId.set(null);
   }
   closeRejectDialog(): void {
     this.rejectGroupTarget.set(null);
@@ -280,10 +296,10 @@ export class Cashier implements OnInit, OnDestroy {
     this.router.navigate(['/reglages']);
   }
   openGroupDetail(g: OrderGroup): void {
-    this.selectedGroup.set(g);
+    this.selectedGroupId.set(g.groupId);
   }
   closeGroupDetail(): void {
-    this.selectedGroup.set(null);
+    this.selectedGroupId.set(null);
   }
   isGroupPending(g: OrderGroup): boolean {
     return !g.paidAt;
@@ -748,6 +764,9 @@ export class Cashier implements OnInit, OnDestroy {
     this.exportingRapport.set(true);
     try {
       await this.buildAndSaveRapportXlsx();
+    } catch (e) {
+      console.error('export rapport failed', e);
+      this.showToast("Échec de l'export du rapport.");
     } finally {
       this.exportingRapport.set(false);
     }

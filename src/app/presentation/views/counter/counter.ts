@@ -83,7 +83,15 @@ export class Counter implements OnInit, OnDestroy {
   orderGroups = signal<OrderGroup[]>([]);
   recentOrderGroups = computed(() => this.orderGroups().slice(0, 5));
   editingGroupId = signal<number | null>(null);
-  selectedGroup = signal<OrderGroup | null>(null);
+  private selectedGroupId = signal<number | null>(null);
+  /** Derived from the live orderGroups list, so it stays in sync (or clears itself)
+   *  when a push from the server changes or removes the underlying group, instead
+   *  of holding on to a stale snapshot taken when the modal was opened. */
+  selectedGroup = computed<OrderGroup | null>(() => {
+    const id = this.selectedGroupId();
+    if (id === null) return null;
+    return this.orderGroups().find((g) => g.groupId === id) ?? null;
+  });
   readonly historiqueAllStatuses = HISTORIQUE_ALL_STATUSES;
   readonly historiqueStatusFilters = [
     { label: 'Toutes',      value: HISTORIQUE_ALL_STATUSES },
@@ -355,7 +363,11 @@ export class Counter implements OnInit, OnDestroy {
     this.savingAccount.set(true);
     const displayName = this.editDisplayName().trim();
     const password = this.editPassword().length > 0 ? this.editPassword() : null;
-    this.ws.send({ type: 'update_account', display_name: displayName, password });
+    const sent = this.ws.send({ type: 'update_account', display_name: displayName, password });
+    if (!sent) {
+      this.savingAccount.set(false);
+      this.editAccountError.set('Échec de l\'enregistrement — vérifiez la connexion réseau.');
+    }
   }
   onNewCashierHostChanged(): void {
     this.newCashierAddressCheck.set('idle');
@@ -402,9 +414,14 @@ export class Counter implements OnInit, OnDestroy {
   }
   // ── Catalogue ─────────────────────────────────────────────────────────────────
   private async loadCatalogue(): Promise<void> {
-    const services = await invoke<ServiceItem[]>('get_pricing_matrix');
-    this.allServices.set(services);
-    this.extractCategories();
+    try {
+      const services = await invoke<ServiceItem[]>('get_pricing_matrix');
+      this.allServices.set(services);
+      this.extractCategories();
+    } catch (e) {
+      console.error('failed to load pricing matrix', e);
+      this.showToast('Impossible de charger la grille tarifaire.');
+    }
   }
   envoyerCommande(): void {
     if (this.cart.length === 0) return;
@@ -412,7 +429,11 @@ export class Counter implements OnInit, OnDestroy {
       this.showToast('Non connecté à la caisse — vérifiez la connexion réseau');
       return;
     }
-    this.ws.send({ type: 'create_order', cart: this.cart });
+    const sent = this.ws.send({ type: 'create_order', cart: this.cart });
+    if (!sent) {
+      this.showToast("Échec de l'envoi de la commande — vérifiez la connexion réseau.");
+      return;
+    }
     this.cart = [];
     this.noteOpenIds.clear();
     this.confirmingCancel = false;
@@ -441,25 +462,36 @@ export class Counter implements OnInit, OnDestroy {
     this.selectedHistoriqueStatus.set(status);
   }
   openGroupDetail(g: OrderGroup): void {
-    this.selectedGroup.set(g);
+    this.selectedGroupId.set(g.groupId);
   }
   closeGroupDetail(): void {
-    this.selectedGroup.set(null);
+    this.selectedGroupId.set(null);
   }
   updateOrderLine(order: Order): void {
     if (!this.wsConnected()) return;
-    this.ws.send({
+    const sent = this.ws.send({
       type: 'update_order',
       id: order.id,
       quantity: order.quantity,
       unit_price: order.unit_price,
     });
+    if (!sent) {
+      this.showToast('Échec de la mise à jour — vérifiez la connexion réseau.');
+    }
   }
   incrementOrderLine(order: Order): void {
+    if (!this.wsConnected()) {
+      this.showToast('Non connecté à la caisse — vérifiez la connexion réseau');
+      return;
+    }
     order.quantity++;
     this.updateOrderLine(order);
   }
   decrementOrderLine(order: Order): void {
+    if (!this.wsConnected()) {
+      this.showToast('Non connecté à la caisse — vérifiez la connexion réseau');
+      return;
+    }
     if (order.quantity > 1) {
       order.quantity--;
       this.updateOrderLine(order);
@@ -469,11 +501,18 @@ export class Counter implements OnInit, OnDestroy {
   }
   deleteOrderLine(order: Order): void {
     if (!this.wsConnected()) return;
-    this.ws.send({ type: 'delete_order', id: order.id });
+    const sent = this.ws.send({ type: 'delete_order', id: order.id });
+    if (!sent) {
+      this.showToast('Échec de la suppression — vérifiez la connexion réseau.');
+    }
   }
   deleteOrderGroup(groupId: number): void {
     if (!this.wsConnected()) return;
-    this.ws.send({ type: 'delete_order_group', group_id: groupId });
+    const sent = this.ws.send({ type: 'delete_order_group', group_id: groupId });
+    if (!sent) {
+      this.showToast('Échec de l\'annulation — vérifiez la connexion réseau.');
+      return;
+    }
     this.editingGroupId.set(null);
     this.showToast('Commande annulée.');
   }
