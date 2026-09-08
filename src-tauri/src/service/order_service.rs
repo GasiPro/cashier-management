@@ -1,10 +1,13 @@
 use std::sync::Mutex;
 use chrono::{Local, Utc};
+use tauri::AppHandle;
 use crate::domain::order::price_calculator::CartItem;
 use crate::service::order_api_service::{Order, OrderApi, OrderStatus};
 pub struct OrderService {
     state: Mutex<OrderState>,
+    app_handle: Mutex<Option<AppHandle>>,
 }
+#[derive(Clone)]
 struct OrderState {
     orders: Vec<Order>,
     next_id: i64,
@@ -12,16 +15,30 @@ struct OrderState {
 }
 impl OrderService {
     pub fn new() -> Self {
-        let orders = OrderApi::load_orders();
-        let next_id = OrderApi::load_next_id();
-        let next_group_id = OrderApi::load_next_group_id();
         Self {
             state: Mutex::new(OrderState {
-                orders,
-                next_id,
-                next_group_id,
+                orders: Vec::new(),
+                next_id: 1000,
+                next_group_id: 1,
             }),
+            app_handle: Mutex::new(None),
         }
+    }
+    /// Load persisted orders from the app config dir and bind the AppHandle
+    /// used for future persistence. Called once from the Tauri `setup` hook,
+    /// mirroring how config::accounts / config::settings / config::connections
+    /// / config::pricing_matrix are bootstrapped.
+    pub fn load(&self, app: &AppHandle) {
+        let orders = OrderApi::load_orders(app);
+        let next_id = OrderApi::load_next_id(app);
+        let next_group_id = OrderApi::load_next_group_id(app);
+        {
+            let mut guard = self.state.lock().unwrap();
+            guard.orders = orders;
+            guard.next_id = next_id;
+            guard.next_group_id = next_group_id;
+        }
+        *self.app_handle.lock().unwrap() = Some(app.clone());
     }
     pub fn get_orders(&self) -> Vec<Order> {
         let guard = self.state.lock().unwrap();
@@ -48,6 +65,7 @@ impl OrderService {
             return Err("Le panier est vide.".to_string());
         }
         let mut guard = self.state.lock().unwrap();
+        let snapshot = guard.clone();
         let now = Local::now();
         let time = now.format("%H:%M").to_string();
         let created_at = Utc::now().to_rfc3339();
@@ -57,7 +75,7 @@ impl OrderService {
             let order = Order {
                 id: guard.next_id,
                 group_id,
-                service_type: format!("{} — {}", item.service.category, item.service.label),
+                service_type: format!("{} — {}", item.service.category, item.label),
                 unit_price: item.unit_price,
                 original_unit_price: item.service.price,
                 quantity: item.qty,
@@ -72,11 +90,11 @@ impl OrderService {
             guard.next_id += 1;
             guard.orders.push(order);
         }
-        self.commit(&mut guard);
-        Ok(())
+        self.commit(&mut guard, snapshot)
     }
     pub fn mark_group_as_paid(&self, group_id: i64) -> Result<(), String> {
         let mut guard = self.state.lock().unwrap();
+        let snapshot = guard.clone();
         let paid_at = Utc::now().to_rfc3339();
         let mut changed = false;
         for order in &mut guard.orders {
@@ -86,15 +104,14 @@ impl OrderService {
                 changed = true;
             }
         }
-        if changed {
-            self.commit(&mut guard);
-            Ok(())
-        } else {
-            Err("Aucune commande en attente trouvée pour ce groupe.".to_string())
+        if !changed {
+            return Err("Aucune commande en attente trouvée pour ce groupe.".to_string());
         }
+        self.commit(&mut guard, snapshot)
     }
     pub fn reject_group(&self, group_id: i64, raison: Option<String>) -> Result<(), String> {
         let mut guard = self.state.lock().unwrap();
+        let snapshot = guard.clone();
         let mut changed = false;
         for order in &mut guard.orders {
             if order.group_id == group_id && order.status == OrderStatus::EnAttente {
@@ -103,15 +120,14 @@ impl OrderService {
                 changed = true;
             }
         }
-        if changed {
-            self.commit(&mut guard);
-            Ok(())
-        } else {
-            Err("Aucune commande en attente trouvée pour ce groupe.".to_string())
+        if !changed {
+            return Err("Aucune commande en attente trouvée pour ce groupe.".to_string());
         }
+        self.commit(&mut guard, snapshot)
     }
     pub fn update_order(&self, id: i64, quantity: u32, unit_price: u32) -> Result<(), String> {
         let mut guard = self.state.lock().unwrap();
+        let snapshot = guard.clone();
         let mut changed = false;
         if let Some(order) = guard
             .orders
@@ -122,40 +138,47 @@ impl OrderService {
             order.unit_price = unit_price;
             changed = true;
         }
-        if changed {
-            self.commit(&mut guard);
-            Ok(())
-        } else {
-            Err("Commande introuvable ou déjà traitée.".to_string())
+        if !changed {
+            return Err("Commande introuvable ou déjà traitée.".to_string());
         }
+        self.commit(&mut guard, snapshot)
     }
     pub fn delete_order(&self, id: i64) -> Result<(), String> {
         let mut guard = self.state.lock().unwrap();
+        let snapshot = guard.clone();
         let before = guard.orders.len();
         guard
             .orders
             .retain(|o| !(o.id == id && o.status == OrderStatus::EnAttente));
-        if guard.orders.len() != before {
-            self.commit(&mut guard);
-            Ok(())
-        } else {
-            Err("Commande introuvable ou déjà traitée.".to_string())
+        if guard.orders.len() == before {
+            return Err("Commande introuvable ou déjà traitée.".to_string());
         }
+        self.commit(&mut guard, snapshot)
     }
     pub fn delete_order_group(&self, group_id: i64) -> Result<(), String> {
         let mut guard = self.state.lock().unwrap();
+        let snapshot = guard.clone();
         let before = guard.orders.len();
         guard
             .orders
             .retain(|o| !(o.group_id == group_id && o.status == OrderStatus::EnAttente));
-        if guard.orders.len() != before {
-            self.commit(&mut guard);
-            Ok(())
-        } else {
-            Err("Aucune commande en attente trouvée pour ce groupe.".to_string())
+        if guard.orders.len() == before {
+            return Err("Aucune commande en attente trouvée pour ce groupe.".to_string());
         }
+        self.commit(&mut guard, snapshot)
     }
-    fn commit(&self, guard: &mut OrderState) {
-        let _ = OrderApi::persist(&guard.orders, guard.next_id, guard.next_group_id);
+    fn commit(&self, guard: &mut OrderState, snapshot: OrderState) -> Result<(), String> {
+        let app_handle = self.app_handle.lock().unwrap().clone();
+        let Some(app_handle) = app_handle else {
+            *guard = snapshot;
+            return Err("Serveur non prêt. Réessayez.".to_string());
+        };
+        if let Err(err) = OrderApi::persist(&app_handle, &guard.orders, guard.next_id, guard.next_group_id) {
+            *guard = snapshot;
+            return Err(format!(
+                "Échec de l'enregistrement des commandes sur le disque : {err}"
+            ));
+        }
+        Ok(())
     }
 }

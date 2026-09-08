@@ -46,6 +46,7 @@ pub struct AppState {
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ClientMessage {
     CashierRegister { username: String },
+    AdminRegister { #[serde(default)] username: Option<String> },
     RequestConnection { username: String, password: String },
     CreateOrder { cart: Vec<CartItem> },
     UpdateOrder { id: i64, quantity: u32, unit_price: u32 },
@@ -79,6 +80,7 @@ enum ServerMessage {
     Account { data: accounts::Account },
     AccountUpdated { data: accounts::Account },
     AccountUpdateError { data: String },
+    OrderError { data: String },
 }
 async fn send_to_addr(peers: &PeerMap, addr: SocketAddr, msg: &ServerMessage) {
     if let Ok(json) = serde_json::to_string(msg) {
@@ -294,14 +296,21 @@ async fn delete_pricing_item(app: tauri::AppHandle, state: State<'_, AppState>, 
     }
     Ok(())
 }
+/// One-shot invoke()-based fetch of every order, for admin/read-only views.
+/// This is the invoke() alternative to the WebSocket `orders` broadcast that
+/// approved peers (see `AdminRegister` / `CashierRegister`) receive live.
 #[tauri::command]
 fn get_orders(state: State<'_, AppState>) -> Vec<Order> {
     state.order_service.get_orders()
 }
+/// invoke()-based alternative to the WebSocket `orders` broadcast, scoped to
+/// pending orders only.
 #[tauri::command]
 fn get_pending_orders(state: State<'_, AppState>) -> Vec<Order> {
     state.order_service.get_pending()
 }
+/// invoke()-based alternative to the WebSocket `orders` broadcast, scoped to
+/// paid orders only.
 #[tauri::command]
 fn get_paid_orders(state: State<'_, AppState>) -> Vec<Order> {
     state.order_service.get_paid()
@@ -915,6 +924,23 @@ pub fn run() {
                                 )
                                 .await;
                             }
+                            Ok(ClientMessage::AdminRegister { username }) => {
+                                {
+                                    let mut guard = peers_inner.lock().await;
+                                    if let Some(state) = guard.get_mut(&addr) {
+                                        if let Some(username) = username {
+                                            state.username = username;
+                                        }
+                                        state.approved = true;
+                                    }
+                                }
+                                send_to_addr(
+                                    &peers_inner,
+                                    addr,
+                                    &ServerMessage::Orders { data: order_service_inner.get_orders() },
+                                )
+                                .await;
+                            }
                             Ok(ClientMessage::RequestConnection { username, password }) => {
                                 let format_ok = accounts::validate_username(&username).is_ok()
                                     && accounts::validate_password(&password).is_ok();
@@ -985,6 +1011,12 @@ pub fn run() {
                                             log::error!(
                                                 "create_order failed for {counter_username} ({addr}): {err}"
                                             );
+                                            send_to_addr(
+                                                &peers_inner,
+                                                addr,
+                                                &ServerMessage::OrderError { data: err },
+                                            )
+                                            .await;
                                         }
                                     }
                                 }
@@ -1005,6 +1037,12 @@ pub fn run() {
                                         }
                                         Err(err) => {
                                             log::error!("update_order {id} failed ({addr}): {err}");
+                                            send_to_addr(
+                                                &peers_inner,
+                                                addr,
+                                                &ServerMessage::OrderError { data: err },
+                                            )
+                                            .await;
                                         }
                                     }
                                 }
@@ -1025,6 +1063,12 @@ pub fn run() {
                                         }
                                         Err(err) => {
                                             log::error!("delete_order {id} failed ({addr}): {err}");
+                                            send_to_addr(
+                                                &peers_inner,
+                                                addr,
+                                                &ServerMessage::OrderError { data: err },
+                                            )
+                                            .await;
                                         }
                                     }
                                 }
@@ -1047,6 +1091,12 @@ pub fn run() {
                                             log::error!(
                                                 "delete_order_group {group_id} failed ({addr}): {err}"
                                             );
+                                            send_to_addr(
+                                                &peers_inner,
+                                                addr,
+                                                &ServerMessage::OrderError { data: err },
+                                            )
+                                            .await;
                                         }
                                     }
                                 }
@@ -1205,6 +1255,7 @@ pub fn run() {
     let setup_blacklist = blacklist.clone();
     let setup_connection_history = connection_history.clone();
     let setup_pricing = pricing_store.clone();
+    let setup_order_service = order_service.clone();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
@@ -1221,6 +1272,7 @@ pub fn run() {
             *setup_blacklist.lock().unwrap() = connections::load_blacklist(app.handle());
             *setup_connection_history.lock().unwrap() = connections::load_history(app.handle());
             *setup_pricing.lock().unwrap() = config::pricing_matrix::load_or_bootstrap(app.handle());
+            setup_order_service.load(app.handle());
             *setup_app_handle_slot.lock().unwrap() = Some(app.handle().clone());
             Ok(())
         })
