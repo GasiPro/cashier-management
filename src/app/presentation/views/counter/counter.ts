@@ -84,9 +84,6 @@ export class Counter implements OnInit, OnDestroy {
   recentOrderGroups = computed(() => this.orderGroups().slice(0, 5));
   editingGroupId = signal<number | null>(null);
   private selectedGroupId = signal<number | null>(null);
-  /** Derived from the live orderGroups list, so it stays in sync (or clears itself)
-   *  when a push from the server changes or removes the underlying group, instead
-   *  of holding on to a stale snapshot taken when the modal was opened. */
   selectedGroup = computed<OrderGroup | null>(() => {
     const id = this.selectedGroupId();
     if (id === null) return null;
@@ -303,6 +300,16 @@ export class Counter implements OnInit, OnDestroy {
       } else if (msg.type === 'account_update_error') {
         this.savingAccount.set(false);
         this.editAccountError.set(msg.data as string);
+      } else if (msg.type === 'order_error') {
+        // Backend does not send this yet for create_order/update_order/delete_order/
+        // delete_order_group — see the optimistic-toast comments in envoyerCommande()
+        // and deleteOrderGroup() below. Once it does, this should surface the failure
+        // instead of (or in addition to) the send-time toasts fired there.
+        this.showToast(msg.data as string);
+      } else if (msg.type === 'order_ack') {
+        // Not sent by the backend yet either. Once available, the optimistic toasts
+        // in envoyerCommande()/deleteOrderGroup() should be moved here so they only
+        // fire once the mutation is actually confirmed.
       }
     });
   }
@@ -437,6 +444,10 @@ export class Counter implements OnInit, OnDestroy {
     this.cart = [];
     this.noteOpenIds.clear();
     this.confirmingCancel = false;
+    // NOTE: this only confirms the socket accepted the message for sending, not that
+    // the backend actually created the order — create_order has no ack/error response
+    // yet. Once the backend sends 'order_ack'/'order_error' (see setupWsListeners),
+    // this toast should be tied to that response instead of firing immediately here.
     this.showToast('Commande envoyée à la caisse !');
   }
   toggleCancelConfirm(): void {
@@ -514,6 +525,10 @@ export class Counter implements OnInit, OnDestroy {
       return;
     }
     this.editingGroupId.set(null);
+    // NOTE: same caveat as envoyerCommande() — ws.send() succeeding only means the
+    // message was queued, not that delete_order_group was actually applied by the
+    // backend. Move this to the 'order_ack'/'order_error' handler in
+    // setupWsListeners() once the backend sends real acknowledgments.
     this.showToast('Commande annulée.');
   }
   get filteredServices(): ServiceItem[] {

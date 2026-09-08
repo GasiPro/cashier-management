@@ -216,9 +216,16 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.cashierError.set('');
     this.authenticatingCashier.set(true);
     try {
-      const account = await invoke<{ display_name: string }>('authenticate_cashier', { username, password });
+      const result = await invoke<AuthResult<{ display_name: string }>>(
+        'authenticate_cashier',
+        { username, password },
+      );
+      if (!result.success || !result.account) {
+        this.cashierError.set(result.error ?? 'Identifiants invalides.');
+        return;
+      }
       localStorage.setItem(LS_USERNAME, username);
-      localStorage.setItem(LS_DISPLAY_NAME, account.display_name ?? '');
+      localStorage.setItem(LS_DISPLAY_NAME, result.account.display_name ?? '');
       this.router.navigate(['/caissier']);
     } catch (e) {
       console.error('authenticate_cashier failed', e);

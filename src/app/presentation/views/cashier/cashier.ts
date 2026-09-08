@@ -248,6 +248,7 @@ export class Cashier implements OnInit, OnDestroy {
       await invoke('reject_connection', { addr });
     } catch (e) {
       console.error('reject_connection failed', e);
+      this.showToast(typeof e === 'string' ? e : "Impossible de refuser cet appareil.");
     }
   }
   async disconnectDevice(addr: string): Promise<void> {
@@ -255,6 +256,7 @@ export class Cashier implements OnInit, OnDestroy {
       await invoke('disconnect_device', { addr });
     } catch (e) {
       console.error('disconnect_device failed', e);
+      this.showToast(typeof e === 'string' ? e : "Impossible de déconnecter cet appareil.");
     }
   }
   async markGroupAsPaid(groupId: number): Promise<void> {
@@ -270,6 +272,7 @@ export class Cashier implements OnInit, OnDestroy {
       await invoke('reject_group', { groupId, raison: raison?.trim() ? raison.trim() : null });
     } catch (e) {
       console.error('reject_group failed', e);
+      this.showToast(typeof e === 'string' ? e : "Impossible de refuser cette commande.");
     }
   }
   openRejectDialog(group: OrderGroup): void {

@@ -127,11 +127,11 @@ export class DisplaySetting implements OnInit, OnDestroy {
     this.saving.set(true);
     this.setStatus('', false);
     try {
-      const [theme, backgroundColor, fontSize] = await Promise.all([
-        invoke<ThemeOption>('set_theme', { value: this.themeDraft() }),
-        invoke<string>('set_background_color', { value: this.backgroundColorDraft() }),
-        invoke<number>('set_font_size', { value: this.fontSizeDraft() }),
-      ]);
+      const theme = await invoke<ThemeOption>('set_theme', { value: this.themeDraft() });
+      const backgroundColor = await invoke<string>('set_background_color', {
+        value: this.backgroundColorDraft(),
+      });
+      const fontSize = await invoke<number>('set_font_size', { value: this.fontSizeDraft() });
       this.theme.set(theme);
       this.themeDraft.set(theme);
       this.backgroundColor.set(backgroundColor);
