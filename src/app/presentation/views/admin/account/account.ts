@@ -226,16 +226,16 @@ export class Account implements OnInit {
     this.savingEditAccount.set(true);
     try {
       const displayName = this.editDisplayName().trim();
-      // The password field stays in the edit UI for when the backend supports
-      // changing it here, but `update_account` doesn't accept it yet, so it's
-      // validated client-side but not sent.
       const updated = await invoke<AccountView>('update_account', {
         username,
         display_name: displayName,
         user_type: this.editUserType(),
+        password: this.editPassword() || null,
       });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.editingUsername.set(null);
+      this.editPassword.set('');
+      this.editPasswordConfirm.set('');
       this.setAccountStatus(`Compte « ${updated.username} » mis à jour.`, false);
       document.getElementById(`account-edit-btn-${updated.username}`)?.focus();
     } catch (e) {

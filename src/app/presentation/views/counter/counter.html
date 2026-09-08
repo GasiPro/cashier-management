@@ -195,13 +195,21 @@
                              transition-colors px-0 py-0.5 truncate" />
                     <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
                       <label class="sr-only" [attr.for]="'price-' + item.service.id">Prix unitaire</label>
-                      <input [id]="'price-' + item.service.id" type="number" [(ngModel)]="item.unitPrice" min="0"
-                        [attr.aria-describedby]="(isCartItemDiscounted(item) || isCartItemIncreased(item)) ? ('price-hint-' + item.service.id) : null"
+                      <input [id]="'price-' + item.service.id" type="number" [ngModel]="item.unitPrice"
+                        (ngModelChange)="updateItemPrice(item, $event)" min="0"
+                        [attr.aria-invalid]="isCartItemPriceInvalid(item)"
+                        [attr.aria-describedby]="isCartItemPriceInvalid(item) ? ('price-error-' + item.service.id) : (isCartItemDiscounted(item) || isCartItemIncreased(item)) ? ('price-hint-' + item.service.id) : null"
                         class="w-24 border rounded px-1.5 py-0.5 text-xs font-medium
                                text-[#1A1A1A] focus:outline-none focus:border-[#1E3A5F] transition-colors tabular-nums"
-                        [class]="isCartItemDiscounted(item) ? 'border-amber-300 bg-amber-50' : isCartItemIncreased(item) ? 'border-sky-300 bg-sky-50' : 'border-gray-200'" />
+                        [class]="isCartItemPriceInvalid(item) ? 'border-red-400 bg-red-50' : isCartItemDiscounted(item) ? 'border-amber-300 bg-amber-50' : isCartItemIncreased(item) ? 'border-sky-300 bg-sky-50' : 'border-gray-200'" />
                       <span class="text-xs text-gray-400">Ar</span>
-                      @if (isCartItemDiscounted(item)) {
+                      @if (isCartItemPriceInvalid(item)) {
+                      <span [id]="'price-error-' + item.service.id" role="alert"
+                        class="inline-flex items-center gap-1 text-[10px] font-semibold text-red-700
+                               bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full">
+                        Prix invalide (doit être ≥ 0)
+                      </span>
+                      } @else if (isCartItemDiscounted(item)) {
                       <span [id]="'price-hint-' + item.service.id"
                         class="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700
                                bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
@@ -296,13 +304,18 @@
                 </button>
               </div>
               }
-              <button (click)="envoyerCommande()" [disabled]="!wsConnected()"
+              <button (click)="envoyerCommande()" [disabled]="!wsConnected() || hasInvalidCartPrice"
                 class="flex-1 bg-[#1E3A5F] text-white text-sm font-semibold py-3 rounded-lg
                        hover:bg-[#16304f] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
                 Envoyer à la caisse
               </button>
             </div>
+            @if (hasInvalidCartPrice) {
+            <p role="alert" class="mt-2 text-xs font-medium text-red-600">
+              Corrigez le prix invalide dans le panier avant d'envoyer la commande.
+            </p>
+            }
             }
           </div>
           @if (orderGroups().length > 0) {

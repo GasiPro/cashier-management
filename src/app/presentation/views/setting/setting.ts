@@ -184,8 +184,6 @@ export class Setting implements OnInit, OnDestroy {
     this.statusMessage.set(message);
     this.statusIsError.set(isError);
   }
-  /** This page only manages cashier-type accounts, so the shared account list
-   *  is filtered down to `user_type === 'caissier'` after loading. */
   private async loadAccounts(): Promise<void> {
     this.loadingAccounts.set(true);
     try {
@@ -352,16 +350,16 @@ export class Setting implements OnInit, OnDestroy {
     this.savingEditAccount.set(true);
     try {
       const displayName = this.editDisplayName().trim();
-      // The password field stays in the edit UI for when the backend supports
-      // changing it here, but `update_account` doesn't accept it yet, so it's
-      // left out of this call (mirrors the admin account page's edit flow).
       const updated = await invoke<CashierAccountView>('update_account', {
         username,
         display_name: displayName,
         user_type: CASHIER_USER_TYPE,
+        password: this.editPassword() || null,
       });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.editingUsername.set(null);
+      this.editPassword.set('');
+      this.editPasswordConfirm.set('');
       this.setAccountStatus(`Compte « ${updated.username} » mis à jour.`, false);
       document.getElementById(`account-edit-btn-${updated.username}`)?.focus();
     } catch (e) {

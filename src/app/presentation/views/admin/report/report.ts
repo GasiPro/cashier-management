@@ -79,22 +79,38 @@ export class Report implements OnInit, OnDestroy {
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
       this.wsConnected.set(true);
       if (msg.type === 'orders') {
-        this.rawOrders.set(msg.data as OrderLine[]);
+        const incoming = msg.data as OrderLine[];
+        // admin_register's later 'orders' broadcasts are scoped to the peer's
+        // registered username; a legitimate admin-view push should never shrink,
+        // so treat that as a sign this push is scoped and resync unscoped instead.
+        if (incoming.length < this.rawOrders().length) {
+          void this.resyncOrders();
+        } else {
+          this.rawOrders.set(incoming);
+        }
       }
     });
     this.openSubscription = this.ws.onOpened().subscribe(() => {
       this.ws.send({ type: 'admin_register' });
+      void this.resyncOrders();
     });
-    /** Keeps the connection indicator honest: without this, a dropped socket
-     *  (network blip, server restart) would leave `wsConnected` stuck at
-     *  `true` from the last received message, hiding the outage from the
-     *  admin until a new message happens to arrive after reconnecting. */
     this.closeSubscription = this.ws.onClosed().subscribe(() => {
       this.wsConnected.set(false);
     });
     this.ws.connect(REPORT_LOCAL_WS_URL);
     if (this.ws.isOpen()) {
       this.ws.send({ type: 'admin_register' });
+      void this.resyncOrders();
+    }
+  }
+  /** Re-fetches the full, unscoped order list. Used to correct for admin_register's
+   *  later 'orders' broadcasts being scoped by counter_username server-side. */
+  private async resyncOrders(): Promise<void> {
+    try {
+      const orders = await invoke<OrderLine[]>('get_orders');
+      this.rawOrders.set(orders);
+    } catch (e) {
+      console.error('get_orders failed', e);
     }
   }
   ngOnDestroy(): void {
