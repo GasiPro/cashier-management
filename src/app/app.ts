@@ -7,7 +7,7 @@ import { Setting } from "./presentation/views/setting/setting";
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, LoginComponent, Cashier, Counter, Setting],
+  imports: [RouterOutlet],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
