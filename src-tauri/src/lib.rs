@@ -15,6 +15,7 @@ use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 use config::accounts;
 use config::connections;
+use config::rate_limit;
 use config::settings;
 use domain::order::price_calculator::{CartItem, ServiceItem, ServiceItemType as PriceCalculatorItemType};
 use service::order_api_service::Order;
@@ -25,6 +26,7 @@ pub struct PeerState {
     username: String,
     approved: bool,
     is_cashier: bool,
+    is_admin: bool,
 }
 type PeerMap = Arc<Mutex<HashMap<SocketAddr, PeerState>>>;
 type MaxConnectedDevices = Arc<SyncMutex<u32>>;
@@ -41,18 +43,26 @@ pub struct AppState {
     pub blacklist: Blacklist,
     pub connection_history: ConnectionHistory,
     pub pricing: PricingStore,
+    pub sessions: accounts::Sessions,
+    pub auth_attempts: rate_limit::AttemptTracker,
+    pub connection_attempts: rate_limit::AttemptTracker,
 }
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ClientMessage {
-    CashierRegister { username: String },
-    AdminRegister { #[serde(default)] username: Option<String> },
+    // `token` must be a valid, unexpired session token minted by
+    // `authenticate_cashier` / `authenticate_admin` (see `accounts::mint_session`).
+    // The `username` field is kept for wire compatibility but is no longer
+    // trusted; the registered identity comes from the verified session.
+    CashierRegister { username: String, token: String },
+    AdminRegister { #[serde(default)] username: Option<String>, token: String },
     RequestConnection { username: String, password: String },
     CreateOrder { cart: Vec<CartItem> },
     UpdateOrder { id: i64, quantity: u32, unit_price: u32 },
     DeleteOrder { id: i64 },
     DeleteOrderGroup { group_id: i64 },
     RequestOrders,
+    RequestPricing,
     GetAccount,
     UpdateAccount { display_name: String, password: Option<String> },
 }
@@ -81,6 +91,8 @@ enum ServerMessage {
     AccountUpdated { data: accounts::Account },
     AccountUpdateError { data: String },
     OrderError { data: String },
+    Pricing { data: Vec<ServiceItem> },
+    ProtocolError { data: String },
 }
 async fn send_to_addr(peers: &PeerMap, addr: SocketAddr, msg: &ServerMessage) {
     if let Ok(json) = serde_json::to_string(msg) {
@@ -108,7 +120,7 @@ async fn broadcast_orders_to_approved(peers: &PeerMap, orders: &[Order]) {
         if !state.approved {
             continue;
         }
-        let scoped: Vec<Order> = if state.is_cashier {
+        let scoped: Vec<Order> = if state.is_cashier || state.is_admin {
             orders.to_vec()
         } else {
             orders
@@ -123,7 +135,7 @@ async fn broadcast_orders_to_approved(peers: &PeerMap, orders: &[Order]) {
     }
 }
 fn scope_orders_for_peer(orders: &[Order], peer: &PeerState) -> Vec<Order> {
-    if peer.is_cashier {
+    if peer.is_cashier || peer.is_admin {
         orders.to_vec()
     } else {
         orders
@@ -223,19 +235,23 @@ async fn create_pricing_item(
 ) -> Result<ServiceItem, String> {
     let category = config::pricing_matrix::validate_category(&category)?;
     let label = config::pricing_matrix::validate_label(&label)?;
-    let mut guard = state.pricing.lock().unwrap();
-    let item = ServiceItem {
-        id: config::pricing_matrix::generate_id(),
-        item_type,
-        category,
-        label,
-        price,
+    let (item, snapshot) = {
+        let mut guard = state.pricing.lock().unwrap();
+        let item = ServiceItem {
+            id: config::pricing_matrix::generate_id(),
+            item_type,
+            category,
+            label,
+            price,
+        };
+        guard.push(item.clone());
+        if let Err(err) = config::pricing_matrix::save(&app, &guard) {
+            guard.pop();
+            return Err(format!("Échec de l'enregistrement de l'article : {err}"));
+        }
+        (item, guard.clone())
     };
-    guard.push(item.clone());
-    if let Err(err) = config::pricing_matrix::save(&app, &guard) {
-        guard.pop();
-        return Err(format!("Échec de l'enregistrement de l'article : {err}"));
-    }
+    broadcast_to_approved(&state.peers, &ServerMessage::Pricing { data: snapshot }).await;
     Ok(item)
 }
 #[tauri::command]
@@ -256,44 +272,52 @@ async fn update_pricing_item(
         Some(l) => Some(config::pricing_matrix::validate_label(&l)?),
         None => None,
     };
-    let mut guard = state.pricing.lock().unwrap();
-    let item = config::pricing_matrix::find_item_mut(&mut guard, &id)
-        .ok_or_else(|| "Article introuvable.".to_string())?;
-    let previous = item.clone();
-    if let Some(category) = category {
-        item.category = category;
-    }
-    if let Some(label) = label {
-        item.label = label;
-    }
-    if let Some(price) = price {
-        item.price = price;
-    }
-    if let Some(item_type) = item_type {
-        item.item_type = item_type;
-    }
-    let updated = item.clone();
-    if let Err(err) = config::pricing_matrix::save(&app, &guard) {
-        if let Some(item) = config::pricing_matrix::find_item_mut(&mut guard, &id) {
-            *item = previous;
+    let (updated, snapshot) = {
+        let mut guard = state.pricing.lock().unwrap();
+        let item = config::pricing_matrix::find_item_mut(&mut guard, &id)
+            .ok_or_else(|| "Article introuvable.".to_string())?;
+        let previous = item.clone();
+        if let Some(category) = category {
+            item.category = category;
         }
-        return Err(format!("Échec de l'enregistrement de l'article : {err}"));
-    }
+        if let Some(label) = label {
+            item.label = label;
+        }
+        if let Some(price) = price {
+            item.price = price;
+        }
+        if let Some(item_type) = item_type {
+            item.item_type = item_type;
+        }
+        let updated = item.clone();
+        if let Err(err) = config::pricing_matrix::save(&app, &guard) {
+            if let Some(item) = config::pricing_matrix::find_item_mut(&mut guard, &id) {
+                *item = previous;
+            }
+            return Err(format!("Échec de l'enregistrement de l'article : {err}"));
+        }
+        (updated, guard.clone())
+    };
+    broadcast_to_approved(&state.peers, &ServerMessage::Pricing { data: snapshot }).await;
     Ok(updated)
 }
 /// Remove an item from the pricing matrix.
 #[tauri::command]
 async fn delete_pricing_item(app: tauri::AppHandle, state: State<'_, AppState>, id: String) -> Result<(), String> {
-    let mut guard = state.pricing.lock().unwrap();
-    let index = guard
-        .iter()
-        .position(|item| item.id == id)
-        .ok_or_else(|| "Article introuvable.".to_string())?;
-    let removed = guard.remove(index);
-    if let Err(err) = config::pricing_matrix::save(&app, &guard) {
-        guard.insert(index, removed);
-        return Err(format!("Échec de l'enregistrement de la suppression : {err}"));
-    }
+    let snapshot = {
+        let mut guard = state.pricing.lock().unwrap();
+        let index = guard
+            .iter()
+            .position(|item| item.id == id)
+            .ok_or_else(|| "Article introuvable.".to_string())?;
+        let removed = guard.remove(index);
+        if let Err(err) = config::pricing_matrix::save(&app, &guard) {
+            guard.insert(index, removed);
+            return Err(format!("Échec de l'enregistrement de la suppression : {err}"));
+        }
+        guard.clone()
+    };
+    broadcast_to_approved(&state.peers, &ServerMessage::Pricing { data: snapshot }).await;
     Ok(())
 }
 /// One-shot invoke()-based fetch of every order, for admin/read-only views.
@@ -603,34 +627,57 @@ async fn authenticate_admin(
 ) -> Result<accounts::AuthResult, String> {
     let username = accounts::validate_username(&username)?;
     accounts::validate_password(&password)?;
+    let attempt_key = format!("admin:{}", username.to_lowercase());
+    if let Some(remaining) = rate_limit::seconds_until_unlocked(&state.auth_attempts, &attempt_key) {
+        return Ok(accounts::AuthResult {
+            success: false,
+            account: None,
+            error: Some(format!(
+                "Trop de tentatives échouées. Réessayez dans {remaining} seconde(s)."
+            )),
+            session_token: None,
+        });
+    }
     let mut guard = state.accounts.lock().unwrap();
-    let account = guard.iter_mut().find(|a| {
+    let found = guard.iter_mut().find(|a| {
         a.username.eq_ignore_ascii_case(&username) && a.user_type == accounts::UserType::Admin
     });
-    let account = match account {
-        Some(a) if accounts::verify_password(&password, &a.password_hash) => a,
-        _ => {
-            return Ok(accounts::AuthResult {
-                success: false,
-                account: None,
-                error: Some("Nom d'utilisateur ou mot de passe incorrect.".to_string()),
-            })
-        }
+    let verified = match &found {
+        Some(a) => accounts::verify_password(&password, &a.password_hash),
+        None => false,
     };
+    if !verified {
+        drop(guard);
+        rate_limit::record_failure(&state.auth_attempts, &attempt_key);
+        return Ok(accounts::AuthResult {
+            success: false,
+            account: None,
+            error: Some("Nom d'utilisateur ou mot de passe incorrect.".to_string()),
+            session_token: None,
+        });
+    }
+    let account = found.expect("verified implies the account was found");
     if account.status == accounts::AccountStatus::Suspended {
+        drop(guard);
+        rate_limit::record_failure(&state.auth_attempts, &attempt_key);
         return Ok(accounts::AuthResult {
             success: false,
             account: None,
             error: Some("Ce compte a été suspendu. Contactez un administrateur.".to_string()),
+            session_token: None,
         });
     }
     account.last_sign_in_at = Some(chrono::Local::now().to_rfc3339());
     let view = accounts::Account::from(&*account);
     accounts::save(&app, &guard)?;
+    drop(guard);
+    rate_limit::record_success(&state.auth_attempts, &attempt_key);
+    let token = accounts::mint_session(&state.sessions, &view.username, accounts::SessionRole::Admin);
     Ok(accounts::AuthResult {
         success: true,
         account: Some(view),
         error: None,
+        session_token: Some(token),
     })
 }
 #[tauri::command]
@@ -642,34 +689,57 @@ async fn authenticate_cashier(
 ) -> Result<accounts::AuthResult, String> {
     let username = accounts::validate_username(&username)?;
     accounts::validate_password(&password)?;
+    let attempt_key = format!("cashier:{}", username.to_lowercase());
+    if let Some(remaining) = rate_limit::seconds_until_unlocked(&state.auth_attempts, &attempt_key) {
+        return Ok(accounts::AuthResult {
+            success: false,
+            account: None,
+            error: Some(format!(
+                "Trop de tentatives échouées. Réessayez dans {remaining} seconde(s)."
+            )),
+            session_token: None,
+        });
+    }
     let mut guard = state.accounts.lock().unwrap();
-    let account = guard.iter_mut().find(|a| {
+    let found = guard.iter_mut().find(|a| {
         a.username.eq_ignore_ascii_case(&username) && a.user_type == accounts::UserType::Caissier
     });
-    let account = match account {
-        Some(a) if accounts::verify_password(&password, &a.password_hash) => a,
-        _ => {
-            return Ok(accounts::AuthResult {
-                success: false,
-                account: None,
-                error: Some("Nom d'utilisateur ou mot de passe incorrect.".to_string()),
-            })
-        }
+    let verified = match &found {
+        Some(a) => accounts::verify_password(&password, &a.password_hash),
+        None => false,
     };
+    if !verified {
+        drop(guard);
+        rate_limit::record_failure(&state.auth_attempts, &attempt_key);
+        return Ok(accounts::AuthResult {
+            success: false,
+            account: None,
+            error: Some("Nom d'utilisateur ou mot de passe incorrect.".to_string()),
+            session_token: None,
+        });
+    }
+    let account = found.expect("verified implies the account was found");
     if account.status == accounts::AccountStatus::Suspended {
+        drop(guard);
+        rate_limit::record_failure(&state.auth_attempts, &attempt_key);
         return Ok(accounts::AuthResult {
             success: false,
             account: None,
             error: Some("Ce compte a été suspendu. Contactez un administrateur.".to_string()),
+            session_token: None,
         });
     }
     account.last_sign_in_at = Some(chrono::Local::now().to_rfc3339());
     let view = accounts::Account::from(&*account);
     accounts::save(&app, &guard)?;
+    drop(guard);
+    rate_limit::record_success(&state.auth_attempts, &attempt_key);
+    let token = accounts::mint_session(&state.sessions, &view.username, accounts::SessionRole::Cashier);
     Ok(accounts::AuthResult {
         success: true,
         account: Some(view),
         error: None,
+        session_token: Some(token),
     })
 }
 /// Create a new account. The username is validated, checked for uniqueness
@@ -842,6 +912,9 @@ pub fn run() {
     let blacklist: Blacklist = Arc::new(SyncMutex::new(Vec::new()));
     let connection_history: ConnectionHistory = Arc::new(SyncMutex::new(Vec::new()));
     let pricing_store: PricingStore = Arc::new(SyncMutex::new(Vec::new()));
+    let sessions: accounts::Sessions = Arc::new(SyncMutex::new(HashMap::new()));
+    let auth_attempts: rate_limit::AttemptTracker = rate_limit::new_tracker();
+    let connection_attempts: rate_limit::AttemptTracker = rate_limit::new_tracker();
     let ws_order_service = order_service.clone();
     let ws_peers = peers.clone();
     let ws_max_connected_devices = max_connected_devices.clone();
@@ -849,6 +922,9 @@ pub fn run() {
     let ws_app_handle_slot = app_handle_slot.clone();
     let ws_blacklist = blacklist.clone();
     let ws_connection_history = connection_history.clone();
+    let ws_pricing = pricing_store.clone();
+    let ws_sessions = sessions.clone();
+    let ws_connection_attempts = connection_attempts.clone();
     tauri::async_runtime::spawn(async move {
         let listener = TcpListener::bind("0.0.0.0:8080")
             .await
@@ -861,6 +937,9 @@ pub fn run() {
             let app_handle_inner = ws_app_handle_slot.clone();
             let blacklist_inner = ws_blacklist.clone();
             let connection_history_inner = ws_connection_history.clone();
+            let pricing_inner = ws_pricing.clone();
+            let sessions_inner = ws_sessions.clone();
+            let connection_attempts_inner = ws_connection_attempts.clone();
             tauri::async_runtime::spawn(async move {
                 let is_blacklisted = {
                     let guard = blacklist_inner.lock().unwrap();
@@ -882,6 +961,7 @@ pub fn run() {
                         username: String::new(),
                         approved: false,
                         is_cashier: false,
+                        is_admin: false,
                     },
                 );
                 let ws_writer = tauri::async_runtime::spawn(async move {
@@ -894,11 +974,30 @@ pub fn run() {
                 while let Some(Ok(message)) = ws_receiver.next().await {
                     if let Message::Text(text) = message {
                         match serde_json::from_str::<ClientMessage>(&text) {
-                            Ok(ClientMessage::CashierRegister { username }) => {
+                            Ok(ClientMessage::CashierRegister { username, token }) => {
+                                let verified_username = accounts::consume_session(
+                                    &sessions_inner,
+                                    &token,
+                                    accounts::SessionRole::Cashier,
+                                );
+                                let Some(verified_username) = verified_username else {
+                                    send_to_addr(
+                                        &peers_inner,
+                                        addr,
+                                        &ServerMessage::ProtocolError {
+                                            data: "Jeton de session invalide ou expiré.".to_string(),
+                                        },
+                                    )
+                                    .await;
+                                    continue;
+                                };
+                                // `username` is no longer trusted for identity; the
+                                // verified session's username is authoritative.
+                                let _ = username;
                                 {
                                     let mut guard = peers_inner.lock().await;
                                     if let Some(state) = guard.get_mut(&addr) {
-                                        state.username = username;
+                                        state.username = verified_username;
                                         state.approved = true;
                                         state.is_cashier = true;
                                     }
@@ -924,14 +1023,32 @@ pub fn run() {
                                 )
                                 .await;
                             }
-                            Ok(ClientMessage::AdminRegister { username }) => {
+                            Ok(ClientMessage::AdminRegister { username, token }) => {
+                                let verified_username = accounts::consume_session(
+                                    &sessions_inner,
+                                    &token,
+                                    accounts::SessionRole::Admin,
+                                );
+                                let Some(verified_username) = verified_username else {
+                                    send_to_addr(
+                                        &peers_inner,
+                                        addr,
+                                        &ServerMessage::ProtocolError {
+                                            data: "Jeton de session invalide ou expiré.".to_string(),
+                                        },
+                                    )
+                                    .await;
+                                    continue;
+                                };
+                                // `username` is no longer trusted for identity; the
+                                // verified session's username is authoritative.
+                                let _ = username;
                                 {
                                     let mut guard = peers_inner.lock().await;
                                     if let Some(state) = guard.get_mut(&addr) {
-                                        if let Some(username) = username {
-                                            state.username = username;
-                                        }
+                                        state.username = verified_username;
                                         state.approved = true;
+                                        state.is_admin = true;
                                     }
                                 }
                                 send_to_addr(
@@ -942,6 +1059,23 @@ pub fn run() {
                                 .await;
                             }
                             Ok(ClientMessage::RequestConnection { username, password }) => {
+                                let attempt_key = addr.to_string();
+                                if let Some(remaining) = rate_limit::seconds_until_unlocked(
+                                    &connection_attempts_inner,
+                                    &attempt_key,
+                                ) {
+                                    send_to_addr(
+                                        &peers_inner,
+                                        addr,
+                                        &ServerMessage::ProtocolError {
+                                            data: format!(
+                                                "Trop de tentatives échouées. Réessayez dans {remaining} seconde(s)."
+                                            ),
+                                        },
+                                    )
+                                    .await;
+                                    continue;
+                                }
                                 let format_ok = accounts::validate_username(&username).is_ok()
                                     && accounts::validate_password(&password).is_ok();
                                 let credentials_ok = format_ok && {
@@ -954,6 +1088,7 @@ pub fn run() {
                                     })
                                 };
                                 if !credentials_ok {
+                                    rate_limit::record_failure(&connection_attempts_inner, &attempt_key);
                                     send_to_addr(&peers_inner, addr, &ServerMessage::ConnectionRejected).await;
                                 } else {
                                     let at_capacity = is_at_connected_devices_capacity(
@@ -964,6 +1099,7 @@ pub fn run() {
                                     if at_capacity {
                                         send_to_addr(&peers_inner, addr, &ServerMessage::ConnectionRejected).await;
                                     } else {
+                                        rate_limit::record_success(&connection_attempts_inner, &attempt_key);
                                         {
                                             let mut guard = peers_inner.lock().await;
                                             if let Some(state) = guard.get_mut(&addr) {
@@ -1115,6 +1251,16 @@ pub fn run() {
                                     }
                                 }
                             }
+                            Ok(ClientMessage::RequestPricing) => {
+                                let approved = {
+                                    let guard = peers_inner.lock().await;
+                                    guard.get(&addr).map(|s| s.approved).unwrap_or(false)
+                                };
+                                if approved {
+                                    let items = pricing_inner.lock().unwrap().clone();
+                                    send_to_addr(&peers_inner, addr, &ServerMessage::Pricing { data: items }).await;
+                                }
+                            }
                             Ok(ClientMessage::GetAccount) => {
                                 let username = {
                                     let guard = peers_inner.lock().await;
@@ -1200,7 +1346,19 @@ pub fn run() {
                                     }
                                 }
                             }
-                            Err(_) => {}
+                            Err(err) => {
+                                log::warn!(
+                                    "Message WebSocket invalide reçu de {addr}: {err} (contenu brut : {text})"
+                                );
+                                send_to_addr(
+                                    &peers_inner,
+                                    addr,
+                                    &ServerMessage::ProtocolError {
+                                        data: format!("Message invalide : {err}"),
+                                    },
+                                )
+                                .await;
+                            }
                         }
                     }
                 }
@@ -1284,6 +1442,9 @@ pub fn run() {
             blacklist,
             connection_history,
             pricing: pricing_store,
+            sessions,
+            auth_attempts,
+            connection_attempts,
         })
                 .invoke_handler(tauri::generate_handler![
             get_ws_address,

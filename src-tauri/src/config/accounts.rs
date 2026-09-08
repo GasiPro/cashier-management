@@ -4,7 +4,9 @@ use argon2::password_hash::{
 };
 use argon2::Argon2;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::{AppHandle, Manager};
 pub const MIN_USERNAME_LEN: usize = 3;
 pub const MAX_USERNAME_LEN: usize = 32;
@@ -13,6 +15,12 @@ pub const MAX_DISPLAY_NAME_LEN: usize = 40;
 const ACCOUNTS_FILE_NAME: &str = "accounts.json";
 const DEFAULT_USERNAME: &str = "admin";
 const DEFAULT_PASSWORD: &str = "admin123";
+/// How long a session token minted by `authenticate_admin` /
+/// `authenticate_cashier` remains valid for. It only needs to survive the
+/// brief window between the invoke() call and the frontend's follow-up
+/// `cashier_register` / `admin_register` WebSocket message, so this is
+/// intentionally short-lived.
+pub const SESSION_TOKEN_TTL_SECS: i64 = 30;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AccountStatus {
@@ -46,7 +54,6 @@ pub struct AccountActivityEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
 }
-/// On-disk representation of an account, including its password hash.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoredAccount {
     pub id: String,
@@ -63,7 +70,6 @@ pub struct StoredAccount {
     #[serde(default)]
     pub history: Vec<AccountActivityEntry>,
 }
-/// Public view of an account, safe to send to the frontend (no password hash).
 #[derive(Debug, Clone, Serialize)]
 pub struct Account {
     pub id: String,
@@ -89,8 +95,6 @@ impl From<&StoredAccount> for Account {
         }
     }
 }
-/// A single activity entry flattened with its owning account's identity, as
-/// returned by `list_account_activities`.
 #[derive(Debug, Clone, Serialize)]
 pub struct AccountActivity {
     pub account_id: String,
@@ -99,15 +103,37 @@ pub struct AccountActivity {
     pub timestamp: String,
     pub reason: Option<String>,
 }
-/// Result of an admin authentication attempt. Kept distinct from a bare
-/// `Result<Account, String>` so a suspended/invalid attempt can be reported
-/// to the caller without being treated as a hard command error.
 #[derive(Debug, Clone, Serialize)]
 pub struct AuthResult {
     pub success: bool,
     pub account: Option<Account>,
     pub error: Option<String>,
+    /// Present only on success. A short-lived, single-use token the
+    /// frontend must include in its `cashier_register` / `admin_register`
+    /// WebSocket message so the server can verify the registration was
+    /// actually preceded by a successful `authenticate_admin` /
+    /// `authenticate_cashier` call, instead of trusting a client-supplied
+    /// username with no credential check.
+    pub session_token: Option<String>,
 }
+/// The privileged role a minted session token grants over the WebSocket
+/// connection. Kept distinct from `UserType` because a session is about
+/// "what this token may register as", not the account's stored type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionRole {
+    Admin,
+    Cashier,
+}
+#[derive(Debug, Clone)]
+pub struct SessionInfo {
+    pub username: String,
+    pub role: SessionRole,
+    pub expires_at: i64,
+}
+/// In-memory (never persisted) map of session tokens minted by
+/// `authenticate_admin` / `authenticate_cashier`, consumed by the WebSocket
+/// `cashier_register` / `admin_register` handlers.
+pub type Sessions = Arc<SyncMutex<HashMap<String, SessionInfo>>>;
 fn accounts_file_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -225,9 +251,6 @@ pub fn record_activity(account: &mut StoredAccount, kind: ActivityKind, reason: 
         reason,
     });
 }
-/// Flags an account as suspended. Reversible via `reactivate` — the account
-/// and its history are left untouched on disk, it's just blocked from
-/// authenticating.
 pub fn suspend(account: &mut StoredAccount, reason: Option<String>) {
     account.status = AccountStatus::Suspended;
     record_activity(account, ActivityKind::Suspended, reason);
@@ -241,7 +264,6 @@ pub fn remove_account(accounts: &mut Vec<StoredAccount>, username: &str) -> bool
     accounts.retain(|a| !a.username.eq_ignore_ascii_case(username));
     accounts.len() != len_before
 }
-/// Flattens every account's history into a single list, most recent first.
 pub fn list_activities(accounts: &[StoredAccount]) -> Vec<AccountActivity> {
     let mut activities: Vec<AccountActivity> = accounts
         .iter()
@@ -257,4 +279,41 @@ pub fn list_activities(accounts: &[StoredAccount]) -> Vec<AccountActivity> {
         .collect();
     activities.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
     activities
+}
+fn generate_session_token() -> String {
+    let mut bytes = [0u8; 32];
+    OsRng.fill_bytes(&mut bytes);
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+/// Mints a short-lived, single-use session token for `username`/`role`,
+/// storing it in `sessions`. Expired entries are purged opportunistically
+/// while the lock is held so the map doesn't grow unbounded.
+pub fn mint_session(sessions: &Sessions, username: &str, role: SessionRole) -> String {
+    let token = generate_session_token();
+    let now = chrono::Local::now().timestamp();
+    let mut guard = sessions.lock().unwrap();
+    guard.retain(|_, info| info.expires_at > now);
+    guard.insert(
+        token.clone(),
+        SessionInfo {
+            username: username.to_string(),
+            role,
+            expires_at: now + SESSION_TOKEN_TTL_SECS,
+        },
+    );
+    token
+}
+/// Consumes (one-time use) `token` if it exists, hasn't expired, and was
+/// minted for `expected_role`. Returns the username it was minted for.
+pub fn consume_session(sessions: &Sessions, token: &str, expected_role: SessionRole) -> Option<String> {
+    let now = chrono::Local::now().timestamp();
+    let mut guard = sessions.lock().unwrap();
+    match guard.get(token) {
+        Some(info) if info.role == expected_role && info.expires_at > now => {
+            let username = info.username.clone();
+            guard.remove(token);
+            Some(username)
+        }
+        _ => None,
+    }
 }
