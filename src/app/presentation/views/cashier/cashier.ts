@@ -196,6 +196,8 @@ export class Cashier implements OnInit, OnDestroy {
   private _rawPaidOrders: Order[] = [];
   private wsSubscription?: Subscription;
   private openSubscription?: Subscription;
+  /** Set once the server has sent anything other than a registration failure. */
+  private approved = false;
   constructor(
     private router: Router,
     private ws: WebsocketService,
@@ -208,6 +210,13 @@ export class Cashier implements OnInit, OnDestroy {
       .then((max) => this.maxConnectedDevices.set(max))
       .catch(() => {});
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
+      if (msg.type === 'protocol_error') {
+        if (!this.approved) {
+          this.returnToLogin();
+        }
+        return;
+      }
+      this.approved = true;
       this.wsConnected.set(true);
       if (msg.type === 'orders') {
         this.applyOrders(msg.data as Order[]);
@@ -219,13 +228,35 @@ export class Cashier implements OnInit, OnDestroy {
         this.connectedDevices.set(msg.data as ConnectedDevice[]);
       }
     });
-    this.openSubscription = this.ws.onOpened().subscribe(() => {
-      this.ws.send({ type: 'cashier_register', username: this.username });
-    });
+    this.openSubscription = this.ws.onOpened().subscribe(() => this.registerOnOpen());
     this.ws.connect(CASHIER_LOCAL_WS_URL);
     if (this.ws.isOpen()) {
-      this.ws.send({ type: 'cashier_register', username: this.username });
+      this.registerOnOpen();
     }
+  }
+  /**
+   * Sends `cashier_register` with the token captured at login. The token is
+   * single-use, so a reconnect that lands here after the session was already
+   * approved (dropped connection, etc.) can't be recovered by resending it —
+   * the cashier has to log in again to mint a fresh one.
+   */
+  private registerOnOpen(): void {
+    if (this.approved) {
+      this.returnToLogin();
+      return;
+    }
+    const token = this.ws.consumeSessionToken();
+    if (!token) {
+      this.returnToLogin();
+      return;
+    }
+    this.ws.send({ type: 'cashier_register', username: this.username, token });
+  }
+  private returnToLogin(): void {
+    this.wsSubscription?.unsubscribe();
+    this.openSubscription?.unsubscribe();
+    this.ws.disconnect();
+    this.router.navigate(['/login']);
   }
   ngOnDestroy(): void {
     this.wsSubscription?.unsubscribe();

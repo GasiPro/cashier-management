@@ -45,6 +45,13 @@ export class WebsocketService implements OnDestroy {
    */
   private counterCredentials: { username: string; password: string } | null = null;
   /**
+   * The one-time session token minted by `authenticate_admin` / `authenticate_cashier`
+   * at login, kept in memory only (never persisted) until it is consumed by the very
+   * next WS registration attempt. It is single-use and time-limited server-side, so it
+   * must never be re-read or resent after that first attempt.
+   */
+  private sessionToken: string | null = null;
+  /**
    * Connect (or reconnect) to a given ws:// address.
    * No-op if already connected/connecting to the same URL.
    */
@@ -137,11 +144,20 @@ export class WebsocketService implements OnDestroy {
   clearCounterCredentials(): void {
     this.counterCredentials = null;
   }
+  /** Stores the session token minted at login, in memory only, for the upcoming WS registration. */
+  setSessionToken(token: string): void {
+    this.sessionToken = token;
+  }
   /**
-   * Sends a payload over the socket. Returns `false` (without throwing) when
-   * there is no open connection to send on, so callers can tell a dropped
-   * message apart from a delivered one instead of assuming success.
+   * Returns the in-memory session token and clears it in the same call. The token is
+   * single-use, so callers must only invoke this once per login, at the moment of the
+   * first registration attempt — never to retry or resend on a later reconnect.
    */
+  consumeSessionToken(): string | null {
+    const token = this.sessionToken;
+    this.sessionToken = null;
+    return token;
+  }
   send(payload: unknown): boolean {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       try {

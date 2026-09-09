@@ -25,6 +25,8 @@ interface AuthResult<T> {
   success: boolean;
   account: T | null;
   error: string | null;
+  /** Single-use, time-limited WS registration token. Present only when success is true. */
+  session_token: string | null;
 }
 @Component({
   selector: 'app-login',
@@ -140,6 +142,9 @@ export class LoginComponent implements OnInit, OnDestroy {
       }
       localStorage.setItem(LS_USERNAME, username);
       localStorage.setItem(LS_DISPLAY_NAME, result.account.display_name ?? '');
+      if (result.session_token) {
+        this.ws.setSessionToken(result.session_token);
+      }
       this.showAdminModal.set(false);
       this.router.navigate(['/admin']);
     } catch (e) {
@@ -226,6 +231,9 @@ export class LoginComponent implements OnInit, OnDestroy {
       }
       localStorage.setItem(LS_USERNAME, username);
       localStorage.setItem(LS_DISPLAY_NAME, result.account.display_name ?? '');
+      if (result.session_token) {
+        this.ws.setSessionToken(result.session_token);
+      }
       this.router.navigate(['/caissier']);
     } catch (e) {
       console.error('authenticate_cashier failed', e);

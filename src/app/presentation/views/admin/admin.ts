@@ -1,8 +1,10 @@
-import { Component, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
-import { filter } from 'rxjs';
+import { filter, Subscription } from 'rxjs';
+import { WebsocketService, WsMessage } from '../../../core/service/websocket.service';
 const LS_USERNAME = 'gasipro:username';
+const ADMIN_LOCAL_WS_URL = 'ws://127.0.0.1:8080';
 interface AdminNavItem {
   id: string;
   label: string;
@@ -23,16 +25,74 @@ const HOME_ROUTE = 'dashboard';
   templateUrl: './admin.html',
   styleUrl: './admin.css',
 })
-export class Admin {
+export class Admin implements OnInit, OnDestroy {
   readonly navItems = NAV_ITEMS;
   readonly homeRoute = HOME_ROUTE;
   readonly username = localStorage.getItem(LS_USERNAME) ?? 'Admin';
   private currentUrl = signal('');
-  constructor(private router: Router) {
+  /**
+   * Owns the single WS connection/registration for the whole admin section — child
+   * routes (dashboard, order, report, ...) only read from it, so the one-time session
+   * token from login is spent exactly once here rather than re-sent on every subview
+   * switch.
+   */
+  private wsSubscription?: Subscription;
+  private openSubscription?: Subscription;
+  /** Set once the server has sent anything other than a registration failure. */
+  private approved = false;
+  constructor(
+    private router: Router,
+    private ws: WebsocketService,
+  ) {
     this.currentUrl.set(this.router.url);
     this.router.events
       .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
       .subscribe((e) => this.currentUrl.set(e.urlAfterRedirects));
+  }
+  ngOnInit(): void {
+    this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
+      if (msg.type === 'protocol_error') {
+        if (!this.approved) {
+          this.returnToLogin();
+        }
+        return;
+      }
+      this.approved = true;
+    });
+    this.openSubscription = this.ws.onOpened().subscribe(() => this.registerOnOpen());
+    this.ws.connect(ADMIN_LOCAL_WS_URL);
+    if (this.ws.isOpen()) {
+      this.registerOnOpen();
+    }
+  }
+  /**
+   * Sends `admin_register` with the token captured at login. The token is single-use,
+   * so a reconnect that lands here after the session was already approved (dropped
+   * connection, etc.) can't be recovered by resending it — the operator has to log in
+   * again to mint a fresh one.
+   */
+  private registerOnOpen(): void {
+    if (this.approved) {
+      this.returnToLogin();
+      return;
+    }
+    const token = this.ws.consumeSessionToken();
+    if (!token) {
+      this.returnToLogin();
+      return;
+    }
+    this.ws.send({ type: 'admin_register', token });
+  }
+  private returnToLogin(): void {
+    this.wsSubscription?.unsubscribe();
+    this.openSubscription?.unsubscribe();
+    this.ws.disconnect();
+    this.router.navigate(['/login']);
+  }
+  ngOnDestroy(): void {
+    this.wsSubscription?.unsubscribe();
+    this.openSubscription?.unsubscribe();
+    this.ws.disconnect();
   }
   /** True when the given child route segment is the one currently outlet-rendered. */
   isActive(route: string): boolean {

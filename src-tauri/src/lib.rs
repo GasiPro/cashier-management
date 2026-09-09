@@ -1,7 +1,6 @@
 pub mod config;
 pub mod domain;
 pub mod service;
-use futures_util::future::ok;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -44,16 +43,12 @@ pub struct AppState {
     pub connection_history: ConnectionHistory,
     pub pricing: PricingStore,
     pub sessions: accounts::Sessions,
-    pub auth_attempts: rate_limit::AttemptTracker,
-    pub connection_attempts: rate_limit::AttemptTracker,
+    pub(crate) auth_attempts: rate_limit::AttemptTracker,
+    pub(crate) connection_attempts: rate_limit::AttemptTracker,
 }
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ClientMessage {
-    // `token` must be a valid, unexpired session token minted by
-    // `authenticate_cashier` / `authenticate_admin` (see `accounts::mint_session`).
-    // The `username` field is kept for wire compatibility but is no longer
-    // trusted; the registered identity comes from the verified session.
     CashierRegister { username: String, token: String },
     AdminRegister { #[serde(default)] username: Option<String>, token: String },
     RequestConnection { username: String, password: String },
@@ -667,9 +662,15 @@ async fn authenticate_admin(
             session_token: None,
         });
     }
+    let previous_last_sign_in = account.last_sign_in_at.clone();
     account.last_sign_in_at = Some(chrono::Local::now().to_rfc3339());
     let view = accounts::Account::from(&*account);
-    accounts::save(&app, &guard)?;
+    if let Err(err) = accounts::save(&app, &guard) {
+        if let Some(account) = accounts::find_account_mut(&mut guard, &username) {
+            account.last_sign_in_at = previous_last_sign_in;
+        }
+        return Err(err);
+    }
     drop(guard);
     rate_limit::record_success(&state.auth_attempts, &attempt_key);
     let token = accounts::mint_session(&state.sessions, &view.username, accounts::SessionRole::Admin);
@@ -729,9 +730,15 @@ async fn authenticate_cashier(
             session_token: None,
         });
     }
+    let previous_last_sign_in = account.last_sign_in_at.clone();
     account.last_sign_in_at = Some(chrono::Local::now().to_rfc3339());
     let view = accounts::Account::from(&*account);
-    accounts::save(&app, &guard)?;
+    if let Err(err) = accounts::save(&app, &guard) {
+        if let Some(account) = accounts::find_account_mut(&mut guard, &username) {
+            account.last_sign_in_at = previous_last_sign_in;
+        }
+        return Err(err);
+    }
     drop(guard);
     rate_limit::record_success(&state.auth_attempts, &attempt_key);
     let token = accounts::mint_session(&state.sessions, &view.username, accounts::SessionRole::Cashier);
@@ -742,9 +749,6 @@ async fn authenticate_cashier(
         session_token: Some(token),
     })
 }
-/// Create a new account. The username is validated, checked for uniqueness
-/// (case-insensitive) against every existing account, and — once created —
-/// is never changed: there is deliberately no "rename" command.
 #[tauri::command]
 async fn create_account(
     app: tauri::AppHandle,
@@ -991,8 +995,6 @@ pub fn run() {
                                     .await;
                                     continue;
                                 };
-                                // `username` is no longer trusted for identity; the
-                                // verified session's username is authoritative.
                                 let _ = username;
                                 {
                                     let mut guard = peers_inner.lock().await;
@@ -1040,8 +1042,6 @@ pub fn run() {
                                     .await;
                                     continue;
                                 };
-                                // `username` is no longer trusted for identity; the
-                                // verified session's username is authoritative.
                                 let _ = username;
                                 {
                                     let mut guard = peers_inner.lock().await;
