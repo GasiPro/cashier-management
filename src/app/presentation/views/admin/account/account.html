@@ -27,7 +27,7 @@
         @for (account of accounts(); track account.username) {
         <li [class.bg-gray-50]="account.status === 'suspended'">
           <div class="grid grid-cols-[3.5rem_1fr_1fr_9rem_7rem] sm:items-center gap-3 px-3 py-3">
-            <span class="text-sm font-mono text-gray-400 tabular-nums">
+            <span class="text-sm font-mono text-gray-400 tabular-nums truncate min-w-0">
               {{ account.id.padStart(3, '0') }}
             </span>
             <div class="min-w-0">
@@ -42,11 +42,12 @@
               </span>
               }
             </div>
-            <p class="text-sm text-gray-500 truncate selectable">
+            <p class="min-w-0 text-sm text-gray-500 truncate selectable">
               {{ account.display_name || '—' }}
             </p>
             <span class="inline-flex items-center justify-center text-[10px] font-semibold uppercase tracking-wide
-                         text-[#1E3A5F] bg-[#EFF4FA] border border-[#1E3A5F]/20 rounded-full px-2 py-1 w-fit">
+                         text-[#1E3A5F] bg-[#EFF4FA] border border-[#1E3A5F]/20 rounded-full px-2 py-1 w-fit
+                         min-w-0 truncate">
               {{ userTypeLabel(account.user_type) }}
             </span>
             <div class="flex items-center justify-end flex-shrink-0 gap-0.5">
