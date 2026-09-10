@@ -235,8 +235,8 @@ export class Setting implements OnInit, OnDestroy {
     try {
       const created = await invoke<CashierAccountView>('create_account', {
         username: this.trimmedNewAccountUsername(),
-        display_name: '',
-        user_type: CASHIER_USER_TYPE,
+        displayName: '',
+        userType: CASHIER_USER_TYPE,
         password: this.newAccountPassword(),
       });
       this.accounts.update((list) => [created, ...list]);
@@ -352,8 +352,8 @@ export class Setting implements OnInit, OnDestroy {
       const displayName = this.editDisplayName().trim();
       const updated = await invoke<CashierAccountView>('update_account', {
         username,
-        display_name: displayName,
-        user_type: CASHIER_USER_TYPE,
+        displayName: displayName,
+        userType: CASHIER_USER_TYPE,
         password: this.editPassword() || null,
       });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));

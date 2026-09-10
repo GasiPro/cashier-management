@@ -228,8 +228,8 @@ export class Account implements OnInit {
       const displayName = this.editDisplayName().trim();
       const updated = await invoke<AccountView>('update_account', {
         username,
-        display_name: displayName,
-        user_type: this.editUserType(),
+        displayName: displayName,
+        userType: this.editUserType(),
         password: this.editPassword() || null,
       });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
@@ -357,8 +357,8 @@ export class Account implements OnInit {
     try {
       const created = await invoke<AccountView>('create_account', {
         username: this.trimmedNewUsername(),
-        display_name: this.newDisplayName().trim(),
-        user_type: this.newUserType(),
+        displayName: this.newDisplayName().trim(),
+        userType: this.newUserType(),
         password: this.newPassword(),
       });
       this.accounts.update((list) => [created, ...list]);
