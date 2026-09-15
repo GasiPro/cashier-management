@@ -34,10 +34,11 @@ interface AccountView {
   last_sign_in_at: string | null;
   history: AccountHistoryEntry[];
 }
+type ActivityKind = 'created' | 'suspended' | 'reactivated' | 'modified' | 'deleted';
 interface AccountActivity {
-  id: number;
+  account_id: string;
   username: string;
-  kind: string;
+  kind: ActivityKind;
   timestamp: string;
   reason: string | null;
 }
@@ -69,7 +70,7 @@ export class Account implements OnInit {
       this.accounts.set(accounts);
     } catch (e) {
       console.error('failed to load accounts', e);
-      this.setAccountStatus('Impossible de charger la liste des comptes.', true);
+      this.setAccountStatus(this.errorMessage(e, 'Impossible de charger la liste des comptes.'), true);
     } finally {
       this.loadingAccounts.set(false);
     }
@@ -97,6 +98,22 @@ export class Account implements OnInit {
         return entry.kind;
     }
   }
+  activityLabel(kind: ActivityKind): string {
+    switch (kind) {
+      case 'created':
+        return 'Compte créé';
+      case 'suspended':
+        return 'Suspendu';
+      case 'reactivated':
+        return 'Réactivé';
+      case 'modified':
+        return 'Modifié';
+      case 'deleted':
+        return 'Supprimé';
+      default:
+        return kind;
+    }
+  }
   formatAccountDate(isoDate: string): string {
     const date = new Date(isoDate);
     if (Number.isNaN(date.getTime())) return isoDate;
@@ -114,6 +131,19 @@ export class Account implements OnInit {
     this.accountStatusMessage.set(message);
     this.accountStatusIsError.set(isError);
   }
+  /** Tauri rejects with `unknown` — usually a string, sometimes an Error or a
+   *  serialized object. Extract something readable, or fall back to `fallback`. */
+  private errorMessage(e: unknown, fallback: string): string {
+    if (typeof e === 'string') return e.trim() || fallback;
+    if (e instanceof Error) return e.message.trim() || fallback;
+    if (e && typeof e === 'object' && 'message' in e) {
+      const message = String((e as { message: unknown }).message).trim();
+      if (message) return message;
+    }
+    if (e === null || e === undefined) return fallback;
+    const text = String(e).trim();
+    return text && text !== '[object Object]' ? text : fallback;
+  }
   // ── Suspend / reactivate ─────────────────────────────────────────────────
   togglingStatusUsername = signal<string | null>(null);
   /** Reversibly blocks an account from logging in. Kept separate from permanent
@@ -128,7 +158,7 @@ export class Account implements OnInit {
       this.setAccountStatus(`Compte « ${updated.username} » suspendu.`, false);
     } catch (e) {
       console.error('suspend_account failed', e);
-      const message = typeof e === 'string' ? e : 'Échec de la suspension du compte. Réessayez.';
+      const message = this.errorMessage(e, 'Échec de la suspension du compte. Réessayez.');
       this.setAccountStatus(message, true);
     } finally {
       this.togglingStatusUsername.set(null);
@@ -144,7 +174,7 @@ export class Account implements OnInit {
       this.setAccountStatus(`Compte « ${updated.username} » réactivé.`, false);
     } catch (e) {
       console.error('reactivate_account failed', e);
-      const message = typeof e === 'string' ? e : 'Échec de la réactivation du compte. Réessayez.';
+      const message = this.errorMessage(e, 'Échec de la réactivation du compte. Réessayez.');
       this.setAccountStatus(message, true);
     } finally {
       this.togglingStatusUsername.set(null);
@@ -153,33 +183,19 @@ export class Account implements OnInit {
   editingUsername = signal<string | null>(null);
   editDisplayName = signal('');
   editUserType = signal<UserType>('caissier');
-  editPassword = signal('');
-  editPasswordConfirm = signal('');
-  showEditPassword = signal(false);
   savingEditAccount = signal(false);
   editAccountError = signal('');
-  /** An empty new-password pair is valid — it means "leave the password unchanged". */
+  /** `update_account` only carries the display name and the user type — the backend
+   *  exposes no password parameter, so passwords are never changed from here. */
   canSubmitEditAccount = computed(() => {
     if (this.savingEditAccount()) return false;
-    if (this.editDisplayName().trim().length > this.maxDisplayNameLen) return false;
-    const password = this.editPassword();
-    const confirm = this.editPasswordConfirm();
-    if (password.length === 0 && confirm.length === 0) return true;
-    return (
-      password.length >= this.minPasswordLen &&
-      PASSWORD_HAS_LETTER.test(password) &&
-      PASSWORD_HAS_DIGIT.test(password) &&
-      password === confirm
-    );
+    return this.editDisplayName().trim().length <= this.maxDisplayNameLen;
   });
   startEditAccount(account: AccountView): void {
     this.confirmingDeleteUsername.set(null);
     this.editingUsername.set(account.username);
     this.editDisplayName.set(account.display_name);
     this.editUserType.set(account.user_type);
-    this.editPassword.set('');
-    this.editPasswordConfirm.set('');
-    this.showEditPassword.set(false);
     this.editAccountError.set('');
     setTimeout(() => {
       document.getElementById(`edit-display-name-${account.username}`)?.focus();
@@ -192,25 +208,9 @@ export class Account implements OnInit {
       document.getElementById(`account-edit-btn-${username}`)?.focus();
     }
   }
-  toggleEditPasswordVisibility(): void {
-    this.showEditPassword.update((v) => !v);
-  }
   private validateEditAccountForm(): string {
     if (this.editDisplayName().trim().length > this.maxDisplayNameLen) {
       return `Le nom affiché ne peut pas dépasser ${this.maxDisplayNameLen} caractères.`;
-    }
-    const password = this.editPassword();
-    const confirm = this.editPasswordConfirm();
-    if (password.length > 0 || confirm.length > 0) {
-      if (password.length < this.minPasswordLen) {
-        return `Le mot de passe doit contenir au moins ${this.minPasswordLen} caractères.`;
-      }
-      if (!PASSWORD_HAS_LETTER.test(password) || !PASSWORD_HAS_DIGIT.test(password)) {
-        return 'Le mot de passe doit contenir au moins une lettre et un chiffre.';
-      }
-      if (password !== confirm) {
-        return 'Les mots de passe ne correspondent pas.';
-      }
     }
     return '';
   }
@@ -228,19 +228,16 @@ export class Account implements OnInit {
       const displayName = this.editDisplayName().trim();
       const updated = await invoke<AccountView>('update_account', {
         username,
-        displayName: displayName,
-        userType: this.editUserType(),
-        password: this.editPassword() || null,
+        display_name: displayName,
+        user_type: this.editUserType(),
       });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.editingUsername.set(null);
-      this.editPassword.set('');
-      this.editPasswordConfirm.set('');
       this.setAccountStatus(`Compte « ${updated.username} » mis à jour.`, false);
       document.getElementById(`account-edit-btn-${updated.username}`)?.focus();
     } catch (e) {
       console.error('update_account failed', e);
-      const message = typeof e === 'string' ? e : 'Échec de la mise à jour du compte. Réessayez.';
+      const message = this.errorMessage(e, 'Échec de la mise à jour du compte. Réessayez.');
       this.editAccountError.set(message);
     } finally {
       this.savingEditAccount.set(false);
@@ -278,7 +275,7 @@ export class Account implements OnInit {
       this.setAccountStatus(`Compte « ${account.username} » supprimé définitivement.`, false);
     } catch (e) {
       console.error('delete_account failed', e);
-      const message = typeof e === 'string' ? e : 'Échec de la suppression du compte. Réessayez.';
+      const message = this.errorMessage(e, 'Échec de la suppression du compte. Réessayez.');
       this.deleteAccountError.set(message);
     } finally {
       this.deletingAccount.set(false);
@@ -357,16 +354,16 @@ export class Account implements OnInit {
     try {
       const created = await invoke<AccountView>('create_account', {
         username: this.trimmedNewUsername(),
-        displayName: this.newDisplayName().trim(),
-        userType: this.newUserType(),
         password: this.newPassword(),
+        display_name: this.newDisplayName().trim(),
+        user_type: this.newUserType(),
       });
       this.accounts.update((list) => [created, ...list]);
       this.setAccountStatus(`Compte « ${created.username} » créé.`, false);
       this.closeCreatePanel();
     } catch (e) {
       console.error('create_account failed', e);
-      const message = typeof e === 'string' ? e : 'Échec de la création du compte. Réessayez.';
+      const message = this.errorMessage(e, 'Échec de la création du compte. Réessayez.');
       this.accountFormError.set(message);
     } finally {
       this.creatingAccount.set(false);
@@ -391,6 +388,7 @@ export class Account implements OnInit {
       this.activities.set(activities);
     } catch (e) {
       console.error('failed to load account activities', e);
+      this.setAccountStatus(this.errorMessage(e, "Impossible de charger l'activité des comptes."), true);
     } finally {
       this.loadingActivities.set(false);
     }

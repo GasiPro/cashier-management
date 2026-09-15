@@ -291,62 +291,10 @@
                     Facultatif — laissé vide, c'est à la personne qui utilise ce compte au comptoir de le remplir.
                   </p>
                 </div>
-                <div>
-                  <label [attr.for]="'edit-password-' + account.username"
-                    class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                    Nouveau mot de passe
-                  </label>
-                  <div class="flex items-center gap-2">
-                    <input [id]="'edit-password-' + account.username" [type]="showEditPassword() ? 'text' : 'password'"
-                      [name]="'editPassword-' + account.username"
-                      [ngModel]="editPassword()"
-                      (ngModelChange)="editPassword.set($event)"
-                      autocomplete="new-password"
-                      [attr.minlength]="minPasswordLen"
-                      [attr.aria-describedby]="'edit-password-help-' + account.username"
-                      placeholder="Laisser vide pour ne pas changer"
-                      class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A]
-                             focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
-                    <button type="button" (click)="toggleEditPasswordVisibility()"
-                      [attr.aria-pressed]="showEditPassword()"
-                      [attr.aria-label]="showEditPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'"
-                      class="flex-shrink-0 border border-gray-200 bg-white rounded-lg p-2.5
-                             hover:bg-gray-50 transition-colors
-                             focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-                      @if (showEditPassword()) {
-                      <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.243 4.243L9.88 9.88" />
-                      </svg>
-                      } @else {
-                      <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      }
-                    </button>
-                  </div>
-                  <p [id]="'edit-password-help-' + account.username" class="text-xs text-gray-400 mt-1.5">
-                    Laissez vide pour conserver le mot de passe actuel. Sinon, au moins {{ minPasswordLen }}
-                    caractères, avec une lettre et un chiffre.
-                  </p>
-                </div>
-                @if (editPassword().length > 0) {
-                <div>
-                  <label [attr.for]="'edit-password-confirm-' + account.username"
-                    class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                    Confirmer le nouveau mot de passe
-                  </label>
-                  <input [id]="'edit-password-confirm-' + account.username"
-                    [type]="showEditPassword() ? 'text' : 'password'"
-                    [name]="'editPasswordConfirm-' + account.username"
-                    [ngModel]="editPasswordConfirm()"
-                    (ngModelChange)="editPasswordConfirm.set($event)"
-                    autocomplete="new-password"
-                    placeholder="••••••••"
-                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A]
-                           focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
-                </div>
-                }
+                <p class="text-xs text-gray-400">
+                  Le mot de passe ne peut pas être modifié ici. Il est changé par la personne
+                  elle-même depuis le comptoir, via sa connexion WebSocket.
+                </p>
                 <p role="alert" aria-live="assertive" class="text-xs text-red-600">{{ editAccountError() }}</p>
                 <div class="flex items-center gap-2">
                   <button type="button" (click)="saveEditAccount()"

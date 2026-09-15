@@ -5,6 +5,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex as SyncMutex;
 use tauri::State;
@@ -21,11 +22,20 @@ use service::order_api_service::Order;
 use service::order_service::OrderService;
 type Tx = mpsc::UnboundedSender<Message>;
 pub struct PeerState {
+    /// Stable numeric handle exposed to the UI. In-memory only: ids are
+    /// reassigned on restart, which is enough for the connection screens.
+    id: i64,
     tx: Tx,
     username: String,
     approved: bool,
     is_cashier: bool,
     is_admin: bool,
+    requested_at: Option<String>,
+    connected_at: Option<String>,
+}
+static NEXT_PEER_ID: AtomicI64 = AtomicI64::new(1);
+fn next_peer_id() -> i64 {
+    NEXT_PEER_ID.fetch_add(1, Ordering::Relaxed)
 }
 type PeerMap = Arc<Mutex<HashMap<SocketAddr, PeerState>>>;
 type MaxConnectedDevices = Arc<SyncMutex<u32>>;
@@ -62,15 +72,57 @@ enum ClientMessage {
     UpdateAccount { display_name: String, password: Option<String> },
 }
 #[derive(Debug, Serialize, Clone)]
-struct ConnectionRequest {
-    addr: String,
-    username: String,
+struct PendingConnection {
+    id: i64,
+    label: String,
+    username: Option<String>,
+    ip_address: String,
+    port: u16,
+    requested_at: String,
 }
-type PendingConnection = ConnectionRequest;
+/// Kept so the `connection_requests` WebSocket payload keeps its name.
+type ConnectionRequest = PendingConnection;
 #[derive(Debug, Serialize, Clone)]
 struct ConnectedDevice {
-    addr: String,
-    username: String,
+    id: i64,
+    label: String,
+    username: Option<String>,
+    ip_address: String,
+    port: u16,
+    connected_at: String,
+}
+/// Command-boundary view of the connection log: `at` instead of `timestamp`,
+/// split address, and the event names the UI binds.
+#[derive(Debug, Serialize, Clone)]
+struct ConnectionHistoryView {
+    id: i64,
+    label: String,
+    username: Option<String>,
+    ip_address: String,
+    event: &'static str,
+    at: String,
+}
+fn history_event_label(event: connections::ConnectionEvent) -> &'static str {
+    match event {
+        // A counter that asked to connect is already attached to the server,
+        // so it surfaces as "connected" in the UI's event vocabulary.
+        connections::ConnectionEvent::Requested => "connected",
+        connections::ConnectionEvent::Approved => "approved",
+        connections::ConnectionEvent::Rejected => "refused",
+        connections::ConnectionEvent::Disconnected => "disconnected",
+        connections::ConnectionEvent::Blocked => "blocked",
+    }
+}
+fn optional_username(username: &str) -> Option<String> {
+    let trimmed = username.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+fn peer_label(username: &str, addr: &str) -> String {
+    optional_username(username).unwrap_or_else(|| addr.to_string())
 }
 #[derive(Debug, Serialize, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -154,25 +206,62 @@ async fn notify_cashier(peers: &PeerMap, msg: &ServerMessage) {
 }
 async fn get_pending_requests_list(peers: &PeerMap) -> Vec<ConnectionRequest> {
     let guard = peers.lock().await;
-    guard
+    let mut list: Vec<ConnectionRequest> = guard
         .iter()
         .filter(|(_, s)| !s.approved && !s.is_cashier && !s.username.is_empty())
-        .map(|(addr, s)| ConnectionRequest {
-            addr: addr.to_string(),
-            username: s.username.clone(),
+        .map(|(addr, s)| PendingConnection {
+            id: s.id,
+            label: peer_label(&s.username, &addr.to_string()),
+            username: optional_username(&s.username),
+            ip_address: addr.ip().to_string(),
+            port: addr.port(),
+            requested_at: s
+                .requested_at
+                .clone()
+                .unwrap_or_else(|| chrono::Local::now().to_rfc3339()),
         })
-        .collect()
+        .collect();
+    list.sort_by_key(|entry| entry.id);
+    list
 }
 async fn get_connected_devices_list(peers: &PeerMap) -> Vec<ConnectedDevice> {
     let guard = peers.lock().await;
-    guard
+    let mut list: Vec<ConnectedDevice> = guard
         .iter()
         .filter(|(_, s)| s.approved && !s.is_cashier)
         .map(|(addr, s)| ConnectedDevice {
-            addr: addr.to_string(),
-            username: s.username.clone(),
+            id: s.id,
+            label: peer_label(&s.username, &addr.to_string()),
+            username: optional_username(&s.username),
+            ip_address: addr.ip().to_string(),
+            port: addr.port(),
+            connected_at: s
+                .connected_at
+                .clone()
+                .unwrap_or_else(|| chrono::Local::now().to_rfc3339()),
         })
-        .collect()
+        .collect();
+    list.sort_by_key(|entry| entry.id);
+    list
+}
+/// Resolves the `{ id }` the frontend sends (falling back to the internal
+/// `{ addr }` form) to the socket address a peer is keyed by.
+async fn resolve_peer_addr(
+    peers: &PeerMap,
+    id: Option<i64>,
+    addr: Option<String>,
+) -> Result<SocketAddr, String> {
+    if let Some(id) = id {
+        let guard = peers.lock().await;
+        return guard
+            .iter()
+            .find(|(_, s)| s.id == id)
+            .map(|(addr, _)| *addr)
+            .ok_or_else(|| "Appareil introuvable ou déjà déconnecté.".to_string());
+    }
+    let addr = addr.ok_or_else(|| "Identifiant d'appareil manquant.".to_string())?;
+    addr.parse::<SocketAddr>()
+        .map_err(|e: std::net::AddrParseError| e.to_string())
 }
 async fn is_at_connected_devices_capacity(peers: &PeerMap, max_connected_devices: &MaxConnectedDevices) -> bool {
     let max = *max_connected_devices.lock().unwrap();
@@ -189,6 +278,7 @@ fn record_connection_history(
     connections::push_history_entry(
         &mut guard,
         connections::ConnectionHistoryEntry {
+            id: connections::next_history_id(),
             addr: addr.to_string(),
             username: username.to_string(),
             event,
@@ -212,6 +302,11 @@ fn get_ws_address() -> String {
         }
     }
     "127.0.0.1:8080".to_string()
+}
+/// Alias kept for the frontend, which calls `get_server_address`.
+#[tauri::command]
+fn get_server_address() -> String {
+    get_ws_address()
 }
 #[tauri::command]
 fn get_pricing_matrix(state: State<'_, AppState>) -> Vec<ServiceItem> {
@@ -355,8 +450,14 @@ async fn reject_group(state: State<'_, AppState>, group_id: i64, raison: Option<
     Ok(())
 }
 #[tauri::command]
-async fn approve_connection(app: tauri::AppHandle, state: State<'_, AppState>, addr: String) -> Result<(), String> {
-    let socket_addr: SocketAddr = addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
+async fn approve_connection(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    id: Option<i64>,
+    addr: Option<String>,
+) -> Result<(), String> {
+    let socket_addr = resolve_peer_addr(&state.peers, id, addr).await?;
+    let addr = socket_addr.to_string();
     if is_at_connected_devices_capacity(&state.peers, &state.max_connected_devices).await {
         let max = *state.max_connected_devices.lock().unwrap();
         return Err(format!(
@@ -369,6 +470,7 @@ async fn approve_connection(app: tauri::AppHandle, state: State<'_, AppState>, a
         let mut guard = state.peers.lock().await;
         if let Some(peer) = guard.get_mut(&socket_addr) {
             peer.approved = true;
+            peer.connected_at = Some(chrono::Local::now().to_rfc3339());
             approved_username = peer.username.clone();
             let scoped = scope_orders_for_peer(&orders, peer);
             let _ = peer.tx.send(Message::Text(
@@ -398,8 +500,14 @@ async fn approve_connection(app: tauri::AppHandle, state: State<'_, AppState>, a
 }
 /// Reject a pending counter connection. Called from the cashier UI via invoke().
 #[tauri::command]
-async fn reject_connection(app: tauri::AppHandle, state: State<'_, AppState>, addr: String) -> Result<(), String> {
-    let socket_addr: SocketAddr = addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
+async fn reject_connection(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    id: Option<i64>,
+    addr: Option<String>,
+) -> Result<(), String> {
+    let socket_addr = resolve_peer_addr(&state.peers, id, addr).await?;
+    let addr = socket_addr.to_string();
     let mut rejected_username = String::new();
     {
         let mut guard = state.peers.lock().await;
@@ -424,9 +532,25 @@ async fn reject_connection(app: tauri::AppHandle, state: State<'_, AppState>, ad
     notify_cashier(&state.peers, &ServerMessage::ConnectionRequests { data: pending }).await;
     Ok(())
 }
+/// Alias of `reject_connection`: the frontend invokes `refuse_connection`.
 #[tauri::command]
-async fn disconnect_device(app: tauri::AppHandle, state: State<'_, AppState>, addr: String) -> Result<(), String> {
-    let socket_addr: SocketAddr = addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
+async fn refuse_connection(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    id: Option<i64>,
+    addr: Option<String>,
+) -> Result<(), String> {
+    reject_connection(app, state, id, addr).await
+}
+#[tauri::command]
+async fn disconnect_device(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    id: Option<i64>,
+    addr: Option<String>,
+) -> Result<(), String> {
+    let socket_addr = resolve_peer_addr(&state.peers, id, addr).await?;
+    let addr = socket_addr.to_string();
     let mut disconnected_username = String::new();
     {
         let mut guard = state.peers.lock().await;
@@ -465,8 +589,15 @@ async fn list_connected_devices(state: State<'_, AppState>) -> Result<Vec<Connec
 /// Disconnect a device (like `disconnect_device`) and, unlike it, also add
 /// the device's address to the persistent blacklist so it can't reconnect.
 #[tauri::command]
-async fn block_device(app: tauri::AppHandle, state: State<'_, AppState>, addr: String) -> Result<(), String> {
-    let socket_addr: SocketAddr = addr.parse().map_err(|e: std::net::AddrParseError| e.to_string())?;
+async fn block_device(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    id: Option<i64>,
+    addr: Option<String>,
+    reason: Option<String>,
+) -> Result<connections::BlacklistEntry, String> {
+    let socket_addr = resolve_peer_addr(&state.peers, id, addr).await?;
+    let addr = socket_addr.to_string();
     let mut blocked_username = String::new();
     {
         let mut guard = state.peers.lock().await;
@@ -480,20 +611,32 @@ async fn block_device(app: tauri::AppHandle, state: State<'_, AppState>, addr: S
         }
         guard.remove(&socket_addr);
     }
-    {
+    let entry = {
         let mut guard = state.blacklist.lock().unwrap();
-        if !connections::is_blacklisted(&guard, &addr) {
-            guard.push(connections::BlacklistEntry {
-                addr: addr.clone(),
-                reason: None,
-                created_at: chrono::Local::now().to_rfc3339(),
-            });
-            if let Err(err) = connections::save_blacklist(&app, &guard) {
-                guard.pop();
-                return Err(format!("Échec de l'enregistrement de la liste noire : {err}"));
+        let ip = connections::ip_from_addr(&addr).to_string();
+        let existing = guard
+            .iter()
+            .find(|e| e.entry_type == connections::BlacklistType::Ip && e.value == ip)
+            .cloned();
+        match existing {
+            Some(existing) => existing,
+            None => {
+                let entry = connections::BlacklistEntry {
+                    id: connections::next_blacklist_id(),
+                    entry_type: connections::BlacklistType::Ip,
+                    value: ip,
+                    reason,
+                    created_at: chrono::Local::now().to_rfc3339(),
+                };
+                guard.push(entry.clone());
+                if let Err(err) = connections::save_blacklist(&app, &guard) {
+                    guard.pop();
+                    return Err(format!("Échec de l'enregistrement de la liste noire : {err}"));
+                }
+                entry
             }
         }
-    }
+    };
     record_connection_history(
         &state.connection_history,
         Some(&app),
@@ -505,13 +648,26 @@ async fn block_device(app: tauri::AppHandle, state: State<'_, AppState>, addr: S
     let connected = get_connected_devices_list(&state.peers).await;
     notify_cashier(&state.peers, &ServerMessage::ConnectionRequests { data: pending }).await;
     notify_cashier(&state.peers, &ServerMessage::ConnectedDevices { data: connected }).await;
-    Ok(())
+    Ok(entry)
 }
 /// The connection lifecycle log (requested/approved/rejected/disconnected/
 /// blocked), most recent last. Called from the cashier UI via invoke().
 #[tauri::command]
-fn list_connection_history(state: State<'_, AppState>) -> Vec<connections::ConnectionHistoryEntry> {
-    state.connection_history.lock().unwrap().clone()
+fn list_connection_history(state: State<'_, AppState>) -> Vec<ConnectionHistoryView> {
+    state
+        .connection_history
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|entry| ConnectionHistoryView {
+            id: entry.id,
+            label: peer_label(&entry.username, &entry.addr),
+            username: optional_username(&entry.username),
+            ip_address: connections::ip_from_addr(&entry.addr).to_string(),
+            event: history_event_label(entry.event),
+            at: entry.timestamp.clone(),
+        })
+        .collect()
 }
 #[tauri::command]
 fn list_blacklist_entries(state: State<'_, AppState>) -> Vec<connections::BlacklistEntry> {
@@ -523,15 +679,38 @@ fn list_blacklist_entries(state: State<'_, AppState>) -> Vec<connections::Blackl
 async fn add_blacklist_entry(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
-    addr: String,
+    entry_type: Option<String>,
+    value: Option<String>,
+    addr: Option<String>,
     reason: Option<String>,
 ) -> Result<connections::BlacklistEntry, String> {
+    let entry_type = match entry_type.as_deref().map(str::trim) {
+        None | Some("") | Some("ip") => connections::BlacklistType::Ip,
+        Some("username") => connections::BlacklistType::Username,
+        Some(other) => return Err(format!("Type de liste noire inconnu : {other}.")),
+    };
+    let raw_value = value
+        .or(addr)
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| "La valeur à mettre sur liste noire est obligatoire.".to_string())?;
+    let value = match entry_type {
+        connections::BlacklistType::Ip => connections::ip_from_addr(&raw_value).to_string(),
+        connections::BlacklistType::Username => raw_value,
+    };
     let mut guard = state.blacklist.lock().unwrap();
-    if connections::is_blacklisted(&guard, &addr) {
-        return Err("Cette adresse est déjà sur liste noire.".to_string());
+    if connections::value_exists(&guard, entry_type, &value) {
+        return Err(match entry_type {
+            connections::BlacklistType::Ip => "Cette adresse est déjà sur liste noire.".to_string(),
+            connections::BlacklistType::Username => {
+                "Ce nom d'utilisateur est déjà sur liste noire.".to_string()
+            }
+        });
     }
     let entry = connections::BlacklistEntry {
-        addr,
+        id: connections::next_blacklist_id(),
+        entry_type,
+        value,
         reason,
         created_at: chrono::Local::now().to_rfc3339(),
     };
@@ -543,11 +722,21 @@ async fn add_blacklist_entry(
     Ok(entry)
 }
 #[tauri::command]
-async fn remove_blacklist_entry(app: tauri::AppHandle, state: State<'_, AppState>, addr: String) -> Result<(), String> {
+async fn remove_blacklist_entry(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    id: Option<i64>,
+    addr: Option<String>,
+) -> Result<(), String> {
     let mut guard = state.blacklist.lock().unwrap();
     let snapshot = guard.clone();
-    if !connections::remove_blacklist_entry(&mut guard, &addr) {
-        return Err("Adresse introuvable sur liste noire.".to_string());
+    let removed = match (id, addr.as_deref()) {
+        (Some(id), _) => connections::remove_blacklist_entry_by_id(&mut guard, id),
+        (None, Some(addr)) => connections::remove_blacklist_entry(&mut guard, addr),
+        (None, None) => return Err("Identifiant d'entrée manquant.".to_string()),
+    };
+    if !removed {
+        return Err("Entrée introuvable sur liste noire.".to_string());
     }
     if let Err(err) = connections::save_blacklist(&app, &guard) {
         *guard = snapshot;
@@ -902,6 +1091,37 @@ async fn delete_account(app: tauri::AppHandle, state: State<'_, AppState>, usern
 fn list_account_activities(state: State<'_, AppState>) -> Vec<accounts::AccountActivity> {
     accounts::list_activities(&state.accounts.lock().unwrap())
 }
+/// Legacy cashier-only endpoints. The account API is unified
+/// (`create_account` / `list_accounts` / ...), so these only exist to return a
+/// clear error instead of an "unknown command" panic while the frontend is
+/// being cleaned up.
+fn unified_accounts_api_error(replacement: &str) -> String {
+    format!("API obsolète : utilisez {replacement}.")
+}
+#[tauri::command]
+fn create_cashier_account() -> Result<(), String> {
+    Err(unified_accounts_api_error("create_account"))
+}
+#[tauri::command]
+fn list_cashier_accounts() -> Result<(), String> {
+    Err(unified_accounts_api_error("list_accounts"))
+}
+#[tauri::command]
+fn update_cashier_account() -> Result<(), String> {
+    Err(unified_accounts_api_error("update_account"))
+}
+#[tauri::command]
+fn suspend_cashier_account() -> Result<(), String> {
+    Err(unified_accounts_api_error("suspend_account"))
+}
+#[tauri::command]
+fn reactivate_cashier_account() -> Result<(), String> {
+    Err(unified_accounts_api_error("reactivate_account"))
+}
+#[tauri::command]
+fn delete_cashier_account() -> Result<(), String> {
+    Err(unified_accounts_api_error("delete_account"))
+}
 #[tauri::command]
 fn save_binary_file(path: String, data: Vec<u8>) -> Result<(), String> {
     std::fs::write(&path, data).map_err(|e| e.to_string())
@@ -961,11 +1181,14 @@ pub fn run() {
                 peers_inner.lock().await.insert(
                     addr,
                     PeerState {
+                        id: next_peer_id(),
                         tx,
                         username: String::new(),
                         approved: false,
                         is_cashier: false,
                         is_admin: false,
+                        requested_at: None,
+                        connected_at: None,
                     },
                 );
                 let ws_writer = tauri::async_runtime::spawn(async move {
@@ -1002,6 +1225,8 @@ pub fn run() {
                                         state.username = verified_username;
                                         state.approved = true;
                                         state.is_cashier = true;
+                                        state.connected_at =
+                                            Some(chrono::Local::now().to_rfc3339());
                                     }
                                 }
                                 send_to_addr(
@@ -1049,6 +1274,8 @@ pub fn run() {
                                         state.username = verified_username;
                                         state.approved = true;
                                         state.is_admin = true;
+                                        state.connected_at =
+                                            Some(chrono::Local::now().to_rfc3339());
                                     }
                                 }
                                 send_to_addr(
@@ -1087,6 +1314,14 @@ pub fn run() {
                                             && accounts::verify_password(&password, &a.password_hash)
                                     })
                                 };
+                                let username_blocked = {
+                                    let guard = blacklist_inner.lock().unwrap();
+                                    connections::is_username_blacklisted(&guard, &username)
+                                };
+                                if username_blocked {
+                                    send_to_addr(&peers_inner, addr, &ServerMessage::ConnectionBlocked).await;
+                                    continue;
+                                }
                                 if !credentials_ok {
                                     rate_limit::record_failure(&connection_attempts_inner, &attempt_key);
                                     send_to_addr(&peers_inner, addr, &ServerMessage::ConnectionRejected).await;
@@ -1104,6 +1339,8 @@ pub fn run() {
                                             let mut guard = peers_inner.lock().await;
                                             if let Some(state) = guard.get_mut(&addr) {
                                                 state.username = username.clone();
+                                                state.requested_at =
+                                                    Some(chrono::Local::now().to_rfc3339());
                                             }
                                         }
                                         let app_handle = {
@@ -1448,6 +1685,7 @@ pub fn run() {
         })
                 .invoke_handler(tauri::generate_handler![
             get_ws_address,
+            get_server_address,
             get_pricing_matrix,
             create_pricing_item,
             update_pricing_item,
@@ -1460,6 +1698,7 @@ pub fn run() {
             reject_group,
             approve_connection,
             reject_connection,
+            refuse_connection,
             disconnect_device,
             list_pending_connections,
             list_connected_devices,
@@ -1486,6 +1725,12 @@ pub fn run() {
             reactivate_account,
             delete_account,
             list_account_activities,
+            create_cashier_account,
+            list_cashier_accounts,
+            update_cashier_account,
+            suspend_cashier_account,
+            reactivate_cashier_account,
+            delete_cashier_account,
             save_binary_file,
         ])
         .run(tauri::generate_context!())

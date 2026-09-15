@@ -136,7 +136,7 @@ export class Setting implements OnInit, OnDestroy {
       this.connectedDevicesCount.set(connected);
     } catch (e) {
       console.error('failed to load device settings', e);
-      this.setStatus('Impossible de charger les réglages des appareils.', true);
+      this.setStatus(this.errorMessage(e, 'Impossible de charger les réglages des appareils.'), true);
     } finally {
       this.loadingDevicesSetting.set(false);
     }
@@ -175,7 +175,7 @@ export class Setting implements OnInit, OnDestroy {
       );
     } catch (e) {
       console.error('set_max_connected_devices failed', e);
-      this.setStatus("Échec de l'enregistrement. Réessayez.", true);
+      this.setStatus(this.errorMessage(e, "Échec de l'enregistrement. Réessayez."), true);
     } finally {
       this.savingDevicesSetting.set(false);
     }
@@ -191,7 +191,7 @@ export class Setting implements OnInit, OnDestroy {
       this.accounts.set(accounts.filter((a) => a.user_type === CASHIER_USER_TYPE));
     } catch (e) {
       console.error('failed to load cashier accounts', e);
-      this.setAccountStatus('Impossible de charger la liste des comptes caissier.', true);
+      this.setAccountStatus(this.errorMessage(e, 'Impossible de charger la liste des comptes caissier.'), true);
     } finally {
       this.loadingAccounts.set(false);
     }
@@ -235,9 +235,9 @@ export class Setting implements OnInit, OnDestroy {
     try {
       const created = await invoke<CashierAccountView>('create_account', {
         username: this.trimmedNewAccountUsername(),
-        displayName: '',
-        userType: CASHIER_USER_TYPE,
         password: this.newAccountPassword(),
+        display_name: '',
+        user_type: CASHIER_USER_TYPE,
       });
       this.accounts.update((list) => [created, ...list]);
       this.setAccountStatus(`Compte « ${created.username} » créé.`, false);
@@ -245,7 +245,7 @@ export class Setting implements OnInit, OnDestroy {
       this.newAccountUsernameInput?.nativeElement.focus();
     } catch (e) {
       console.error('create_account failed', e);
-      const message = typeof e === 'string' ? e : "Échec de la création du compte. Réessayez.";
+      const message = this.errorMessage(e, 'Échec de la création du compte. Réessayez.');
       this.setAccountStatus(message, true);
     } finally {
       this.creatingAccount.set(false);
@@ -273,36 +273,34 @@ export class Setting implements OnInit, OnDestroy {
     this.accountStatusMessage.set(message);
     this.accountStatusIsError.set(isError);
   }
+  /** Tauri rejects with `unknown` — usually a string, sometimes an Error or a
+   *  serialized object. Extract something readable, or fall back to `fallback`. */
+  private errorMessage(e: unknown, fallback: string): string {
+    if (typeof e === 'string') return e.trim() || fallback;
+    if (e instanceof Error) return e.message.trim() || fallback;
+    if (e && typeof e === 'object' && 'message' in e) {
+      const message = String((e as { message: unknown }).message).trim();
+      if (message) return message;
+    }
+    if (e === null || e === undefined) return fallback;
+    const text = String(e).trim();
+    return text && text !== '[object Object]' ? text : fallback;
+  }
   editingUsername = signal<string | null>(null);
   editDisplayName = signal('');
-  editPassword = signal('');
-  editPasswordConfirm = signal('');
-  /** Toggles the edit password/confirm fields between masked and plain text. */
-  showEditPassword = signal(false);
   savingEditAccount = signal(false);
   /** Inline validation or server error for the edit form, announced via aria-live. */
   editAccountError = signal('');
-  /** An empty new-password pair is valid — it means "leave the password unchanged". */
+  /** `update_account` only carries the display name and the user type — the backend
+   *  exposes no password parameter, so passwords are never changed from here. */
   canSubmitEditAccount = computed(() => {
     if (this.savingEditAccount()) return false;
-    if (this.editDisplayName().trim().length > this.maxDisplayNameLen) return false;
-    const password = this.editPassword();
-    const confirm = this.editPasswordConfirm();
-    if (password.length === 0 && confirm.length === 0) return true;
-    return (
-      password.length >= this.minPasswordLen &&
-      PASSWORD_HAS_LETTER.test(password) &&
-      PASSWORD_HAS_DIGIT.test(password) &&
-      password === confirm
-    );
+    return this.editDisplayName().trim().length <= this.maxDisplayNameLen;
   });
   startEditAccount(account: CashierAccountView): void {
     this.confirmingDeleteUsername.set(null);
     this.editingUsername.set(account.username);
     this.editDisplayName.set(account.display_name);
-    this.editPassword.set('');
-    this.editPasswordConfirm.set('');
-    this.showEditPassword.set(false);
     this.editAccountError.set('');
     // Move focus into the panel once it's rendered, so keyboard/screen-reader
     setTimeout(() => {
@@ -316,25 +314,9 @@ export class Setting implements OnInit, OnDestroy {
       document.getElementById(`account-edit-btn-${username}`)?.focus();
     }
   }
-  toggleEditPasswordVisibility(): void {
-    this.showEditPassword.update((v) => !v);
-  }
   private validateEditAccountForm(): string {
     if (this.editDisplayName().trim().length > this.maxDisplayNameLen) {
       return `Le nom affiché ne peut pas dépasser ${this.maxDisplayNameLen} caractères.`;
-    }
-    const password = this.editPassword();
-    const confirm = this.editPasswordConfirm();
-    if (password.length > 0 || confirm.length > 0) {
-      if (password.length < this.minPasswordLen) {
-        return `Le mot de passe doit contenir au moins ${this.minPasswordLen} caractères.`;
-      }
-      if (!PASSWORD_HAS_LETTER.test(password) || !PASSWORD_HAS_DIGIT.test(password)) {
-        return 'Le mot de passe doit contenir au moins une lettre et un chiffre.';
-      }
-      if (password !== confirm) {
-        return 'Les mots de passe ne correspondent pas.';
-      }
     }
     return '';
   }
@@ -352,19 +334,16 @@ export class Setting implements OnInit, OnDestroy {
       const displayName = this.editDisplayName().trim();
       const updated = await invoke<CashierAccountView>('update_account', {
         username,
-        displayName: displayName,
-        userType: CASHIER_USER_TYPE,
-        password: this.editPassword() || null,
+        display_name: displayName,
+        user_type: CASHIER_USER_TYPE,
       });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.editingUsername.set(null);
-      this.editPassword.set('');
-      this.editPasswordConfirm.set('');
       this.setAccountStatus(`Compte « ${updated.username} » mis à jour.`, false);
       document.getElementById(`account-edit-btn-${updated.username}`)?.focus();
     } catch (e) {
       console.error('update_account failed', e);
-      const message = typeof e === 'string' ? e : 'Échec de la mise à jour du compte. Réessayez.';
+      const message = this.errorMessage(e, 'Échec de la mise à jour du compte. Réessayez.');
       this.editAccountError.set(message);
     } finally {
       this.savingEditAccount.set(false);
@@ -389,7 +368,7 @@ export class Setting implements OnInit, OnDestroy {
       this.setAccountStatus(`Compte « ${updated.username} » suspendu.`, false);
     } catch (e) {
       console.error('suspend_account failed', e);
-      const message = typeof e === 'string' ? e : 'Échec de la suspension du compte. Réessayez.';
+      const message = this.errorMessage(e, 'Échec de la suspension du compte. Réessayez.');
       this.setAccountStatus(message, true);
     } finally {
       this.togglingStatusUsername.set(null);
@@ -407,7 +386,7 @@ export class Setting implements OnInit, OnDestroy {
       this.setAccountStatus(`Compte « ${updated.username} » réactivé.`, false);
     } catch (e) {
       console.error('reactivate_account failed', e);
-      const message = typeof e === 'string' ? e : 'Échec de la réactivation du compte. Réessayez.';
+      const message = this.errorMessage(e, 'Échec de la réactivation du compte. Réessayez.');
       this.setAccountStatus(message, true);
     } finally {
       this.togglingStatusUsername.set(null);
@@ -444,7 +423,7 @@ export class Setting implements OnInit, OnDestroy {
       this.newAccountUsernameInput?.nativeElement.focus();
     } catch (e) {
       console.error('delete_account failed', e);
-      const message = typeof e === 'string' ? e : 'Échec de la suppression du compte. Réessayez.';
+      const message = this.errorMessage(e, 'Échec de la suppression du compte. Réessayez.');
       this.deleteAccountError.set(message);
     } finally {
       this.deletingAccount.set(false);

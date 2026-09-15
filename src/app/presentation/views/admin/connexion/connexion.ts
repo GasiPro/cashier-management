@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { invoke } from '@tauri-apps/api/core';
 const MAX_BLACKLIST_ADDR_LEN = 64;
 const MAX_BLACKLIST_REASON_LEN = 120;
-type ConnectionEvent = 'connected' | 'disconnected' | 'approved' | 'rejected' | 'blocked';
+type ConnectionEvent = 'requested' | 'approved' | 'rejected' | 'disconnected' | 'blocked';
 interface PendingConnection {
   addr: string;
   username: string;
@@ -47,6 +47,19 @@ export class Connexion implements OnInit {
     this.statusMessage.set(message);
     this.statusIsError.set(isError);
   }
+  /** Tauri rejects with `unknown` — usually a string, sometimes an Error or a
+   *  serialized object. Extract something readable, or fall back to `fallback`. */
+  private errorMessage(e: unknown, fallback: string): string {
+    if (typeof e === 'string') return e.trim() || fallback;
+    if (e instanceof Error) return e.message.trim() || fallback;
+    if (e && typeof e === 'object' && 'message' in e) {
+      const message = String((e as { message: unknown }).message).trim();
+      if (message) return message;
+    }
+    if (e === null || e === undefined) return fallback;
+    const text = String(e).trim();
+    return text && text !== '[object Object]' ? text : fallback;
+  }
   /** Formats an ISO/RFC3339 timestamp for display; falls back to the raw value if parsing fails. */
   formatDate(isoDate: string): string {
     const date = new Date(isoDate);
@@ -61,14 +74,14 @@ export class Connexion implements OnInit {
   }
   eventLabel(event: ConnectionEvent): string {
     switch (event) {
-      case 'connected':
-        return 'Connecté';
-      case 'disconnected':
-        return 'Déconnecté';
+      case 'requested':
+        return 'Demande reçue';
       case 'approved':
         return 'Approuvé';
       case 'rejected':
         return 'Refusé';
+      case 'disconnected':
+        return 'Déconnecté';
       case 'blocked':
         return 'Bloqué';
       default:
@@ -83,6 +96,7 @@ export class Connexion implements OnInit {
       this.wsAddress.set(await invoke<string>('get_ws_address'));
     } catch (e) {
       console.error('failed to load ws address', e);
+      this.setStatus(this.errorMessage(e, "Impossible de récupérer l'adresse du serveur."), true);
     } finally {
       this.loadingWsAddress.set(false);
     }
@@ -93,6 +107,7 @@ export class Connexion implements OnInit {
       this.setStatus('Adresse copiée.', false);
     } catch (e) {
       console.error('failed to copy ws address', e);
+      this.setStatus("Impossible de copier l'adresse.", true);
     }
   }
   pendingConnections = signal<PendingConnection[]>([]);
@@ -105,7 +120,7 @@ export class Connexion implements OnInit {
       this.pendingConnections.set(pending);
     } catch (e) {
       console.error('failed to load pending connections', e);
-      this.setStatus("Impossible de charger les demandes de connexion.", true);
+      this.setStatus(this.errorMessage(e, 'Impossible de charger les demandes de connexion.'), true);
     } finally {
       this.loadingPending.set(false);
     }
@@ -120,7 +135,7 @@ export class Connexion implements OnInit {
       this.setStatus(`« ${connection.username} » approuvé.`, false);
     } catch (e) {
       console.error('approve_connection failed', e);
-      const message = typeof e === 'string' ? e : "Échec de l'approbation. Réessayez.";
+      const message = this.errorMessage(e, "Échec de l'approbation. Réessayez.");
       this.setStatus(message, true);
     } finally {
       this.respondingToAddr.set(null);
@@ -136,7 +151,7 @@ export class Connexion implements OnInit {
       this.setStatus(`« ${connection.username} » refusé.`, false);
     } catch (e) {
       console.error('reject_connection failed', e);
-      const message = typeof e === 'string' ? e : 'Échec du refus. Réessayez.';
+      const message = this.errorMessage(e, 'Échec du refus. Réessayez.');
       this.setStatus(message, true);
     } finally {
       this.respondingToAddr.set(null);
@@ -152,7 +167,7 @@ export class Connexion implements OnInit {
       this.connectedDevices.set(devices);
     } catch (e) {
       console.error('failed to load connected devices', e);
-      this.setStatus('Impossible de charger les appareils connectés.', true);
+      this.setStatus(this.errorMessage(e, 'Impossible de charger les appareils connectés.'), true);
     } finally {
       this.loadingConnected.set(false);
     }
@@ -167,7 +182,7 @@ export class Connexion implements OnInit {
       this.setStatus(`« ${device.username} » déconnecté.`, false);
     } catch (e) {
       console.error('disconnect_device failed', e);
-      const message = typeof e === 'string' ? e : 'Échec de la déconnexion. Réessayez.';
+      const message = this.errorMessage(e, 'Échec de la déconnexion. Réessayez.');
       this.setStatus(message, true);
     } finally {
       this.disconnectingAddr.set(null);
@@ -196,7 +211,7 @@ export class Connexion implements OnInit {
       this.setStatus(`« ${device.username} » bloqué et déconnecté.`, false);
     } catch (e) {
       console.error('block_device failed', e);
-      const message = typeof e === 'string' ? e : 'Échec du blocage. Réessayez.';
+      const message = this.errorMessage(e, 'Échec du blocage. Réessayez.');
       this.blockError.set(message);
     } finally {
       this.blockingAddr.set(null);
@@ -211,6 +226,7 @@ export class Connexion implements OnInit {
       this.history.set(history);
     } catch (e) {
       console.error('failed to load connection history', e);
+      this.setStatus(this.errorMessage(e, "Impossible de charger l'historique des connexions."), true);
     } finally {
       this.loadingHistory.set(false);
     }
@@ -238,7 +254,7 @@ export class Connexion implements OnInit {
       this.blacklist.set(blacklist);
     } catch (e) {
       console.error('failed to load blacklist', e);
-      this.setStatus('Impossible de charger la liste noire.', true);
+      this.setStatus(this.errorMessage(e, 'Impossible de charger la liste noire.'), true);
     } finally {
       this.loadingBlacklist.set(false);
     }
@@ -276,7 +292,7 @@ export class Connexion implements OnInit {
       this.setStatus('Entrée ajoutée à la liste noire.', false);
     } catch (e) {
       console.error('add_blacklist_entry failed', e);
-      const message = typeof e === 'string' ? e : "Échec de l'ajout. Réessayez.";
+      const message = this.errorMessage(e, "Échec de l'ajout. Réessayez.");
       this.blacklistFormError.set(message);
     } finally {
       this.addingBlacklistEntry.set(false);
@@ -304,7 +320,7 @@ export class Connexion implements OnInit {
       this.setStatus('Entrée retirée de la liste noire.', false);
     } catch (e) {
       console.error('remove_blacklist_entry failed', e);
-      const message = typeof e === 'string' ? e : 'Échec de la suppression. Réessayez.';
+      const message = this.errorMessage(e, 'Échec de la suppression. Réessayez.');
       this.removeBlacklistError.set(message);
     } finally {
       this.removingBlacklistAddr.set(null);

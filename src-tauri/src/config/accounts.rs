@@ -15,11 +15,6 @@ pub const MAX_DISPLAY_NAME_LEN: usize = 40;
 const ACCOUNTS_FILE_NAME: &str = "accounts.json";
 const DEFAULT_USERNAME: &str = "admin";
 const DEFAULT_PASSWORD: &str = "admin123";
-/// How long a session token minted by `authenticate_admin` /
-/// `authenticate_cashier` remains valid for. It only needs to survive the
-/// brief window between the invoke() call and the frontend's follow-up
-/// `cashier_register` / `admin_register` WebSocket message, so this is
-/// intentionally short-lived.
 pub const SESSION_TOKEN_TTL_SECS: i64 = 30;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -47,12 +42,41 @@ pub enum ActivityKind {
     Reactivated,
     Modified,
 }
+impl ActivityKind {
+    /// Human label exposed to the admin UI (`AccountActivity.action`).
+    pub fn label(self) -> &'static str {
+        match self {
+            ActivityKind::Created => "Création",
+            ActivityKind::Suspended => "Suspension",
+            ActivityKind::Reactivated => "Réactivation",
+            ActivityKind::Modified => "Modification",
+        }
+    }
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountActivityEntry {
     pub kind: ActivityKind,
     pub timestamp: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
+}
+/// Command-boundary view of an history entry: the UI binds `at`, the file
+/// format keeps `timestamp`.
+#[derive(Debug, Clone, Serialize)]
+pub struct AccountHistoryView {
+    pub kind: ActivityKind,
+    pub at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+impl From<&AccountActivityEntry> for AccountHistoryView {
+    fn from(entry: &AccountActivityEntry) -> Self {
+        Self {
+            kind: entry.kind,
+            at: entry.timestamp.clone(),
+            reason: entry.reason.clone(),
+        }
+    }
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoredAccount {
@@ -70,55 +94,49 @@ pub struct StoredAccount {
     #[serde(default)]
     pub history: Vec<AccountActivityEntry>,
 }
+/// Command-boundary view of an account. Storage keeps the opaque string id
+/// (`StoredAccount.id`); the UI binds a number, so the string is folded into a
+/// stable positive integer via `numeric_id`.
 #[derive(Debug, Clone, Serialize)]
 pub struct Account {
-    pub id: String,
+    pub id: i64,
     pub username: String,
     pub display_name: String,
     pub user_type: UserType,
     pub status: AccountStatus,
     pub created_at: String,
     pub last_sign_in_at: Option<String>,
-    pub history: Vec<AccountActivityEntry>,
+    pub history: Vec<AccountHistoryView>,
 }
 impl From<&StoredAccount> for Account {
     fn from(account: &StoredAccount) -> Self {
         Self {
-            id: account.id.clone(),
+            id: numeric_id(&account.id),
             username: account.username.clone(),
             display_name: account.display_name.clone(),
             user_type: account.user_type,
             status: account.status,
             created_at: account.created_at.clone(),
             last_sign_in_at: account.last_sign_in_at.clone(),
-            history: account.history.clone(),
+            history: account.history.iter().map(AccountHistoryView::from).collect(),
         }
     }
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct AccountActivity {
-    pub account_id: String,
-    pub username: String,
-    pub kind: ActivityKind,
-    pub timestamp: String,
-    pub reason: Option<String>,
+    pub id: i64,
+    pub account_username: String,
+    pub action: String,
+    pub detail: String,
+    pub at: String,
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct AuthResult {
     pub success: bool,
     pub account: Option<Account>,
     pub error: Option<String>,
-    /// Present only on success. A short-lived, single-use token the
-    /// frontend must include in its `cashier_register` / `admin_register`
-    /// WebSocket message so the server can verify the registration was
-    /// actually preceded by a successful `authenticate_admin` /
-    /// `authenticate_cashier` call, instead of trusting a client-supplied
-    /// username with no credential check.
     pub session_token: Option<String>,
 }
-/// The privileged role a minted session token grants over the WebSocket
-/// connection. Kept distinct from `UserType` because a session is about
-/// "what this token may register as", not the account's stored type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionRole {
     Admin,
@@ -130,9 +148,6 @@ pub struct SessionInfo {
     pub role: SessionRole,
     pub expires_at: i64,
 }
-/// In-memory (never persisted) map of session tokens minted by
-/// `authenticate_admin` / `authenticate_cashier`, consumed by the WebSocket
-/// `cashier_register` / `admin_register` handlers.
 pub type Sessions = Arc<SyncMutex<HashMap<String, SessionInfo>>>;
 fn accounts_file_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
@@ -180,6 +195,22 @@ pub fn load_or_bootstrap(app: &AppHandle) -> Vec<StoredAccount> {
     let accounts = vec![default_account];
     let _ = save(app, &accounts);
     accounts
+}
+/// Folds an opaque string id into a stable, positive integer that survives a
+/// JSON round-trip into a JavaScript `number` (53-bit safe range). Purely
+/// derived, so it stays identical across calls and restarts.
+pub fn numeric_id(id: &str) -> i64 {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in id.as_bytes() {
+        hash ^= *byte as u64;
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    let folded = (hash & 0x001f_ffff_ffff_ffff) as i64;
+    if folded == 0 {
+        1
+    } else {
+        folded
+    }
 }
 pub fn generate_id() -> String {
     let mut bytes = [0u8; 16];
@@ -268,16 +299,16 @@ pub fn list_activities(accounts: &[StoredAccount]) -> Vec<AccountActivity> {
     let mut activities: Vec<AccountActivity> = accounts
         .iter()
         .flat_map(|account| {
-            account.history.iter().map(move |entry| AccountActivity {
-                account_id: account.id.clone(),
-                username: account.username.clone(),
-                kind: entry.kind,
-                timestamp: entry.timestamp.clone(),
-                reason: entry.reason.clone(),
+            account.history.iter().enumerate().map(move |(index, entry)| AccountActivity {
+                id: numeric_id(&format!("{}#{index}", account.id)),
+                account_username: account.username.clone(),
+                action: entry.kind.label().to_string(),
+                detail: entry.reason.clone().unwrap_or_default(),
+                at: entry.timestamp.clone(),
             })
         })
         .collect();
-    activities.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    activities.sort_by(|a, b| b.at.cmp(&a.at));
     activities
 }
 fn generate_session_token() -> String {
@@ -285,9 +316,6 @@ fn generate_session_token() -> String {
     OsRng.fill_bytes(&mut bytes);
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
-/// Mints a short-lived, single-use session token for `username`/`role`,
-/// storing it in `sessions`. Expired entries are purged opportunistically
-/// while the lock is held so the map doesn't grow unbounded.
 pub fn mint_session(sessions: &Sessions, username: &str, role: SessionRole) -> String {
     let token = generate_session_token();
     let now = chrono::Local::now().timestamp();
@@ -303,8 +331,6 @@ pub fn mint_session(sessions: &Sessions, username: &str, role: SessionRole) -> S
     );
     token
 }
-/// Consumes (one-time use) `token` if it exists, hasn't expired, and was
-/// minted for `expected_role`. Returns the username it was minted for.
 pub fn consume_session(sessions: &Sessions, token: &str, expected_role: SessionRole) -> Option<String> {
     let now = chrono::Local::now().timestamp();
     let mut guard = sessions.lock().unwrap();

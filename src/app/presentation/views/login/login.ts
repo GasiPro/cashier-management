@@ -21,11 +21,14 @@ const MAX_USERNAME_LEN = 32;
 const MIN_PASSWORD_LEN = 8;
 const PASSWORD_HAS_LETTER = /[A-Za-z]/;
 const PASSWORD_HAS_DIGIT = /\d/;
+interface AuthAccount {
+  user_type: string;
+  display_name: string;
+}
 interface AuthResult<T> {
   success: boolean;
   account: T | null;
   error: string | null;
-  /** Single-use, time-limited WS registration token. Present only when success is true. */
   session_token: string | null;
 }
 @Component({
@@ -128,10 +131,10 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.adminError.set('');
     this.authenticatingAdmin.set(true);
     try {
-      const result = await invoke<AuthResult<{ user_type: string; display_name: string }>>(
-        'authenticate_admin',
-        { username, password },
-      );
+      const result = await invoke<AuthResult<AuthAccount>>('authenticate_admin', {
+        username,
+        password,
+      });
       if (!result.success || !result.account) {
         this.adminError.set(result.error ?? 'Identifiants invalides.');
         return;
@@ -149,11 +152,24 @@ export class LoginComponent implements OnInit, OnDestroy {
       this.router.navigate(['/admin']);
     } catch (e) {
       console.error('authenticate_admin failed', e);
-      const message = typeof e === 'string' ? e : 'Identifiants invalides.';
+      const message = this.errorMessage(e, 'Identifiants invalides.');
       this.adminError.set(message);
     } finally {
       this.authenticatingAdmin.set(false);
     }
+  }
+  /** Tauri rejects with `unknown` — usually a string, sometimes an Error or a
+   *  serialized object. Extract something readable, or fall back to `fallback`. */
+  private errorMessage(e: unknown, fallback: string): string {
+    if (typeof e === 'string') return e.trim() || fallback;
+    if (e instanceof Error) return e.message.trim() || fallback;
+    if (e && typeof e === 'object' && 'message' in e) {
+      const message = String((e as { message: unknown }).message).trim();
+      if (message) return message;
+    }
+    if (e === null || e === undefined) return fallback;
+    const text = String(e).trim();
+    return text && text !== '[object Object]' ? text : fallback;
   }
   private updateClock(): void {
     const now = new Date();
@@ -221,12 +237,18 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.cashierError.set('');
     this.authenticatingCashier.set(true);
     try {
-      const result = await invoke<AuthResult<{ display_name: string }>>(
-        'authenticate_cashier',
-        { username, password },
-      );
+      // The backend exposes a single local authentication command; the role is
+      // checked here from the returned account.
+      const result = await invoke<AuthResult<AuthAccount>>('authenticate_admin', {
+        username,
+        password,
+      });
       if (!result.success || !result.account) {
         this.cashierError.set(result.error ?? 'Identifiants invalides.');
+        return;
+      }
+      if (result.account.user_type !== 'caissier' && result.account.user_type !== 'admin') {
+        this.cashierError.set("Ce compte n'a pas accès à la caisse.");
         return;
       }
       localStorage.setItem(LS_USERNAME, username);
@@ -236,8 +258,8 @@ export class LoginComponent implements OnInit, OnDestroy {
       }
       this.router.navigate(['/caissier']);
     } catch (e) {
-      console.error('authenticate_cashier failed', e);
-      const message = typeof e === 'string' ? e : 'Échec de la connexion. Réessayez.';
+      console.error('authenticate_admin failed', e);
+      const message = this.errorMessage(e, 'Échec de la connexion. Réessayez.');
       this.cashierError.set(message);
     } finally {
       this.authenticatingCashier.set(false);
