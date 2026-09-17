@@ -43,7 +43,6 @@ pub enum ActivityKind {
     Modified,
 }
 impl ActivityKind {
-    /// Human label exposed to the admin UI (`AccountActivity.action`).
     pub fn label(self) -> &'static str {
         match self {
             ActivityKind::Created => "Création",
@@ -141,6 +140,7 @@ pub struct AuthResult {
 pub enum SessionRole {
     Admin,
     Cashier,
+    Counter,
 }
 #[derive(Debug, Clone)]
 pub struct SessionInfo {

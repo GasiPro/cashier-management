@@ -22,8 +22,6 @@ use service::order_api_service::Order;
 use service::order_service::OrderService;
 type Tx = mpsc::UnboundedSender<Message>;
 pub struct PeerState {
-    /// Stable numeric handle exposed to the UI. In-memory only: ids are
-    /// reassigned on restart, which is enough for the connection screens.
     id: i64,
     tx: Tx,
     username: String,
@@ -61,6 +59,7 @@ pub struct AppState {
 enum ClientMessage {
     CashierRegister { username: String, token: String },
     AdminRegister { #[serde(default)] username: Option<String>, token: String },
+    CounterRegister { #[serde(default)] username: Option<String>, token: String },
     RequestConnection { username: String, password: String },
     CreateOrder { cart: Vec<CartItem> },
     UpdateOrder { id: i64, quantity: u32, unit_price: u32 },
@@ -80,7 +79,6 @@ struct PendingConnection {
     port: u16,
     requested_at: String,
 }
-/// Kept so the `connection_requests` WebSocket payload keeps its name.
 type ConnectionRequest = PendingConnection;
 #[derive(Debug, Serialize, Clone)]
 struct ConnectedDevice {
@@ -91,8 +89,6 @@ struct ConnectedDevice {
     port: u16,
     connected_at: String,
 }
-/// Command-boundary view of the connection log: `at` instead of `timestamp`,
-/// split address, and the event names the UI binds.
 #[derive(Debug, Serialize, Clone)]
 struct ConnectionHistoryView {
     id: i64,
@@ -104,9 +100,7 @@ struct ConnectionHistoryView {
 }
 fn history_event_label(event: connections::ConnectionEvent) -> &'static str {
     match event {
-        // A counter that asked to connect is already attached to the server,
-        // so it surfaces as "connected" in the UI's event vocabulary.
-        connections::ConnectionEvent::Requested => "connected",
+        connections::ConnectionEvent::Requested => "requested",
         connections::ConnectionEvent::Approved => "approved",
         connections::ConnectionEvent::Rejected => "refused",
         connections::ConnectionEvent::Disconnected => "disconnected",
@@ -244,8 +238,6 @@ async fn get_connected_devices_list(peers: &PeerMap) -> Vec<ConnectedDevice> {
     list.sort_by_key(|entry| entry.id);
     list
 }
-/// Resolves the `{ id }` the frontend sends (falling back to the internal
-/// `{ addr }` form) to the socket address a peer is keyed by.
 async fn resolve_peer_addr(
     peers: &PeerMap,
     id: Option<i64>,
@@ -291,7 +283,6 @@ fn record_connection_history(
         }
     }
 }
-#[tauri::command]
 fn get_ws_address() -> String {
     use std::net::UdpSocket;
     if let Ok(s) = UdpSocket::bind("0.0.0.0:0") {
@@ -303,18 +294,14 @@ fn get_ws_address() -> String {
     }
     "127.0.0.1:8080".to_string()
 }
-/// Alias kept for the frontend, which calls `get_server_address`.
-#[tauri::command]
 fn get_server_address() -> String {
     get_ws_address()
 }
-#[tauri::command]
 fn get_pricing_matrix(state: State<'_, AppState>) -> Vec<ServiceItem> {
     state.pricing.lock().unwrap().clone()
 }
 /// Add a new item (service or product) to the pricing matrix. Persists to
 /// disk and returns the created item, including its generated `id`.
-#[tauri::command]
 async fn create_pricing_item(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -344,7 +331,6 @@ async fn create_pricing_item(
     broadcast_to_approved(&state.peers, &ServerMessage::Pricing { data: snapshot }).await;
     Ok(item)
 }
-#[tauri::command]
 async fn update_pricing_item(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -392,7 +378,6 @@ async fn update_pricing_item(
     Ok(updated)
 }
 /// Remove an item from the pricing matrix.
-#[tauri::command]
 async fn delete_pricing_item(app: tauri::AppHandle, state: State<'_, AppState>, id: String) -> Result<(), String> {
     let snapshot = {
         let mut guard = state.pricing.lock().unwrap();
@@ -410,46 +395,135 @@ async fn delete_pricing_item(app: tauri::AppHandle, state: State<'_, AppState>, 
     broadcast_to_approved(&state.peers, &ServerMessage::Pricing { data: snapshot }).await;
     Ok(())
 }
+#[derive(Debug, Deserialize)]
+#[serde(tag = "method", rename_all = "snake_case")]
+enum PricingCommand {
+    GetMatrix,
+    ItemCreate {
+        category: String,
+        label: String,
+        price: u32,
+        item_type: PriceCalculatorItemType,
+    },
+    ItemUpdate {
+        id: String,
+        category: Option<String>,
+        label: Option<String>,
+        price: Option<u32>,
+        item_type: Option<PriceCalculatorItemType>,
+    },
+    ItemDelete {
+        id: String,
+    },
+}
+#[tauri::command]
+async fn pricing(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    command: PricingCommand,
+) -> Result<serde_json::Value, String> {
+    match command {
+        PricingCommand::GetMatrix => Ok(serde_json::json!(get_pricing_matrix(state))),
+        PricingCommand::ItemCreate {
+            category,
+            label,
+            price,
+            item_type,
+        } => Ok(serde_json::json!(
+            create_pricing_item(app, state, category, label, price, item_type).await?
+        )),
+        PricingCommand::ItemUpdate {
+            id,
+            category,
+            label,
+            price,
+            item_type,
+        } => Ok(serde_json::json!(
+            update_pricing_item(app, state, id, category, label, price, item_type).await?
+        )),
+        PricingCommand::ItemDelete { id } => {
+            delete_pricing_item(app, state, id).await?;
+            Ok(serde_json::Value::Null)
+        }
+    }
+}
 /// One-shot invoke()-based fetch of every order, for admin/read-only views.
 /// This is the invoke() alternative to the WebSocket `orders` broadcast that
 /// approved peers (see `AdminRegister` / `CashierRegister`) receive live.
-#[tauri::command]
 fn get_orders(state: State<'_, AppState>) -> Vec<Order> {
     state.order_service.get_orders()
 }
-/// invoke()-based alternative to the WebSocket `orders` broadcast, scoped to
-/// pending orders only.
-#[tauri::command]
 fn get_pending_orders(state: State<'_, AppState>) -> Vec<Order> {
     state.order_service.get_pending()
 }
 /// invoke()-based alternative to the WebSocket `orders` broadcast, scoped to
 /// paid orders only.
-#[tauri::command]
 fn get_paid_orders(state: State<'_, AppState>) -> Vec<Order> {
     state.order_service.get_paid()
 }
-#[tauri::command]
 async fn create_order(state: State<'_, AppState>, cart: Vec<CartItem>, counter_username: String) -> Result<(), String> {
     state.order_service.create_order(&cart, &counter_username)?;
     broadcast_orders_to_approved(&state.peers, &state.order_service.get_orders()).await;
     Ok(())
 }
-#[tauri::command]
 async fn mark_group_as_paid(state: State<'_, AppState>, group_id: i64) -> Result<(), String> {
     state.order_service.mark_group_as_paid(group_id)?;
     broadcast_orders_to_approved(&state.peers, &state.order_service.get_orders()).await;
     Ok(())
 }
-/// Caisse: refuse an entire pending order group. Called from the cashier UI via invoke().
-/// `raison` is an optional reason for the cancellation.
-#[tauri::command]
 async fn reject_group(state: State<'_, AppState>, group_id: i64, raison: Option<String>) -> Result<(), String> {
     state.order_service.reject_group(group_id, raison)?;
     broadcast_orders_to_approved(&state.peers, &state.order_service.get_orders()).await;
     Ok(())
 }
+#[derive(Debug, Deserialize)]
+#[serde(tag = "method", rename_all = "snake_case")]
+enum OrderCommand {
+    List,
+    Pending,
+    Paid,
+    Create {
+        cart: Vec<CartItem>,
+        counter_username: String,
+    },
+    GroupMarkPaid {
+        group_id: i64,
+    },
+    GroupReject {
+        group_id: i64,
+        raison: Option<String>,
+    },
+}
+/// Consolidated Tauri command for the order surface. The frontend invokes a
+/// single `order` command with a tagged `method` field, and this dispatches
+/// to the corresponding implementation below:
+///
+/// - `list`             -> `get_orders`
+/// - `pending`           -> `get_pending_orders`
+/// - `paid`              -> `get_paid_orders`
+/// - `create`            -> `create_order`
+/// - `group_mark_paid`   -> `mark_group_as_paid`
+/// - `group_reject`      -> `reject_group`
 #[tauri::command]
+async fn order(state: State<'_, AppState>, command: OrderCommand) -> Result<serde_json::Value, String> {
+    match command {
+        OrderCommand::List => Ok(serde_json::json!(get_orders(state))),
+        OrderCommand::Pending => Ok(serde_json::json!(get_pending_orders(state))),
+        OrderCommand::Paid => Ok(serde_json::json!(get_paid_orders(state))),
+        OrderCommand::Create { cart, counter_username } => {
+            create_order(state, cart, counter_username).await?;
+            Ok(serde_json::Value::Null)
+        }
+        OrderCommand::GroupMarkPaid { group_id } => {
+            mark_group_as_paid(state, group_id).await?;
+            Ok(serde_json::Value::Null)
+        }
+        OrderCommand::GroupReject { group_id, raison } => {
+            reject_group(state, group_id, raison).await?;
+            Ok(serde_json::Value::Null)
+        }
+    }
+}
 async fn approve_connection(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -499,7 +573,6 @@ async fn approve_connection(
     Ok(())
 }
 /// Reject a pending counter connection. Called from the cashier UI via invoke().
-#[tauri::command]
 async fn reject_connection(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -532,8 +605,6 @@ async fn reject_connection(
     notify_cashier(&state.peers, &ServerMessage::ConnectionRequests { data: pending }).await;
     Ok(())
 }
-/// Alias of `reject_connection`: the frontend invokes `refuse_connection`.
-#[tauri::command]
 async fn refuse_connection(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -542,7 +613,6 @@ async fn refuse_connection(
 ) -> Result<(), String> {
     reject_connection(app, state, id, addr).await
 }
-#[tauri::command]
 async fn disconnect_device(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -575,20 +645,12 @@ async fn disconnect_device(
     notify_cashier(&state.peers, &ServerMessage::ConnectedDevices { data: connected }).await;
     Ok(())
 }
-/// List counters currently awaiting cashier approval. Called from the
-/// cashier UI via invoke() as a one-off fetch (in addition to the live
-/// `ConnectionRequests` push over the WebSocket).
-#[tauri::command]
 async fn list_pending_connections(state: State<'_, AppState>) -> Result<Vec<PendingConnection>, String> {
     Ok(get_pending_requests_list(&state.peers).await)
 }
-#[tauri::command]
 async fn list_connected_devices(state: State<'_, AppState>) -> Result<Vec<ConnectedDevice>, String> {
     Ok(get_connected_devices_list(&state.peers).await)
 }
-/// Disconnect a device (like `disconnect_device`) and, unlike it, also add
-/// the device's address to the persistent blacklist so it can't reconnect.
-#[tauri::command]
 async fn block_device(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -652,7 +714,6 @@ async fn block_device(
 }
 /// The connection lifecycle log (requested/approved/rejected/disconnected/
 /// blocked), most recent last. Called from the cashier UI via invoke().
-#[tauri::command]
 fn list_connection_history(state: State<'_, AppState>) -> Vec<ConnectionHistoryView> {
     state
         .connection_history
@@ -669,13 +730,11 @@ fn list_connection_history(state: State<'_, AppState>) -> Vec<ConnectionHistoryV
         })
         .collect()
 }
-#[tauri::command]
 fn list_blacklist_entries(state: State<'_, AppState>) -> Vec<connections::BlacklistEntry> {
     state.blacklist.lock().unwrap().clone()
 }
 /// Add an address to the blacklist without needing an active connection to
 /// block (unlike `block_device`). Called from the cashier UI via invoke().
-#[tauri::command]
 async fn add_blacklist_entry(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -721,7 +780,6 @@ async fn add_blacklist_entry(
     }
     Ok(entry)
 }
-#[tauri::command]
 async fn remove_blacklist_entry(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -746,18 +804,15 @@ async fn remove_blacklist_entry(
 }
 /// Current cap on connected comptoir devices (`0` = unlimited). Called from the
 /// Réglages UI via invoke().
-#[tauri::command]
 fn get_max_connected_devices(state: State<'_, AppState>) -> u32 {
     *state.max_connected_devices.lock().unwrap()
 }
-#[tauri::command]
 async fn get_connected_devices_count(state: State<'_, AppState>) -> Result<usize, String> {
     Ok(get_connected_devices_list(&state.peers).await.len())
 }
 /// Update the cap on connected comptoir devices. Persists to disk and takes effect
 /// immediately for new connection requests; already-connected devices are left
 /// untouched. Returns the value actually applied (clamped to a sane range).
-#[tauri::command]
 async fn set_max_connected_devices(app: tauri::AppHandle, state: State<'_, AppState>, value: u32) -> Result<u32, String> {
     let clamped = settings::clamp_max_connected_devices(value);
     let mut current = settings::load(&app);
@@ -767,26 +822,131 @@ async fn set_max_connected_devices(app: tauri::AppHandle, state: State<'_, AppSt
     *state.max_connected_devices.lock().unwrap() = clamped;
     Ok(clamped)
 }
+/// Alias of `list_connection_history`, exposed under the consolidated
+/// `server` command as method `devices.get_history`.
+fn get_devices_history(state: State<'_, AppState>) -> Vec<ConnectionHistoryView> {
+    list_connection_history(state)
+}
+#[derive(Debug, Deserialize)]
+#[serde(tag = "method", rename_all = "snake_case")]
+enum ServerCommand {
+    GetAddress,
+    ConnectionApprove {
+        id: Option<i64>,
+        addr: Option<String>,
+    },
+    ConnectionReject {
+        id: Option<i64>,
+        addr: Option<String>,
+    },
+    ConnectionRefuse {
+        id: Option<i64>,
+        addr: Option<String>,
+    },
+    ConnectionListPending,
+    ConnectionListConnected,
+    ConnectionDisconnect {
+        id: Option<i64>,
+        addr: Option<String>,
+    },
+    ConnectionBlock {
+        id: Option<i64>,
+        addr: Option<String>,
+        reason: Option<String>,
+    },
+    ConnectionHistory,
+    ConnectionBlacklistList,
+    ConnectionBlacklistAdd {
+        entry_type: Option<String>,
+        value: Option<String>,
+        addr: Option<String>,
+        reason: Option<String>,
+    },
+    ConnectionBlacklistRemove {
+        id: Option<i64>,
+        addr: Option<String>,
+    },
+    DevicesMaxGet,
+    DevicesMaxSet {
+        value: u32,
+    },
+    DevicesCount,
+    DevicesGetHistory,
+}
 #[tauri::command]
+async fn server(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    command: ServerCommand,
+) -> Result<serde_json::Value, String> {
+    match command {
+        ServerCommand::GetAddress => Ok(serde_json::json!(get_server_address())),
+        ServerCommand::ConnectionApprove { id, addr } => {
+            approve_connection(app, state, id, addr).await?;
+            Ok(serde_json::Value::Null)
+        }
+        ServerCommand::ConnectionReject { id, addr } => {
+            reject_connection(app, state, id, addr).await?;
+            Ok(serde_json::Value::Null)
+        }
+        ServerCommand::ConnectionRefuse { id, addr } => {
+            refuse_connection(app, state, id, addr).await?;
+            Ok(serde_json::Value::Null)
+        }
+        ServerCommand::ConnectionListPending => {
+            Ok(serde_json::json!(list_pending_connections(state).await?))
+        }
+        ServerCommand::ConnectionListConnected => {
+            Ok(serde_json::json!(list_connected_devices(state).await?))
+        }
+        ServerCommand::ConnectionDisconnect { id, addr } => {
+            disconnect_device(app, state, id, addr).await?;
+            Ok(serde_json::Value::Null)
+        }
+        ServerCommand::ConnectionBlock { id, addr, reason } => {
+            Ok(serde_json::json!(block_device(app, state, id, addr, reason).await?))
+        }
+        ServerCommand::ConnectionHistory => Ok(serde_json::json!(list_connection_history(state))),
+        ServerCommand::ConnectionBlacklistList => {
+            Ok(serde_json::json!(list_blacklist_entries(state)))
+        }
+        ServerCommand::ConnectionBlacklistAdd {
+            entry_type,
+            value,
+            addr,
+            reason,
+        } => Ok(serde_json::json!(
+            add_blacklist_entry(app, state, entry_type, value, addr, reason).await?
+        )),
+        ServerCommand::ConnectionBlacklistRemove { id, addr } => {
+            remove_blacklist_entry(app, state, id, addr).await?;
+            Ok(serde_json::Value::Null)
+        }
+        ServerCommand::DevicesMaxGet => Ok(serde_json::json!(get_max_connected_devices(state))),
+        ServerCommand::DevicesMaxSet { value } => {
+            Ok(serde_json::json!(set_max_connected_devices(app, state, value).await?))
+        }
+        ServerCommand::DevicesCount => {
+            Ok(serde_json::json!(get_connected_devices_count(state).await?))
+        }
+        ServerCommand::DevicesGetHistory => Ok(serde_json::json!(get_devices_history(state))),
+    }
+}
 fn get_theme(app: tauri::AppHandle) -> String {
     settings::load(&app).theme.as_str().to_string()
 }
-#[tauri::command]
 fn get_background_color(app: tauri::AppHandle) -> String {
     settings::load(&app).background_color
 }
-#[tauri::command]
 fn get_font_size(app: tauri::AppHandle) -> u32 {
     settings::load(&app).font_size
 }
-#[tauri::command]
 async fn set_background_color(app: tauri::AppHandle, value: String) -> Result<String, String> {
     let mut current = settings::load(&app);
     current.background_color = value.clone();
     settings::update(&app, current)?;
     Ok(value)
 }
-#[tauri::command]
 async fn set_font_size(app: tauri::AppHandle, value: u32) -> Result<u32, String> {
     let clamped = settings::clamp_font_size(value);
     let mut current = settings::load(&app);
@@ -794,7 +954,6 @@ async fn set_font_size(app: tauri::AppHandle, value: u32) -> Result<u32, String>
     settings::update(&app, current)?;
     Ok(clamped)
 }
-#[tauri::command]
 async fn set_theme(app: tauri::AppHandle, value: String) -> Result<String, String> {
     let theme = settings::Theme::from_str(&value)?;
     let mut current = settings::load(&app);
@@ -802,7 +961,39 @@ async fn set_theme(app: tauri::AppHandle, value: String) -> Result<String, Strin
     settings::update(&app, current)?;
     Ok(theme.as_str().to_string())
 }
+#[derive(Debug, Deserialize)]
+#[serde(tag = "method", rename_all = "snake_case")]
+enum SettingsCommand {
+    ThemeGet,
+    ThemeSet { value: String },
+    BackgroundColorGet,
+    BackgroundColorSet { value: String },
+    FontSizeGet,
+    FontSizeSet { value: u32 },
+}
+/// Consolidated Tauri command for the settings surface. The frontend invokes
+/// a single `settings` command with a tagged `method` field, and this
+/// dispatches to the corresponding implementation below:
+///
+/// - `theme_get`             -> `get_theme`
+/// - `theme_set`             -> `set_theme`
+/// - `background_color_get`  -> `get_background_color`
+/// - `background_color_set`  -> `set_background_color`
+/// - `font_size_get`         -> `get_font_size`
+/// - `font_size_set`         -> `set_font_size`
 #[tauri::command]
+async fn settings(app: tauri::AppHandle, command: SettingsCommand) -> Result<serde_json::Value, String> {
+    match command {
+        SettingsCommand::ThemeGet => Ok(serde_json::json!(get_theme(app))),
+        SettingsCommand::ThemeSet { value } => Ok(serde_json::json!(set_theme(app, value).await?)),
+        SettingsCommand::BackgroundColorGet => Ok(serde_json::json!(get_background_color(app))),
+        SettingsCommand::BackgroundColorSet { value } => {
+            Ok(serde_json::json!(set_background_color(app, value).await?))
+        }
+        SettingsCommand::FontSizeGet => Ok(serde_json::json!(get_font_size(app))),
+        SettingsCommand::FontSizeSet { value } => Ok(serde_json::json!(set_font_size(app, value).await?)),
+    }
+}
 async fn authenticate_admin(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -870,7 +1061,6 @@ async fn authenticate_admin(
         session_token: Some(token),
     })
 }
-#[tauri::command]
 async fn authenticate_cashier(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -938,7 +1128,92 @@ async fn authenticate_cashier(
         session_token: Some(token),
     })
 }
+async fn authenticate_counter(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    username: String,
+    password: String,
+) -> Result<accounts::AuthResult, String> {
+    let username = accounts::validate_username(&username)?;
+    accounts::validate_password(&password)?;
+    let attempt_key = format!("counter:{}", username.to_lowercase());
+    if let Some(remaining) = rate_limit::seconds_until_unlocked(&state.auth_attempts, &attempt_key) {
+        return Ok(accounts::AuthResult {
+            success: false,
+            account: None,
+            error: Some(format!(
+                "Trop de tentatives échouées. Réessayez dans {remaining} seconde(s)."
+            )),
+            session_token: None,
+        });
+    }
+    let mut guard = state.accounts.lock().unwrap();
+    let found = guard.iter_mut().find(|a| {
+        a.username.eq_ignore_ascii_case(&username) && a.user_type == accounts::UserType::Comptoir
+    });
+    let verified = match &found {
+        Some(a) => accounts::verify_password(&password, &a.password_hash),
+        None => false,
+    };
+    if !verified {
+        drop(guard);
+        rate_limit::record_failure(&state.auth_attempts, &attempt_key);
+        return Ok(accounts::AuthResult {
+            success: false,
+            account: None,
+            error: Some("Nom d'utilisateur ou mot de passe incorrect.".to_string()),
+            session_token: None,
+        });
+    }
+    let account = found.expect("verified implies the account was found");
+    if account.status == accounts::AccountStatus::Suspended {
+        drop(guard);
+        rate_limit::record_failure(&state.auth_attempts, &attempt_key);
+        return Ok(accounts::AuthResult {
+            success: false,
+            account: None,
+            error: Some("Ce compte a été suspendu. Contactez un administrateur.".to_string()),
+            session_token: None,
+        });
+    }
+    let previous_last_sign_in = account.last_sign_in_at.clone();
+    account.last_sign_in_at = Some(chrono::Local::now().to_rfc3339());
+    let view = accounts::Account::from(&*account);
+    if let Err(err) = accounts::save(&app, &guard) {
+        if let Some(account) = accounts::find_account_mut(&mut guard, &username) {
+            account.last_sign_in_at = previous_last_sign_in;
+        }
+        return Err(err);
+    }
+    drop(guard);
+    rate_limit::record_success(&state.auth_attempts, &attempt_key);
+    let token = accounts::mint_session(&state.sessions, &view.username, accounts::SessionRole::Counter);
+    Ok(accounts::AuthResult {
+        success: true,
+        account: Some(view),
+        error: None,
+        session_token: Some(token),
+    })
+}
+#[derive(Debug, Deserialize)]
+#[serde(tag = "method", rename_all = "snake_case")]
+enum AuthCommand {
+    Admin { username: String, password: String },
+    Cashier { username: String, password: String },
+    Counter { username: String, password: String },
+}
 #[tauri::command]
+async fn auth(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    command: AuthCommand,
+) -> Result<accounts::AuthResult, String> {
+    match command {
+        AuthCommand::Admin { username, password } => authenticate_admin(app, state, username, password).await,
+        AuthCommand::Cashier { username, password } => authenticate_cashier(app, state, username, password).await,
+        AuthCommand::Counter { username, password } => authenticate_counter(app, state, username, password).await,
+    }
+}
 async fn create_account(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -978,12 +1253,10 @@ async fn create_account(
     }
     Ok(accounts::Account::from(guard.last().expect("account was just pushed")))
 }
-#[tauri::command]
 fn list_accounts(state: State<'_, AppState>) -> Vec<accounts::Account> {
     state.accounts.lock().unwrap().iter().map(accounts::Account::from).collect()
 }
 /// Modify an existing account's display name, user type, and/or password.
-#[tauri::command]
 async fn update_account(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -1028,7 +1301,6 @@ async fn update_account(
 }
 /// Suspend an account: a reversible block. The account and its history are
 /// left untouched on disk — it's only flagged so it can no longer
-#[tauri::command]
 async fn suspend_account(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -1051,7 +1323,6 @@ async fn suspend_account(
 }
 /// Reactivate a previously suspended account, restoring its access. Called
 /// from the Réglages UI via invoke().
-#[tauri::command]
 async fn reactivate_account(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -1071,7 +1342,6 @@ async fn reactivate_account(
     }
     Ok(updated)
 }
-#[tauri::command]
 async fn delete_account(app: tauri::AppHandle, state: State<'_, AppState>, username: String) -> Result<(), String> {
     let mut guard = state.accounts.lock().unwrap();
     let index = guard
@@ -1087,44 +1357,96 @@ async fn delete_account(app: tauri::AppHandle, state: State<'_, AppState>, usern
 }
 /// The activity log (created/suspended/reactivated/modified) across every
 /// account, most recent first. Called from the Réglages UI via invoke().
-#[tauri::command]
 fn list_account_activities(state: State<'_, AppState>) -> Vec<accounts::AccountActivity> {
     accounts::list_activities(&state.accounts.lock().unwrap())
 }
-/// Legacy cashier-only endpoints. The account API is unified
-/// (`create_account` / `list_accounts` / ...), so these only exist to return a
-/// clear error instead of an "unknown command" panic while the frontend is
-/// being cleaned up.
-fn unified_accounts_api_error(replacement: &str) -> String {
-    format!("API obsolète : utilisez {replacement}.")
+#[derive(Debug, Deserialize)]
+#[serde(tag = "method", rename_all = "snake_case")]
+enum AccountCommand {
+    Create {
+        username: String,
+        password: String,
+        display_name: String,
+        user_type: accounts::UserType,
+    },
+    List,
+    Update {
+        username: String,
+        display_name: Option<String>,
+        user_type: Option<accounts::UserType>,
+        password: Option<String>,
+    },
+    Suspend {
+        username: String,
+        reason: Option<String>,
+    },
+    Reactivate {
+        username: String,
+    },
+    Delete {
+        username: String,
+    },
+    Activities,
 }
 #[tauri::command]
-fn create_cashier_account() -> Result<(), String> {
-    Err(unified_accounts_api_error("create_account"))
+async fn account(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    command: AccountCommand,
+) -> Result<serde_json::Value, String> {
+    match command {
+        AccountCommand::Create {
+            username,
+            password,
+            display_name,
+            user_type,
+        } => Ok(serde_json::json!(
+            create_account(app, state, username, password, display_name, user_type).await?
+        )),
+        AccountCommand::List => Ok(serde_json::json!(list_accounts(state))),
+        AccountCommand::Update {
+            username,
+            display_name,
+            user_type,
+            password,
+        } => Ok(serde_json::json!(
+            update_account(app, state, username, display_name, user_type, password).await?
+        )),
+        AccountCommand::Suspend { username, reason } => {
+            Ok(serde_json::json!(suspend_account(app, state, username, reason).await?))
+        }
+        AccountCommand::Reactivate { username } => {
+            Ok(serde_json::json!(reactivate_account(app, state, username).await?))
+        }
+        AccountCommand::Delete { username } => {
+            delete_account(app, state, username).await?;
+            Ok(serde_json::Value::Null)
+        }
+        AccountCommand::Activities => Ok(serde_json::json!(list_account_activities(state))),
+    }
 }
-#[tauri::command]
-fn list_cashier_accounts() -> Result<(), String> {
-    Err(unified_accounts_api_error("list_accounts"))
-}
-#[tauri::command]
-fn update_cashier_account() -> Result<(), String> {
-    Err(unified_accounts_api_error("update_account"))
-}
-#[tauri::command]
-fn suspend_cashier_account() -> Result<(), String> {
-    Err(unified_accounts_api_error("suspend_account"))
-}
-#[tauri::command]
-fn reactivate_cashier_account() -> Result<(), String> {
-    Err(unified_accounts_api_error("reactivate_account"))
-}
-#[tauri::command]
-fn delete_cashier_account() -> Result<(), String> {
-    Err(unified_accounts_api_error("delete_account"))
-}
-#[tauri::command]
 fn save_binary_file(path: String, data: Vec<u8>) -> Result<(), String> {
     std::fs::write(&path, data).map_err(|e| e.to_string())
+}
+/// Read a file's raw bytes from disk. Exposed under the consolidated `file`
+fn load_binary_file(path: String) -> Result<Vec<u8>, String> {
+    std::fs::read(&path).map_err(|e| e.to_string())
+}
+#[derive(Debug, Deserialize)]
+#[serde(tag = "method", rename_all = "snake_case")]
+enum FileCommand {
+    SaveBinary { path: String, data: Vec<u8> },
+    LoadBinary { path: String },
+}
+#[tauri::command]
+fn file(command: FileCommand) -> Result<serde_json::Value, String> {
+    match command {
+        FileCommand::SaveBinary { path, data } => {
+            save_binary_file(path, data)?;
+            Ok(serde_json::Value::Null)
+        }
+        FileCommand::LoadBinary { path } => Ok(serde_json::json!(load_binary_file(path)?)),
+    }
 }
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -1282,6 +1604,67 @@ pub fn run() {
                                     &peers_inner,
                                     addr,
                                     &ServerMessage::Orders { data: order_service_inner.get_orders() },
+                                )
+                                .await;
+                            }
+                            Ok(ClientMessage::CounterRegister { username, token }) => {
+                                let verified_username = accounts::consume_session(
+                                    &sessions_inner,
+                                    &token,
+                                    accounts::SessionRole::Counter,
+                                );
+                                let Some(verified_username) = verified_username else {
+                                    send_to_addr(
+                                        &peers_inner,
+                                        addr,
+                                        &ServerMessage::ProtocolError {
+                                            data: "Jeton de session invalide ou expiré.".to_string(),
+                                        },
+                                    )
+                                    .await;
+                                    continue;
+                                };
+                                let _ = username;
+                                let at_capacity = is_at_connected_devices_capacity(
+                                    &peers_inner,
+                                    &max_connected_devices_inner,
+                                )
+                                .await;
+                                if at_capacity {
+                                    send_to_addr(&peers_inner, addr, &ServerMessage::ConnectionRejected).await;
+                                    continue;
+                                }
+                                let scoped = {
+                                    let mut guard = peers_inner.lock().await;
+                                    let Some(peer) = guard.get_mut(&addr) else {
+                                        continue;
+                                    };
+                                    peer.username = verified_username.clone();
+                                    peer.approved = true;
+                                    peer.connected_at = Some(chrono::Local::now().to_rfc3339());
+                                    scope_orders_for_peer(&order_service_inner.get_orders(), peer)
+                                };
+                                let app_handle = {
+                                    let guard = app_handle_inner.lock().unwrap();
+                                    guard.clone()
+                                };
+                                record_connection_history(
+                                    &connection_history_inner,
+                                    app_handle.as_ref(),
+                                    &addr.to_string(),
+                                    &verified_username,
+                                    connections::ConnectionEvent::Approved,
+                                );
+                                send_to_addr(
+                                    &peers_inner,
+                                    addr,
+                                    &ServerMessage::Orders { data: scoped },
+                                )
+                                .await;
+                                let connected = get_connected_devices_list(&peers_inner).await;
+                                notify_cashier(
+                                    &peers_inner,
+                                    &ServerMessage::ConnectedDevices { data: connected },
                                 )
                                 .await;
                             }
@@ -1684,54 +2067,13 @@ pub fn run() {
             connection_attempts,
         })
                 .invoke_handler(tauri::generate_handler![
-            get_ws_address,
-            get_server_address,
-            get_pricing_matrix,
-            create_pricing_item,
-            update_pricing_item,
-            delete_pricing_item,
-            get_orders,
-            get_pending_orders,
-            get_paid_orders,
-            create_order,
-            mark_group_as_paid,
-            reject_group,
-            approve_connection,
-            reject_connection,
-            refuse_connection,
-            disconnect_device,
-            list_pending_connections,
-            list_connected_devices,
-            block_device,
-            list_connection_history,
-            list_blacklist_entries,
-            add_blacklist_entry,
-            remove_blacklist_entry,
-            get_max_connected_devices,
-            get_connected_devices_count,
-            set_max_connected_devices,
-            get_theme,
-            get_background_color,
-            get_font_size,
-            set_background_color,
-            set_font_size,
-            set_theme,
-            authenticate_admin,
-            authenticate_cashier,
-            create_account,
-            list_accounts,
-            update_account,
-            suspend_account,
-            reactivate_account,
-            delete_account,
-            list_account_activities,
-            create_cashier_account,
-            list_cashier_accounts,
-            update_cashier_account,
-            suspend_cashier_account,
-            reactivate_cashier_account,
-            delete_cashier_account,
-            save_binary_file,
+            server,
+            pricing,
+            order,
+            settings,
+            auth,
+            account,
+            file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
