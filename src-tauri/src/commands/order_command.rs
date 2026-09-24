@@ -1,20 +1,14 @@
 use crate::domain::order::price_calculator::CartItem;
-use crate::service::order_api_service::Order;
+use crate::repositories::order_repository::Order;
 use crate::{broadcast_orders_to_approved, AppState};
 use serde::Deserialize;
 use tauri::State;
-
-/// One-shot invoke()-based fetch of every order, for admin/read-only views.
-/// This is the invoke() alternative to the WebSocket `orders` broadcast that
-/// approved peers (see `AdminRegister` / `CashierRegister`) receive live.
 fn get_orders(state: State<'_, AppState>) -> Vec<Order> {
     state.order_service.get_orders()
 }
 fn get_pending_orders(state: State<'_, AppState>) -> Vec<Order> {
     state.order_service.get_pending()
 }
-/// invoke()-based alternative to the WebSocket `orders` broadcast, scoped to
-/// paid orders only.
 fn get_paid_orders(state: State<'_, AppState>) -> Vec<Order> {
     state.order_service.get_paid()
 }
@@ -51,16 +45,6 @@ enum OrderCommand {
         raison: Option<String>,
     },
 }
-/// Consolidated Tauri command for the order surface. The frontend invokes a
-/// single `order` command with a tagged `method` field, and this dispatches
-/// to the corresponding implementation below:
-///
-/// - `list`             -> `get_orders`
-/// - `pending`           -> `get_pending_orders`
-/// - `paid`              -> `get_paid_orders`
-/// - `create`            -> `create_order`
-/// - `group_mark_paid`   -> `mark_group_as_paid`
-/// - `group_reject`      -> `reject_group`
 #[tauri::command]
 pub async fn order(state: State<'_, AppState>, command: OrderCommand) -> Result<serde_json::Value, String> {
     match command {

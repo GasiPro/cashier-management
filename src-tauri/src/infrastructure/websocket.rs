@@ -1,15 +1,11 @@
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicI64, Ordering};
-
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
-
 use crate::app::state::{MaxConnectedDevices, PeerMap};
-use crate::service::order_api_service::Order;
+use crate::repositories::order_repository::Order;
 use crate::{ConnectedDevice, ConnectionRequest, PendingConnection, ServerMessage};
-
 pub(crate) type Tx = mpsc::UnboundedSender<Message>;
-
 pub struct PeerState {
     pub(crate) id: i64,
     pub(crate) tx: Tx,
@@ -20,13 +16,10 @@ pub struct PeerState {
     pub(crate) requested_at: Option<String>,
     pub(crate) connected_at: Option<String>,
 }
-
 static NEXT_PEER_ID: AtomicI64 = AtomicI64::new(1);
-
 pub(crate) fn next_peer_id() -> i64 {
     NEXT_PEER_ID.fetch_add(1, Ordering::Relaxed)
 }
-
 pub(crate) fn optional_username(username: &str) -> Option<String> {
     let trimmed = username.trim();
     if trimmed.is_empty() {
@@ -35,11 +28,9 @@ pub(crate) fn optional_username(username: &str) -> Option<String> {
         Some(trimmed.to_string())
     }
 }
-
 pub(crate) fn peer_label(username: &str, addr: &str) -> String {
     optional_username(username).unwrap_or_else(|| addr.to_string())
 }
-
 pub(crate) async fn send_to_addr(peers: &PeerMap, addr: SocketAddr, msg: &ServerMessage) {
     if let Ok(json) = serde_json::to_string(msg) {
         let guard = peers.lock().await;
@@ -48,7 +39,6 @@ pub(crate) async fn send_to_addr(peers: &PeerMap, addr: SocketAddr, msg: &Server
         }
     }
 }
-
 pub(crate) async fn broadcast_to_approved(peers: &PeerMap, msg: &ServerMessage) {
     let json = match serde_json::to_string(msg) {
         Ok(j) => j,
@@ -61,7 +51,6 @@ pub(crate) async fn broadcast_to_approved(peers: &PeerMap, msg: &ServerMessage) 
         }
     }
 }
-
 pub(crate) async fn broadcast_orders_to_approved(peers: &PeerMap, orders: &[Order]) {
     let guard = peers.lock().await;
     for (_, state) in guard.iter() {
@@ -82,7 +71,6 @@ pub(crate) async fn broadcast_orders_to_approved(peers: &PeerMap, orders: &[Orde
         }
     }
 }
-
 pub(crate) fn scope_orders_for_peer(orders: &[Order], peer: &PeerState) -> Vec<Order> {
     if peer.is_cashier || peer.is_admin {
         orders.to_vec()
@@ -94,7 +82,6 @@ pub(crate) fn scope_orders_for_peer(orders: &[Order], peer: &PeerState) -> Vec<O
             .collect()
     }
 }
-
 pub(crate) async fn notify_cashier(peers: &PeerMap, msg: &ServerMessage) {
     let json = match serde_json::to_string(msg) {
         Ok(j) => j,
@@ -107,7 +94,6 @@ pub(crate) async fn notify_cashier(peers: &PeerMap, msg: &ServerMessage) {
         }
     }
 }
-
 pub(crate) async fn get_pending_requests_list(peers: &PeerMap) -> Vec<ConnectionRequest> {
     let guard = peers.lock().await;
     let mut list: Vec<ConnectionRequest> = guard
@@ -128,7 +114,6 @@ pub(crate) async fn get_pending_requests_list(peers: &PeerMap) -> Vec<Connection
     list.sort_by_key(|entry| entry.id);
     list
 }
-
 pub(crate) async fn get_connected_devices_list(peers: &PeerMap) -> Vec<ConnectedDevice> {
     let guard = peers.lock().await;
     let mut list: Vec<ConnectedDevice> = guard
@@ -149,7 +134,6 @@ pub(crate) async fn get_connected_devices_list(peers: &PeerMap) -> Vec<Connected
     list.sort_by_key(|entry| entry.id);
     list
 }
-
 pub(crate) async fn resolve_peer_addr(
     peers: &PeerMap,
     id: Option<i64>,
@@ -167,7 +151,6 @@ pub(crate) async fn resolve_peer_addr(
     addr.parse::<SocketAddr>()
         .map_err(|e: std::net::AddrParseError| e.to_string())
 }
-
 pub(crate) async fn is_at_connected_devices_capacity(
     peers: &PeerMap,
     max_connected_devices: &MaxConnectedDevices,
@@ -175,10 +158,6 @@ pub(crate) async fn is_at_connected_devices_capacity(
     let max = *max_connected_devices.lock().unwrap();
     max > 0 && get_connected_devices_list(peers).await.len() >= max as usize
 }
-
-/// Determine the LAN address the websocket server should advertise, by
-/// opening a UDP socket and inspecting the local address it would use to
-/// reach an external host (no packets are actually sent).
 pub(crate) fn get_ws_address() -> String {
     use std::net::UdpSocket;
     if let Ok(s) = UdpSocket::bind("0.0.0.0:0") {
@@ -190,8 +169,6 @@ pub(crate) fn get_ws_address() -> String {
     }
     "127.0.0.1:8080".to_string()
 }
-
 pub(crate) fn get_server_address() -> String {
     get_ws_address()
 }
-
