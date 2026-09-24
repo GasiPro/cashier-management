@@ -1,30 +1,31 @@
 use std::sync::atomic::{AtomicI64, Ordering};
-
 use serde::{Deserialize, Deserializer, Serialize};
-
-pub const MAX_HISTORY_ENTRIES: usize = 200;
-
+use crate::models::account::Account;
+use crate::models::order::{CartItem, Order};
+use crate::models::pricing::ServiceItem;
 static NEXT_BLACKLIST_ID: AtomicI64 = AtomicI64::new(1);
-
+static NEXT_HISTORY_ID: AtomicI64 = AtomicI64::new(1);
 pub fn next_blacklist_id() -> i64 {
     NEXT_BLACKLIST_ID.fetch_add(1, Ordering::Relaxed)
 }
-
 fn bump_blacklist_id_floor(id: i64) {
     NEXT_BLACKLIST_ID.fetch_max(id + 1, Ordering::Relaxed);
 }
-
+pub fn next_history_id() -> i64 {
+    NEXT_HISTORY_ID.fetch_add(1, Ordering::Relaxed)
+}
+pub fn bump_history_id_floor(id: i64) {
+    NEXT_HISTORY_ID.fetch_max(id + 1, Ordering::Relaxed);
+}
 pub fn ip_from_addr(addr: &str) -> &str {
     addr.rsplit_once(':').map(|(ip, _)| ip).unwrap_or(addr)
 }
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BlacklistType {
     Ip,
     Username,
 }
-
 #[derive(Debug, Clone, Serialize)]
 pub struct BlacklistEntry {
     pub id: i64,
@@ -34,7 +35,6 @@ pub struct BlacklistEntry {
     pub reason: Option<String>,
     pub created_at: String,
 }
-
 #[derive(Deserialize)]
 struct RawBlacklistEntry {
     #[serde(default)]
@@ -50,7 +50,6 @@ struct RawBlacklistEntry {
     #[serde(default)]
     created_at: Option<String>,
 }
-
 impl<'de> Deserialize<'de> for BlacklistEntry {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -79,7 +78,6 @@ impl<'de> Deserialize<'de> for BlacklistEntry {
         })
     }
 }
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ConnectionEvent {
@@ -89,7 +87,6 @@ pub enum ConnectionEvent {
     Disconnected,
     Blocked,
 }
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionHistoryEntry {
     #[serde(default)]
@@ -98,4 +95,65 @@ pub struct ConnectionHistoryEntry {
     pub username: String,
     pub event: ConnectionEvent,
     pub timestamp: String,
+}
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ClientMessage {
+    CashierRegister { username: String, token: String },
+    AdminRegister { #[serde(default)] username: Option<String>, token: String },
+    CounterRegister { #[serde(default)] username: Option<String>, token: String },
+    RequestConnection { username: String, password: String },
+    CreateOrder { cart: Vec<CartItem> },
+    UpdateOrder { id: i64, quantity: u32, unit_price: u32 },
+    DeleteOrder { id: i64 },
+    DeleteOrderGroup { group_id: i64 },
+    RequestOrders,
+    RequestPricing,
+    GetAccount,
+    UpdateAccount { display_name: String, password: Option<String> },
+}
+#[derive(Debug, Serialize, Clone)]
+pub struct PendingConnection {
+    pub id: i64,
+    pub label: String,
+    pub username: Option<String>,
+    pub ip_address: String,
+    pub port: u16,
+    pub requested_at: String,
+}
+pub type ConnectionRequest = PendingConnection;
+#[derive(Debug, Serialize, Clone)]
+pub struct ConnectedDevice {
+    pub id: i64,
+    pub label: String,
+    pub username: Option<String>,
+    pub ip_address: String,
+    pub port: u16,
+    pub connected_at: String,
+}
+#[derive(Debug, Clone, Serialize)]
+pub struct ConnectionHistoryView {
+    pub id: i64,
+    pub label: String,
+    pub username: Option<String>,
+    pub ip_address: String,
+    pub event: &'static str,
+    pub at: String,
+}
+#[derive(Debug, Serialize, Clone)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ServerMessage {
+    Orders { data: Vec<Order> },
+    Time { data: String },
+    ConnectionRequests { data: Vec<ConnectionRequest> },
+    ConnectedDevices { data: Vec<ConnectedDevice> },
+    ConnectionApproved,
+    ConnectionRejected,
+    ConnectionBlocked,
+    Account { data: Account },
+    AccountUpdated { data: Account },
+    AccountUpdateError { data: String },
+    OrderError { data: String },
+    Pricing { data: Vec<ServiceItem> },
+    ProtocolError { data: String },
 }

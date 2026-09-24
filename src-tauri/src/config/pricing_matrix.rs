@@ -1,14 +1,11 @@
-use crate::domain::order::price_calculator::{
-    ServiceItem as PriceCalcServiceItem, ServiceItemType as PriceCalcServiceItemType,
-};
-use argon2::password_hash::rand_core::{OsRng, RngCore};
-use std::path::PathBuf;
-use tauri::{AppHandle, Manager};
+use crate::models::pricing::{ServiceItem as PricingItem, ServiceItemType as PricingItemType};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServiceItemType {
     Service,
     Product,
 }
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceItem {
     pub id: &'static str,
@@ -17,6 +14,7 @@ pub struct ServiceItem {
     pub price: u32,
     pub item_type: ServiceItemType,
 }
+
 pub const PRICING_MATRIX: &[ServiceItem] = &[
     ServiceItem { id: "pca3nb", category: "Photocopie", label: "A3 NB", price: 1000, item_type: ServiceItemType::Service },
     ServiceItem { id: "pca3cl", category: "Photocopie", label: "A3 Couleur", price: 2000, item_type: ServiceItemType::Service },
@@ -65,69 +63,19 @@ pub const PRICING_MATRIX: &[ServiceItem] = &[
     ServiceItem { id: "classeur", category: "Produit", label: "Classeur", price: 3000, item_type: ServiceItemType::Product },
     ServiceItem { id: "bristol", category: "Produit", label: "Bristol", price: 500, item_type: ServiceItemType::Product },
 ];
-const PRICING_FILE_NAME: &str = "pricing_matrix.json";
-fn pricing_file_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    Ok(dir.join(PRICING_FILE_NAME))
-}
-pub fn load(app: &AppHandle) -> Option<Vec<PriceCalcServiceItem>> {
-    let path = pricing_file_path(app).ok()?;
-    let raw = std::fs::read_to_string(&path).ok()?;
-    serde_json::from_str(&raw).ok()
-}
-pub fn save(app: &AppHandle, items: &[PriceCalcServiceItem]) -> Result<(), String> {
-    let path = pricing_file_path(app)?;
-    let raw = serde_json::to_string_pretty(items).map_err(|e| e.to_string())?;
-    std::fs::write(&path, raw).map_err(|e| e.to_string())
-}
-/// Loads the persisted pricing matrix, or — on first run — bootstraps it
-/// from the built-in `PRICING_MATRIX` defaults and persists that snapshot so
-/// later mutations (create/update/delete) have somewhere to be saved.
-pub fn load_or_bootstrap(app: &AppHandle) -> Vec<PriceCalcServiceItem> {
-    if let Some(items) = load(app) {
-        return items;
-    }
-    let items: Vec<PriceCalcServiceItem> = PRICING_MATRIX
+
+pub fn default_items() -> Vec<PricingItem> {
+    PRICING_MATRIX
         .iter()
-        .map(|item| PriceCalcServiceItem {
+        .map(|item| PricingItem {
             id: item.id.to_string(),
             item_type: match item.item_type {
-                ServiceItemType::Service => PriceCalcServiceItemType::Service,
-                ServiceItemType::Product => PriceCalcServiceItemType::Product,
+                ServiceItemType::Service => PricingItemType::Service,
+                ServiceItemType::Product => PricingItemType::Product,
             },
             category: item.category.to_string(),
             label: item.label.to_string(),
             price: item.price,
         })
-        .collect();
-    let _ = save(app, &items);
-    items
-}
-pub fn generate_id() -> String {
-    let mut bytes = [0u8; 8];
-    OsRng.fill_bytes(&mut bytes);
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
-}
-pub fn validate_category(category: &str) -> Result<String, String> {
-    let trimmed = category.trim();
-    if trimmed.is_empty() {
-        return Err("La catégorie ne peut pas être vide.".to_string());
-    }
-    Ok(trimmed.to_string())
-}
-pub fn validate_label(label: &str) -> Result<String, String> {
-    let trimmed = label.trim();
-    if trimmed.is_empty() {
-        return Err("Le libellé ne peut pas être vide.".to_string());
-    }
-    Ok(trimmed.to_string())
-}
-pub fn find_item_mut<'a>(items: &'a mut [PriceCalcServiceItem], id: &str) -> Option<&'a mut PriceCalcServiceItem> {
-    items.iter_mut().find(|i| i.id == id)
-}
-pub fn remove_item(items: &mut Vec<PriceCalcServiceItem>, id: &str) -> bool {
-    let len_before = items.len();
-    items.retain(|i| i.id != id);
-    items.len() != len_before
+        .collect()
 }

@@ -1,0 +1,2 @@
+pub const DEFAULT_NEXT_ORDER_ID: i64 = 1000;
+pub const DEFAULT_NEXT_GROUP_ID: i64 = 1;

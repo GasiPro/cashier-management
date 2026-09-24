@@ -1,11 +1,7 @@
 use serde::{Deserialize, Serialize};
-
-pub const MAX_ALLOWED_CONNECTED_DEVICES: u32 = 50;
-pub const DEFAULT_MAX_CONNECTED_DEVICES: u32 = 10;
-pub const DEFAULT_BACKGROUND_COLOR: &str = "#FFFFFF";
-pub const DEFAULT_FONT_SIZE: u32 = 14;
-pub const DEFAULT_THEME: Theme = Theme::Light;
-
+use crate::config::setting_config::{
+    DEFAULT_BACKGROUND_COLOR, DEFAULT_FONT_SIZE, DEFAULT_MAX_CONNECTED_DEVICES,
+};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
     #[serde(default = "default_max_connected_devices")]
@@ -17,7 +13,6 @@ pub struct AppSettings {
     #[serde(default = "default_theme")]
     pub theme: Theme,
 }
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
 pub enum Theme {
     #[default]
@@ -25,7 +20,6 @@ pub enum Theme {
     Dark,
     System,
 }
-
 impl Theme {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -43,30 +37,25 @@ impl Theme {
         }
     }
 }
-
 fn default_max_connected_devices() -> u32 {
     DEFAULT_MAX_CONNECTED_DEVICES
 }
-
 fn default_background_color() -> String {
     DEFAULT_BACKGROUND_COLOR.to_string()
 }
-
 fn default_font_size() -> u32 {
     DEFAULT_FONT_SIZE
 }
-
 fn default_theme() -> Theme {
-    DEFAULT_THEME
+    Theme::default()
 }
-
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
             max_connected_devices: DEFAULT_MAX_CONNECTED_DEVICES,
             background_color: DEFAULT_BACKGROUND_COLOR.to_string(),
             font_size: DEFAULT_FONT_SIZE,
-            theme: DEFAULT_THEME,
+            theme: Theme::default(),
         }
     }
 }

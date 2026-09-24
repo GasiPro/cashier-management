@@ -1,4 +1,4 @@
-use crate::config::settings::AppSettings;
+use crate::models::setting::AppSettings;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 const SETTINGS_FILE_NAME: &str = "settings.json";

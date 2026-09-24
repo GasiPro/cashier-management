@@ -4,4 +4,3 @@ pub mod connection_service;
 pub mod order_service;
 pub mod pricing_service;
 pub mod setting_service;
-pub use account_service as account;

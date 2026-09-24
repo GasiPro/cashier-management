@@ -1,44 +1,94 @@
-
-use crate::config::accounts;
+use crate::config::account_config::{DEFAULT_PASSWORD, DEFAULT_USERNAME};
+use crate::domain::account;
+use crate::models::account::{
+    Account, AccountActivity, AccountActivityEntry, AccountStatus, ActivityKind, StoredAccount,
+    UserType,
+};
 use crate::repositories::account_repository;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
-
-/// Shared, in-memory accounts store guarded by a sync mutex, mirrored to
-/// disk through `repositories::account_repository`.
-pub type Accounts = Arc<SyncMutex<Vec<accounts::StoredAccount>>>;
-
-/// Create a new account. Validates the username/password/display name,
-/// rejects duplicate usernames, hashes the password, and persists the
-/// updated account list. Rolls back the in-memory push on save failure.
+pub type Accounts = Arc<SyncMutex<Vec<StoredAccount>>>;
+pub fn load_or_bootstrap(app: &AppHandle) -> Vec<StoredAccount> {
+    let accounts = account_repository::load(app);
+    if !accounts.is_empty() {
+        return accounts;
+    }
+    let now = chrono::Local::now().to_rfc3339();
+    let default_account = match account::hash_password(DEFAULT_PASSWORD) {
+        Ok(password_hash) => StoredAccount {
+            id: account::generate_id(),
+            username: DEFAULT_USERNAME.to_string(),
+            display_name: String::new(),
+            password_hash,
+            user_type: UserType::Admin,
+            status: AccountStatus::Active,
+            created_at: now.clone(),
+            last_sign_in_at: None,
+            history: vec![AccountActivityEntry {
+                kind: ActivityKind::Created,
+                timestamp: now,
+                reason: None,
+            }],
+        },
+        Err(_) => return accounts,
+    };
+    let accounts = vec![default_account];
+    let _ = account_repository::save(app, &accounts);
+    accounts
+}
+pub fn find_account_view(accounts_store: &Accounts, username: &str) -> Option<Account> {
+    accounts_store
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|a| a.username.eq_ignore_ascii_case(username))
+        .map(Account::from)
+}
+pub fn verify_active_credentials(
+    accounts_store: &Accounts,
+    username: &str,
+    password: &str,
+    user_type: UserType,
+) -> bool {
+    let format_ok = account::validate_username(username).is_ok() && account::validate_password(password).is_ok();
+    format_ok && {
+        let guard = accounts_store.lock().unwrap();
+        guard.iter().any(|a| {
+            a.username.eq_ignore_ascii_case(username.trim())
+                && a.user_type == user_type
+                && a.status == AccountStatus::Active
+                && account::verify_password(password, &a.password_hash)
+        })
+    }
+}
 pub async fn create_account(
     app: &AppHandle,
     accounts_store: &Accounts,
     username: String,
     password: String,
     display_name: String,
-    user_type: accounts::UserType,
-) -> Result<accounts::Account, String> {
-    let username = accounts::validate_username(&username)?;
-    accounts::validate_password(&password)?;
-    let display_name = accounts::validate_display_name(&display_name)?;
+    user_type: UserType,
+) -> Result<Account, String> {
+    let username = account::validate_username(&username)?;
+    account::validate_password(&password)?;
+    let display_name = account::validate_display_name(&display_name)?;
     let mut guard = accounts_store.lock().unwrap();
-    if accounts::username_exists(&guard, &username) {
+    if account::username_exists(&guard, &username) {
         return Err("Ce nom d'utilisateur est déjà utilisé.".to_string());
     }
-    let password_hash = accounts::hash_password(&password)?;
+    let password_hash = account::hash_password(&password)?;
     let now = chrono::Local::now().to_rfc3339();
-    let account = accounts::StoredAccount {
-        id: accounts::generate_id(),
+    let account = StoredAccount {
+        id: account::generate_id(),
         username,
         display_name,
         password_hash,
         user_type,
-        status: accounts::AccountStatus::Active,
+        status: AccountStatus::Active,
         created_at: now.clone(),
         last_sign_in_at: None,
-        history: vec![accounts::AccountActivityEntry {
-            kind: accounts::ActivityKind::Created,
+        history: vec![AccountActivityEntry {
+            kind: ActivityKind::Created,
             timestamp: now,
             reason: None,
         }],
@@ -48,36 +98,32 @@ pub async fn create_account(
         guard.pop();
         return Err(format!("Échec de l'enregistrement du compte : {err}"));
     }
-    Ok(accounts::Account::from(guard.last().expect("account was just pushed")))
+    Ok(Account::from(guard.last().expect("account was just pushed")))
 }
-
-/// All accounts, mapped to their command-boundary view.
-pub fn list_accounts(accounts_store: &Accounts) -> Vec<accounts::Account> {
-    accounts_store.lock().unwrap().iter().map(accounts::Account::from).collect()
+pub fn list_accounts(accounts_store: &Accounts) -> Vec<Account> {
+    accounts_store.lock().unwrap().iter().map(Account::from).collect()
 }
-
-/// Modify an existing account's display name, user type, and/or password.
 pub async fn update_account(
     app: &AppHandle,
     accounts_store: &Accounts,
     username: String,
     display_name: Option<String>,
-    user_type: Option<accounts::UserType>,
+    user_type: Option<UserType>,
     password: Option<String>,
-) -> Result<accounts::Account, String> {
+) -> Result<Account, String> {
     let display_name = match display_name {
-        Some(name) => Some(accounts::validate_display_name(&name)?),
+        Some(name) => Some(account::validate_display_name(&name)?),
         None => None,
     };
     if let Some(ref pwd) = password {
-        accounts::validate_password(pwd)?;
+        account::validate_password(pwd)?;
     }
     let new_password_hash = match password {
-        Some(pwd) => Some(accounts::hash_password(&pwd)?),
+        Some(pwd) => Some(account::hash_password(&pwd)?),
         None => None,
     };
     let mut guard = accounts_store.lock().unwrap();
-    let account = accounts::find_account_mut(&mut guard, &username)
+    let account = account::find_account_mut(&mut guard, &username)
         .ok_or_else(|| "Compte introuvable.".to_string())?;
     let previous = account.clone();
     if let Some(display_name) = display_name {
@@ -89,62 +135,55 @@ pub async fn update_account(
     if let Some(hash) = new_password_hash {
         account.password_hash = hash;
     }
-    accounts::record_activity(account, accounts::ActivityKind::Modified, None);
-    let updated = accounts::Account::from(&*account);
+    account::record_activity(account, ActivityKind::Modified, None);
+    let updated = Account::from(&*account);
     if let Err(err) = account_repository::save(app, &guard) {
-        if let Some(account) = accounts::find_account_mut(&mut guard, &username) {
+        if let Some(account) = account::find_account_mut(&mut guard, &username) {
             *account = previous;
         }
         return Err(format!("Échec de l'enregistrement du compte : {err}"));
     }
     Ok(updated)
 }
-
-/// Suspend an account: a reversible block. The account and its history are
-/// left untouched on disk — it's only flagged so it can no longer sign in.
 pub async fn suspend_account(
     app: &AppHandle,
     accounts_store: &Accounts,
     username: String,
     reason: Option<String>,
-) -> Result<accounts::Account, String> {
+) -> Result<Account, String> {
     let mut guard = accounts_store.lock().unwrap();
     let account =
-        accounts::find_account_mut(&mut guard, &username).ok_or_else(|| "Compte introuvable.".to_string())?;
+        account::find_account_mut(&mut guard, &username).ok_or_else(|| "Compte introuvable.".to_string())?;
     let previous = account.clone();
-    accounts::suspend(account, reason);
-    let updated = accounts::Account::from(&*account);
+    account::suspend(account, reason);
+    let updated = Account::from(&*account);
     if let Err(err) = account_repository::save(app, &guard) {
-        if let Some(account) = accounts::find_account_mut(&mut guard, &username) {
+        if let Some(account) = account::find_account_mut(&mut guard, &username) {
             *account = previous;
         }
         return Err(format!("Échec de l'enregistrement de la suspension : {err}"));
     }
     Ok(updated)
 }
-
-/// Reactivate a previously suspended account, restoring its access.
 pub async fn reactivate_account(
     app: &AppHandle,
     accounts_store: &Accounts,
     username: String,
-) -> Result<accounts::Account, String> {
+) -> Result<Account, String> {
     let mut guard = accounts_store.lock().unwrap();
     let account =
-        accounts::find_account_mut(&mut guard, &username).ok_or_else(|| "Compte introuvable.".to_string())?;
+        account::find_account_mut(&mut guard, &username).ok_or_else(|| "Compte introuvable.".to_string())?;
     let previous = account.clone();
-    accounts::reactivate(account);
-    let updated = accounts::Account::from(&*account);
+    account::reactivate(account);
+    let updated = Account::from(&*account);
     if let Err(err) = account_repository::save(app, &guard) {
-        if let Some(account) = accounts::find_account_mut(&mut guard, &username) {
+        if let Some(account) = account::find_account_mut(&mut guard, &username) {
             *account = previous;
         }
         return Err(format!("Échec de l'enregistrement de la réactivation : {err}"));
     }
     Ok(updated)
 }
-
-/// Permanently remove an account.
 pub async fn delete_account(app: &AppHandle, accounts_store: &Accounts, username: String) -> Result<(), String> {
     let mut guard = accounts_store.lock().unwrap();
     let index = guard
@@ -158,9 +197,6 @@ pub async fn delete_account(app: &AppHandle, accounts_store: &Accounts, username
     }
     Ok(())
 }
-
-/// The activity log (created/suspended/reactivated/modified) across every
-/// account, most recent first.
-pub fn list_account_activities(accounts_store: &Accounts) -> Vec<accounts::AccountActivity> {
-    accounts::list_activities(&accounts_store.lock().unwrap())
+pub fn list_account_activities(accounts_store: &Accounts) -> Vec<AccountActivity> {
+    account::list_activities(&accounts_store.lock().unwrap())
 }

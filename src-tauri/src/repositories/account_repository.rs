@@ -1,4 +1,4 @@
-use crate::config::accounts::StoredAccount;
+use crate::models::account::StoredAccount;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 const ACCOUNTS_FILE_NAME: &str = "accounts.json";

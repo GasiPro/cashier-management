@@ -1,34 +1,8 @@
-use serde::{Deserialize, Serialize};
+use crate::config::defaults::{DEFAULT_NEXT_GROUP_ID, DEFAULT_NEXT_ORDER_ID};
+use crate::models::order::Order;
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum OrderStatus {
-    EnAttente,
-    Paye,
-    Rejetee,
-}
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Order {
-    pub id: i64,
-    pub group_id: i64,
-    pub service_type: String,
-    pub unit_price: u32,
-    #[serde(default)]
-    pub original_unit_price: u32,
-    pub quantity: u32,
-    pub status: OrderStatus,
-    pub time: String,
-    #[serde(default)]
-    pub counter_username: String,
-   pub created_at: String,
-    pub paid_at: Option<String>,
-    #[serde(default)]
-    pub observation: String,
-    #[serde(default)]
-    pub raison: Option<String>,
-}
 pub struct OrderApi;
 impl OrderApi {
     const ORDERS_FILE_NAME: &'static str = "gasipro_orders.json";
@@ -62,21 +36,21 @@ impl OrderApi {
     }
     pub fn load_next_id(app: &AppHandle) -> i64 {
         let Ok(path) = Self::id_file_path(app) else {
-            return 1000;
+            return DEFAULT_NEXT_ORDER_ID;
         };
         fs::read_to_string(&path)
             .ok()
             .and_then(|raw| raw.trim().parse::<i64>().ok())
-            .unwrap_or(1000)
+            .unwrap_or(DEFAULT_NEXT_ORDER_ID)
     }
     pub fn load_next_group_id(app: &AppHandle) -> i64 {
         let Ok(path) = Self::gid_file_path(app) else {
-            return 1;
+            return DEFAULT_NEXT_GROUP_ID;
         };
         fs::read_to_string(&path)
             .ok()
             .and_then(|raw| raw.trim().parse::<i64>().ok())
-            .unwrap_or(1)
+            .unwrap_or(DEFAULT_NEXT_GROUP_ID)
     }
     pub fn persist(app: &AppHandle, orders: &[Order], next_id: i64, next_group_id: i64) -> Result<(), String> {
         let orders_path = Self::orders_file_path(app)?;

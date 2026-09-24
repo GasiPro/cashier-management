@@ -1,4 +1,4 @@
-use crate::domain::order::price_calculator::ServiceItem as PriceCalcServiceItem;
+use crate::models::pricing::ServiceItem as PriceCalcServiceItem;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 const PRICING_FILE_NAME: &str = "pricing_matrix.json";

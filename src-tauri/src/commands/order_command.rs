@@ -1,6 +1,6 @@
-use crate::domain::order::price_calculator::CartItem;
-use crate::repositories::order_repository::Order;
-use crate::{broadcast_orders_to_approved, AppState};
+use crate::app::AppState;
+use crate::infrastructure::websocket::broadcast_orders_to_approved;
+use crate::models::order::{CartItem, Order};
 use serde::Deserialize;
 use tauri::State;
 fn get_orders(state: State<'_, AppState>) -> Vec<Order> {
@@ -29,7 +29,7 @@ async fn reject_group(state: State<'_, AppState>, group_id: i64, raison: Option<
 }
 #[derive(Debug, Deserialize)]
 #[serde(tag = "method", rename_all = "snake_case")]
-enum OrderCommand {
+pub enum OrderCommand {
     List,
     Pending,
     Paid,

@@ -1,23 +1,21 @@
-
 use crate::config::pricing_matrix;
-use crate::domain::order::price_calculator::{ServiceItem, ServiceItemType};
+use crate::domain::order::price_calculator;
+use crate::models::pricing::{ServiceItem, ServiceItemType};
 use crate::repositories::pricing_repository;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
-
-/// Shared, in-memory pricing matrix guarded by a sync mutex, mirrored to
-/// disk through `repositories::pricing_repository`.
 pub type PricingStore = Arc<SyncMutex<Vec<ServiceItem>>>;
-
-/// Current pricing matrix.
+pub fn load_or_bootstrap(app: &AppHandle) -> Vec<ServiceItem> {
+    if let Some(items) = pricing_repository::load(app) {
+        return items;
+    }
+    let items = pricing_matrix::default_items();
+    let _ = pricing_repository::save(app, &items);
+    items
+}
 pub fn get_pricing_matrix(pricing: &PricingStore) -> Vec<ServiceItem> {
     pricing.lock().unwrap().clone()
 }
-
-/// Add a new item (service or product) to the pricing matrix. Persists to
-/// disk and returns the created item, including its generated `id`.
-/// Returns the created item alongside the full matrix snapshot so callers
-/// can broadcast it.
 pub async fn create_pricing_item(
     app: &AppHandle,
     pricing: &PricingStore,
@@ -26,11 +24,11 @@ pub async fn create_pricing_item(
     price: u32,
     item_type: ServiceItemType,
 ) -> Result<(ServiceItem, Vec<ServiceItem>), String> {
-    let category = pricing_matrix::validate_category(&category)?;
-    let label = pricing_matrix::validate_label(&label)?;
+    let category = price_calculator::validate_category(&category)?;
+    let label = price_calculator::validate_label(&label)?;
     let mut guard = pricing.lock().unwrap();
     let item = ServiceItem {
-        id: pricing_matrix::generate_id(),
+        id: price_calculator::generate_id(),
         item_type,
         category,
         label,
@@ -43,9 +41,6 @@ pub async fn create_pricing_item(
     }
     Ok((item, guard.clone()))
 }
-
-/// Update an existing pricing item. Returns the updated item alongside the
-/// full matrix snapshot so callers can broadcast it.
 pub async fn update_pricing_item(
     app: &AppHandle,
     pricing: &PricingStore,
@@ -56,16 +51,16 @@ pub async fn update_pricing_item(
     item_type: Option<ServiceItemType>,
 ) -> Result<(ServiceItem, Vec<ServiceItem>), String> {
     let category = match category {
-        Some(c) => Some(pricing_matrix::validate_category(&c)?),
+        Some(c) => Some(price_calculator::validate_category(&c)?),
         None => None,
     };
     let label = match label {
-        Some(l) => Some(pricing_matrix::validate_label(&l)?),
+        Some(l) => Some(price_calculator::validate_label(&l)?),
         None => None,
     };
     let mut guard = pricing.lock().unwrap();
     let item =
-        pricing_matrix::find_item_mut(&mut guard, &id).ok_or_else(|| "Article introuvable.".to_string())?;
+        price_calculator::find_item_mut(&mut guard, &id).ok_or_else(|| "Article introuvable.".to_string())?;
     let previous = item.clone();
     if let Some(category) = category {
         item.category = category;
@@ -81,16 +76,13 @@ pub async fn update_pricing_item(
     }
     let updated = item.clone();
     if let Err(err) = pricing_repository::save(app, &guard) {
-        if let Some(item) = pricing_matrix::find_item_mut(&mut guard, &id) {
+        if let Some(item) = price_calculator::find_item_mut(&mut guard, &id) {
             *item = previous;
         }
         return Err(format!("Échec de l'enregistrement de l'article : {err}"));
     }
     Ok((updated, guard.clone()))
 }
-
-/// Remove an item from the pricing matrix. Returns the full matrix snapshot
-/// so callers can broadcast it.
 pub async fn delete_pricing_item(
     app: &AppHandle,
     pricing: &PricingStore,
