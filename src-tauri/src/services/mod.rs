@@ -4,4 +4,4 @@ pub mod auth;
 pub mod connection;
 pub mod order;
 pub mod pricing;
-pub mod settings;
+pub mod setting;

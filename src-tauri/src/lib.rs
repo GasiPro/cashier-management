@@ -14,7 +14,7 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 use config::accounts;
-use config::connections;
+use config::connection_config;
 use config::rate_limit;
 use config::settings;
 use domain::order::price_calculator::{CartItem, ServiceItem, ServiceItemType as PriceCalculatorItemType};
@@ -39,8 +39,8 @@ type PeerMap = Arc<Mutex<HashMap<SocketAddr, PeerState>>>;
 type MaxConnectedDevices = Arc<SyncMutex<u32>>;
 type Accounts = Arc<SyncMutex<Vec<accounts::StoredAccount>>>;
 type AppHandleSlot = Arc<SyncMutex<Option<tauri::AppHandle>>>;
-type Blacklist = Arc<SyncMutex<Vec<connections::BlacklistEntry>>>;
-type ConnectionHistory = Arc<SyncMutex<Vec<connections::ConnectionHistoryEntry>>>;
+type Blacklist = Arc<SyncMutex<Vec<connection_config::BlacklistEntry>>>;
+type ConnectionHistory = Arc<SyncMutex<Vec<connection_config::ConnectionHistoryEntry>>>;
 type PricingStore = Arc<SyncMutex<Vec<ServiceItem>>>;
 pub struct AppState {
     pub order_service: Arc<OrderService>,
@@ -98,13 +98,13 @@ struct ConnectionHistoryView {
     event: &'static str,
     at: String,
 }
-fn history_event_label(event: connections::ConnectionEvent) -> &'static str {
+fn history_event_label(event: connection_config::ConnectionEvent) -> &'static str {
     match event {
-        connections::ConnectionEvent::Requested => "requested",
-        connections::ConnectionEvent::Approved => "approved",
-        connections::ConnectionEvent::Rejected => "refused",
-        connections::ConnectionEvent::Disconnected => "disconnected",
-        connections::ConnectionEvent::Blocked => "blocked",
+        connection_config::ConnectionEvent::Requested => "requested",
+        connection_config::ConnectionEvent::Approved => "approved",
+        connection_config::ConnectionEvent::Rejected => "refused",
+        connection_config::ConnectionEvent::Disconnected => "disconnected",
+        connection_config::ConnectionEvent::Blocked => "blocked",
     }
 }
 fn optional_username(username: &str) -> Option<String> {
@@ -264,13 +264,13 @@ fn record_connection_history(
     app: Option<&tauri::AppHandle>,
     addr: &str,
     username: &str,
-    event: connections::ConnectionEvent,
+    event: connection_config::ConnectionEvent,
 ) {
     let mut guard = history.lock().unwrap();
-    connections::push_history_entry(
+    connection_config::push_history_entry(
         &mut guard,
-        connections::ConnectionHistoryEntry {
-            id: connections::next_history_id(),
+        connection_config::ConnectionHistoryEntry {
+            id: connection_config::next_history_id(),
             addr: addr.to_string(),
             username: username.to_string(),
             event,
@@ -278,7 +278,7 @@ fn record_connection_history(
         },
     );
     if let Some(app) = app {
-        if let Err(err) = connections::save_history(app, &guard) {
+        if let Err(err) = connection_config::save_history(app, &guard) {
             log::error!("Échec de l'enregistrement de l'historique des connexions : {err}");
         }
     }
@@ -564,7 +564,7 @@ async fn approve_connection(
         Some(&app),
         &addr,
         &approved_username,
-        connections::ConnectionEvent::Approved,
+        connection_config::ConnectionEvent::Approved,
     );
     let pending = get_pending_requests_list(&state.peers).await;
     let connected = get_connected_devices_list(&state.peers).await;
@@ -599,7 +599,7 @@ async fn reject_connection(
         Some(&app),
         &addr,
         &rejected_username,
-        connections::ConnectionEvent::Rejected,
+        connection_config::ConnectionEvent::Rejected,
     );
     let pending = get_pending_requests_list(&state.peers).await;
     notify_cashier(&state.peers, &ServerMessage::ConnectionRequests { data: pending }).await;
@@ -639,7 +639,7 @@ async fn disconnect_device(
         Some(&app),
         &addr,
         &disconnected_username,
-        connections::ConnectionEvent::Disconnected,
+        connection_config::ConnectionEvent::Disconnected,
     );
     let connected = get_connected_devices_list(&state.peers).await;
     notify_cashier(&state.peers, &ServerMessage::ConnectedDevices { data: connected }).await;
@@ -657,7 +657,7 @@ async fn block_device(
     id: Option<i64>,
     addr: Option<String>,
     reason: Option<String>,
-) -> Result<connections::BlacklistEntry, String> {
+) -> Result<connection_config::BlacklistEntry, String> {
     let socket_addr = resolve_peer_addr(&state.peers, id, addr).await?;
     let addr = socket_addr.to_string();
     let mut blocked_username = String::new();
@@ -675,23 +675,23 @@ async fn block_device(
     }
     let entry = {
         let mut guard = state.blacklist.lock().unwrap();
-        let ip = connections::ip_from_addr(&addr).to_string();
+        let ip = connection_config::ip_from_addr(&addr).to_string();
         let existing = guard
             .iter()
-            .find(|e| e.entry_type == connections::BlacklistType::Ip && e.value == ip)
+            .find(|e| e.entry_type == connection_config::BlacklistType::Ip && e.value == ip)
             .cloned();
         match existing {
             Some(existing) => existing,
             None => {
-                let entry = connections::BlacklistEntry {
-                    id: connections::next_blacklist_id(),
-                    entry_type: connections::BlacklistType::Ip,
+                let entry = connection_config::BlacklistEntry {
+                    id: connection_config::next_blacklist_id(),
+                    entry_type: connection_config::BlacklistType::Ip,
                     value: ip,
                     reason,
                     created_at: chrono::Local::now().to_rfc3339(),
                 };
                 guard.push(entry.clone());
-                if let Err(err) = connections::save_blacklist(&app, &guard) {
+                if let Err(err) = connection_config::save_blacklist(&app, &guard) {
                     guard.pop();
                     return Err(format!("Échec de l'enregistrement de la liste noire : {err}"));
                 }
@@ -704,7 +704,7 @@ async fn block_device(
         Some(&app),
         &addr,
         &blocked_username,
-        connections::ConnectionEvent::Blocked,
+        connection_config::ConnectionEvent::Blocked,
     );
     let pending = get_pending_requests_list(&state.peers).await;
     let connected = get_connected_devices_list(&state.peers).await;
@@ -724,13 +724,13 @@ fn list_connection_history(state: State<'_, AppState>) -> Vec<ConnectionHistoryV
             id: entry.id,
             label: peer_label(&entry.username, &entry.addr),
             username: optional_username(&entry.username),
-            ip_address: connections::ip_from_addr(&entry.addr).to_string(),
+            ip_address: connection_config::ip_from_addr(&entry.addr).to_string(),
             event: history_event_label(entry.event),
             at: entry.timestamp.clone(),
         })
         .collect()
 }
-fn list_blacklist_entries(state: State<'_, AppState>) -> Vec<connections::BlacklistEntry> {
+fn list_blacklist_entries(state: State<'_, AppState>) -> Vec<connection_config::BlacklistEntry> {
     state.blacklist.lock().unwrap().clone()
 }
 /// Add an address to the blacklist without needing an active connection to
@@ -742,10 +742,10 @@ async fn add_blacklist_entry(
     value: Option<String>,
     addr: Option<String>,
     reason: Option<String>,
-) -> Result<connections::BlacklistEntry, String> {
+) -> Result<connection_config::BlacklistEntry, String> {
     let entry_type = match entry_type.as_deref().map(str::trim) {
-        None | Some("") | Some("ip") => connections::BlacklistType::Ip,
-        Some("username") => connections::BlacklistType::Username,
+        None | Some("") | Some("ip") => connection_config::BlacklistType::Ip,
+        Some("username") => connection_config::BlacklistType::Username,
         Some(other) => return Err(format!("Type de liste noire inconnu : {other}.")),
     };
     let raw_value = value
@@ -754,27 +754,27 @@ async fn add_blacklist_entry(
         .filter(|v| !v.is_empty())
         .ok_or_else(|| "La valeur à mettre sur liste noire est obligatoire.".to_string())?;
     let value = match entry_type {
-        connections::BlacklistType::Ip => connections::ip_from_addr(&raw_value).to_string(),
-        connections::BlacklistType::Username => raw_value,
+        connection_config::BlacklistType::Ip => connection_config::ip_from_addr(&raw_value).to_string(),
+        connection_config::BlacklistType::Username => raw_value,
     };
     let mut guard = state.blacklist.lock().unwrap();
-    if connections::value_exists(&guard, entry_type, &value) {
+    if connection_config::value_exists(&guard, entry_type, &value) {
         return Err(match entry_type {
-            connections::BlacklistType::Ip => "Cette adresse est déjà sur liste noire.".to_string(),
-            connections::BlacklistType::Username => {
+            connection_config::BlacklistType::Ip => "Cette adresse est déjà sur liste noire.".to_string(),
+            connection_config::BlacklistType::Username => {
                 "Ce nom d'utilisateur est déjà sur liste noire.".to_string()
             }
         });
     }
-    let entry = connections::BlacklistEntry {
-        id: connections::next_blacklist_id(),
+    let entry = connection_config::BlacklistEntry {
+        id: connection_config::next_blacklist_id(),
         entry_type,
         value,
         reason,
         created_at: chrono::Local::now().to_rfc3339(),
     };
     guard.push(entry.clone());
-    if let Err(err) = connections::save_blacklist(&app, &guard) {
+    if let Err(err) = connection_config::save_blacklist(&app, &guard) {
         guard.pop();
         return Err(format!("Échec de l'enregistrement de la liste noire : {err}"));
     }
@@ -789,14 +789,14 @@ async fn remove_blacklist_entry(
     let mut guard = state.blacklist.lock().unwrap();
     let snapshot = guard.clone();
     let removed = match (id, addr.as_deref()) {
-        (Some(id), _) => connections::remove_blacklist_entry_by_id(&mut guard, id),
-        (None, Some(addr)) => connections::remove_blacklist_entry(&mut guard, addr),
+        (Some(id), _) => connection_config::remove_blacklist_entry_by_id(&mut guard, id),
+        (None, Some(addr)) => connection_config::remove_blacklist_entry(&mut guard, addr),
         (None, None) => return Err("Identifiant d'entrée manquant.".to_string()),
     };
     if !removed {
         return Err("Entrée introuvable sur liste noire.".to_string());
     }
-    if let Err(err) = connections::save_blacklist(&app, &guard) {
+    if let Err(err) = connection_config::save_blacklist(&app, &guard) {
         *guard = snapshot;
         return Err(format!("Échec de l'enregistrement de la liste noire : {err}"));
     }
@@ -1489,7 +1489,7 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 let is_blacklisted = {
                     let guard = blacklist_inner.lock().unwrap();
-                    connections::is_blacklisted(&guard, &addr.to_string())
+                    connection_config::is_blacklisted(&guard, &addr.to_string())
                 };
                 if is_blacklisted {
                     return;
@@ -1653,7 +1653,7 @@ pub fn run() {
                                     app_handle.as_ref(),
                                     &addr.to_string(),
                                     &verified_username,
-                                    connections::ConnectionEvent::Approved,
+                                    connection_config::ConnectionEvent::Approved,
                                 );
                                 send_to_addr(
                                     &peers_inner,
@@ -1699,7 +1699,7 @@ pub fn run() {
                                 };
                                 let username_blocked = {
                                     let guard = blacklist_inner.lock().unwrap();
-                                    connections::is_username_blacklisted(&guard, &username)
+                                    connection_config::is_username_blacklisted(&guard, &username)
                                 };
                                 if username_blocked {
                                     send_to_addr(&peers_inner, addr, &ServerMessage::ConnectionBlocked).await;
@@ -1735,7 +1735,7 @@ pub fn run() {
                                             app_handle.as_ref(),
                                             &addr.to_string(),
                                             &username,
-                                            connections::ConnectionEvent::Requested,
+                                            connection_config::ConnectionEvent::Requested,
                                         );
                                         let pending = get_pending_requests_list(&peers_inner).await;
                                         notify_cashier(
@@ -2001,7 +2001,7 @@ pub fn run() {
                         app_handle.as_ref(),
                         &addr.to_string(),
                         &disconnected_username,
-                        connections::ConnectionEvent::Disconnected,
+                        connection_config::ConnectionEvent::Disconnected,
                     );
                     let pending = get_pending_requests_list(&peers_inner).await;
                     let connected = get_connected_devices_list(&peers_inner).await;
@@ -2047,8 +2047,8 @@ pub fn run() {
             let loaded_settings = config::settings::load(app.handle());
             *setup_max_connected_devices.lock().unwrap() = loaded_settings.max_connected_devices;
             *setup_accounts.lock().unwrap() = config::accounts::load_or_bootstrap(app.handle());
-            *setup_blacklist.lock().unwrap() = connections::load_blacklist(app.handle());
-            *setup_connection_history.lock().unwrap() = connections::load_history(app.handle());
+            *setup_blacklist.lock().unwrap() = connection_config::load_blacklist(app.handle());
+            *setup_connection_history.lock().unwrap() = connection_config::load_history(app.handle());
             *setup_pricing.lock().unwrap() = config::pricing_matrix::load_or_bootstrap(app.handle());
             setup_order_service.load(app.handle());
             *setup_app_handle_slot.lock().unwrap() = Some(app.handle().clone());

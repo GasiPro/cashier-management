@@ -1,5 +1,5 @@
-pub mod accounts;
-pub mod connections;
+pub mod account_config;
+pub mod connection_config;
 pub mod pricing_matrix;
 pub mod rate_limit;
-pub mod settings;
+pub mod setting_config;
