@@ -17,10 +17,6 @@ pub enum ServerCommand {
         id: Option<i64>,
         addr: Option<String>,
     },
-    ConnectionRefuse {
-        id: Option<i64>,
-        addr: Option<String>,
-    },
     ConnectionListPending,
     ConnectionListConnected,
     ConnectionDisconnect {
@@ -72,7 +68,7 @@ pub async fn server(
             .await?;
             Ok(serde_json::Value::Null)
         }
-        ServerCommand::ConnectionReject { id, addr } | ServerCommand::ConnectionRefuse { id, addr } => {
+        ServerCommand::ConnectionReject { id, addr } => {
             connection_service::reject_connection(&app, &state.peers, &state.connection_history, id, addr).await?;
             Ok(serde_json::Value::Null)
         }

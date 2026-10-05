@@ -1,24 +1,28 @@
-use crate::config::defaults::{DEFAULT_NEXT_GROUP_ID, DEFAULT_NEXT_ORDER_ID};
+use crate::config::default::{DEFAULT_NEXT_GROUP_ID, DEFAULT_NEXT_ORDER_ID};
 use crate::models::order::{CartItem, Order, OrderStatus};
 use crate::repositories::order_repository::OrderApi;
 use chrono::{Local, Utc};
 use std::sync::Mutex;
 use tauri::AppHandle;
+
 pub struct OrderService {
     state: Mutex<OrderState>,
     app_handle: Mutex<Option<AppHandle>>,
 }
+
 #[derive(Clone)]
 struct OrderState {
     orders: Vec<Order>,
     next_id: i64,
     next_group_id: i64,
 }
+
 impl Default for OrderService {
     fn default() -> Self {
         Self::new()
     }
 }
+
 impl OrderService {
     pub fn new() -> Self {
         Self {
@@ -30,6 +34,7 @@ impl OrderService {
             app_handle: Mutex::new(None),
         }
     }
+
     pub fn load(&self, app: &AppHandle) {
         let orders = OrderApi::load_orders(app);
         let next_id = OrderApi::load_next_id(app);
@@ -42,10 +47,12 @@ impl OrderService {
         }
         *self.app_handle.lock().unwrap() = Some(app.clone());
     }
+
     pub fn get_orders(&self) -> Vec<Order> {
         let guard = self.state.lock().unwrap();
         guard.orders.clone()
     }
+
     pub fn get_pending(&self) -> Vec<Order> {
         let guard = self.state.lock().unwrap();
         guard
@@ -55,6 +62,7 @@ impl OrderService {
             .cloned()
             .collect()
     }
+
     pub fn get_paid(&self) -> Vec<Order> {
         let guard = self.state.lock().unwrap();
         guard
@@ -64,6 +72,7 @@ impl OrderService {
             .cloned()
             .collect()
     }
+
     pub fn create_order(&self, cart: &[CartItem], counter_username: &str) -> Result<(), String> {
         if cart.is_empty() {
             return Err("Le panier est vide.".to_string());
@@ -96,6 +105,7 @@ impl OrderService {
         }
         self.commit(&mut guard, snapshot)
     }
+
     pub fn mark_group_as_paid(&self, group_id: i64) -> Result<(), String> {
         let mut guard = self.state.lock().unwrap();
         let snapshot = guard.clone();
@@ -113,6 +123,7 @@ impl OrderService {
         }
         self.commit(&mut guard, snapshot)
     }
+
     pub fn reject_group(&self, group_id: i64, raison: Option<String>) -> Result<(), String> {
         let mut guard = self.state.lock().unwrap();
         let snapshot = guard.clone();
@@ -129,6 +140,7 @@ impl OrderService {
         }
         self.commit(&mut guard, snapshot)
     }
+
     pub fn update_order(&self, id: i64, quantity: u32, unit_price: u32) -> Result<(), String> {
         let mut guard = self.state.lock().unwrap();
         let snapshot = guard.clone();
@@ -147,6 +159,7 @@ impl OrderService {
         }
         self.commit(&mut guard, snapshot)
     }
+
     pub fn delete_order(&self, id: i64) -> Result<(), String> {
         let mut guard = self.state.lock().unwrap();
         let snapshot = guard.clone();
@@ -159,6 +172,7 @@ impl OrderService {
         }
         self.commit(&mut guard, snapshot)
     }
+
     pub fn delete_order_group(&self, group_id: i64) -> Result<(), String> {
         let mut guard = self.state.lock().unwrap();
         let snapshot = guard.clone();
@@ -171,6 +185,7 @@ impl OrderService {
         }
         self.commit(&mut guard, snapshot)
     }
+
     fn commit(&self, guard: &mut OrderState, snapshot: OrderState) -> Result<(), String> {
         let app_handle = self.app_handle.lock().unwrap().clone();
         let Some(app_handle) = app_handle else {

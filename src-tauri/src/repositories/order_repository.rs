@@ -1,27 +1,34 @@
-use crate::config::defaults::{DEFAULT_NEXT_GROUP_ID, DEFAULT_NEXT_ORDER_ID};
+use crate::config::default::{DEFAULT_NEXT_GROUP_ID, DEFAULT_NEXT_ORDER_ID};
 use crate::models::order::Order;
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
+
 pub struct OrderApi;
+
 impl OrderApi {
     const ORDERS_FILE_NAME: &'static str = "gasipro_orders.json";
     const ID_FILE_NAME: &'static str = "gasipro_nextId.txt";
     const GID_FILE_NAME: &'static str = "gasipro_nextGroupId.txt";
+
     fn config_dir(app: &AppHandle) -> Result<PathBuf, String> {
         let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
         fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         Ok(dir)
     }
+
     fn orders_file_path(app: &AppHandle) -> Result<PathBuf, String> {
         Ok(Self::config_dir(app)?.join(Self::ORDERS_FILE_NAME))
     }
+
     fn id_file_path(app: &AppHandle) -> Result<PathBuf, String> {
         Ok(Self::config_dir(app)?.join(Self::ID_FILE_NAME))
     }
+
     fn gid_file_path(app: &AppHandle) -> Result<PathBuf, String> {
         Ok(Self::config_dir(app)?.join(Self::GID_FILE_NAME))
     }
+
     pub fn load_orders(app: &AppHandle) -> Vec<Order> {
         let Ok(path) = Self::orders_file_path(app) else {
             return Vec::new();
@@ -34,6 +41,7 @@ impl OrderApi {
             .and_then(|raw| serde_json::from_str(&raw).ok())
             .unwrap_or_else(Vec::new)
     }
+
     pub fn load_next_id(app: &AppHandle) -> i64 {
         let Ok(path) = Self::id_file_path(app) else {
             return DEFAULT_NEXT_ORDER_ID;
@@ -43,6 +51,7 @@ impl OrderApi {
             .and_then(|raw| raw.trim().parse::<i64>().ok())
             .unwrap_or(DEFAULT_NEXT_ORDER_ID)
     }
+
     pub fn load_next_group_id(app: &AppHandle) -> i64 {
         let Ok(path) = Self::gid_file_path(app) else {
             return DEFAULT_NEXT_GROUP_ID;
@@ -52,6 +61,7 @@ impl OrderApi {
             .and_then(|raw| raw.trim().parse::<i64>().ok())
             .unwrap_or(DEFAULT_NEXT_GROUP_ID)
     }
+
     pub fn persist(app: &AppHandle, orders: &[Order], next_id: i64, next_group_id: i64) -> Result<(), String> {
         let orders_path = Self::orders_file_path(app)?;
         let id_path = Self::id_file_path(app)?;
