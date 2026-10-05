@@ -247,25 +247,25 @@
           <p class="text-sm text-gray-400 italic py-2">Aucune demande en attente.</p>
           }
           <div class="space-y-2">
-            @for (req of pendingRequests(); track req.addr) {
+            @for (req of pendingRequests(); track req.id) {
             <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
               <div class="flex items-center justify-between mb-2">
                 <div>
-                  <p class="text-sm font-semibold text-[#1A1A1A]">{{ req.username }}</p>
-                  <p class="text-xs text-gray-400 font-mono mt-0.5">{{ req.addr }}</p>
+                  <p class="text-sm font-semibold text-[#1A1A1A]">{{ displayName(req) }}</p>
+                  <p class="text-xs text-gray-400 font-mono mt-0.5">{{ addrOf(req) }}</p>
                 </div>
                 <span class="text-[10px] bg-amber-100 text-amber-700 font-medium px-2 py-0.5 rounded-full uppercase tracking-wide">
                   Attente
                 </span>
               </div>
               <div class="flex gap-2">
-                <button (click)="approveDevice(req.addr)"
+                <button (click)="approveDevice(req.id)"
                   class="flex-1 bg-[#1E3A5F] text-white text-xs font-semibold py-2 rounded-md
                          hover:bg-[#16304f] active:scale-95 transition-all
                          focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
                   Approuver
                 </button>
-                <button (click)="rejectDevice(req.addr)"
+                <button (click)="rejectDevice(req.id)"
                   class="flex-1 bg-white border border-red-200 text-red-600 text-xs font-semibold py-2 rounded-md
                          hover:bg-red-50 active:scale-95 transition-all
                          focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
@@ -301,13 +301,13 @@
           <p class="text-sm text-gray-400 italic py-2">Aucun appareil connecté.</p>
           }
           <div class="space-y-2">
-            @for (dev of connectedDevices(); track dev.addr) {
+            @for (dev of connectedDevices(); track dev.id) {
             <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-center justify-between">
               <div>
-                <p class="text-sm font-semibold text-[#1A1A1A]">{{ dev.username }}</p>
-                <p class="text-xs text-gray-400 font-mono mt-0.5">{{ dev.addr }}</p>
+                <p class="text-sm font-semibold text-[#1A1A1A]">{{ displayName(dev) }}</p>
+                <p class="text-xs text-gray-400 font-mono mt-0.5">{{ addrOf(dev) }}</p>
               </div>
-              <button (click)="disconnectDevice(dev.addr)" title="Déconnecter"
+              <button (click)="disconnectDevice(dev.id)" title="Déconnecter"
                 class="text-gray-400 hover:text-red-600 p-1.5 rounded-md hover:bg-red-50 transition-colors
                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">

@@ -76,13 +76,22 @@ interface RapportAdjustmentsSummary {
   increaseCount: number;
   netImpact: number;
 }
+export type PeerId = string | number;
 export interface ConnectionRequest {
-  addr: string;
-  username: string;
+  id: PeerId;
+  label: string;
+  username?: string | null;
+  ip_address: string;
+  port: number;
+  requested_at: string;
 }
 export interface ConnectedDevice {
-  addr: string;
-  username: string;
+  id: PeerId;
+  label: string;
+  username?: string | null;
+  ip_address: string;
+  port: number;
+  connected_at: string;
 }
 const CASHIER_LOCAL_WS_URL = 'ws://127.0.0.1:8080';
 const LS_USERNAME = 'gasipro:username';
@@ -196,17 +205,16 @@ export class Cashier implements OnInit, OnDestroy {
   private _rawPaidOrders: Order[] = [];
   private wsSubscription?: Subscription;
   private openSubscription?: Subscription;
-  /** Set once the server has sent anything other than a registration failure. */
   private approved = false;
   constructor(
     private router: Router,
     private ws: WebsocketService,
   ) {}
   ngOnInit(): void {
-    invoke<string>('get_ws_address')
+    invoke<string>('server', { command: { method: 'get_address' } })
       .then((addr) => this.wsAddress.set(addr))
       .catch(() => this.wsAddress.set('127.0.0.1:8080'));
-    invoke<number>('get_max_connected_devices')
+    invoke<number>('server', { command: { method: 'devices_max_get' } })
       .then((max) => this.maxConnectedDevices.set(max))
       .catch(() => {});
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
@@ -234,12 +242,6 @@ export class Cashier implements OnInit, OnDestroy {
       this.registerOnOpen();
     }
   }
-  /**
-   * Sends `cashier_register` with the token captured at login. The token is
-   * single-use, so a reconnect that lands here after the session was already
-   * approved (dropped connection, etc.) can't be recovered by resending it —
-   * the cashier has to log in again to mint a fresh one.
-   */
   private registerOnOpen(): void {
     if (this.approved) {
       this.returnToLogin();
@@ -266,43 +268,56 @@ export class Cashier implements OnInit, OnDestroy {
   get totalPendingRequests(): number {
     return this.pendingRequests().length;
   }
-  async approveDevice(addr: string): Promise<void> {
+  /** Account username when the device authenticated with one, otherwise the device label. */
+  displayName(device: { username?: string | null; label: string }): string {
+    return device.username?.trim() || device.label;
+  }
+  addrOf(device: { ip_address: string; port: number }): string {
+    return `${device.ip_address}:${device.port}`;
+  }
+  async approveDevice(id: PeerId): Promise<void> {
     try {
-      await invoke('approve_connection', { addr });
+      await invoke('server', { command: { method: 'connection_approve', id } });
     } catch (e) {
-      console.error('approve_connection failed', e);
+      console.error('connection_approve failed', e);
       this.showToast(typeof e === 'string' ? e : "Impossible d'approuver cet appareil.");
     }
   }
-  async rejectDevice(addr: string): Promise<void> {
+  async rejectDevice(id: PeerId): Promise<void> {
     try {
-      await invoke('reject_connection', { addr });
+      await invoke('server', { command: { method: 'connection_reject', id } });
     } catch (e) {
-      console.error('reject_connection failed', e);
+      console.error('connection_reject failed', e);
       this.showToast(typeof e === 'string' ? e : "Impossible de refuser cet appareil.");
     }
   }
-  async disconnectDevice(addr: string): Promise<void> {
+  async disconnectDevice(id: PeerId): Promise<void> {
     try {
-      await invoke('disconnect_device', { addr });
+      await invoke('server', { command: { method: 'connection_disconnect', id } });
     } catch (e) {
-      console.error('disconnect_device failed', e);
+      console.error('connection_disconnect failed', e);
       this.showToast(typeof e === 'string' ? e : "Impossible de déconnecter cet appareil.");
     }
   }
   async markGroupAsPaid(groupId: number): Promise<void> {
     try {
-      await invoke('mark_group_as_paid', { groupId });
+      await invoke('order', { command: { method: 'group_mark_paid', group_id: groupId } });
     } catch (e) {
-      console.error('mark_group_as_paid failed', e);
+      console.error('group_mark_paid failed', e);
       this.showToast(typeof e === 'string' ? e : "Impossible d'encaisser cette commande.");
     }
   }
   async rejectGroup(groupId: number, raison?: string): Promise<void> {
     try {
-      await invoke('reject_group', { groupId, raison: raison?.trim() ? raison.trim() : null });
+      await invoke('order', {
+        command: {
+          method: 'group_reject',
+          group_id: groupId,
+          raison: raison?.trim() ? raison.trim() : null,
+        },
+      });
     } catch (e) {
-      console.error('reject_group failed', e);
+      console.error('group_reject failed', e);
       this.showToast(typeof e === 'string' ? e : "Impossible de refuser cette commande.");
     }
   }
@@ -951,13 +966,16 @@ export class Cashier implements OnInit, OnDestroy {
     if (!destinationPath) return;
     const workbookBytes = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
     try {
-      await invoke('save_binary_file', {
-        path: destinationPath,
-        data: Array.from(new Uint8Array(workbookBytes)),
+      await invoke('file', {
+        command: {
+          method: 'save_binary',
+          path: destinationPath,
+          data: Array.from(new Uint8Array(workbookBytes)),
+        },
       });
       this.showToast('Rapport exporté avec succès !');
     } catch (e) {
-      console.error('save_binary_file failed', e);
+      console.error('save_binary failed', e);
       this.showToast("Échec de l'enregistrement du fichier Excel.");
     }
   }

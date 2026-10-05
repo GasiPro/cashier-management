@@ -118,7 +118,7 @@ export class Setting implements OnInit, OnDestroy {
   }
   private async refreshConnectedDevicesCount(): Promise<void> {
     try {
-      const connected = await invoke<number>('get_connected_devices_count');
+      const connected = await invoke<number>('server', { command: { method: 'devices_count' } });
       this.connectedDevicesCount.set(connected);
     } catch (e) {
       console.error('failed to refresh connected devices count', e);
@@ -128,8 +128,8 @@ export class Setting implements OnInit, OnDestroy {
     this.loadingDevicesSetting.set(true);
     try {
       const [max, connected] = await Promise.all([
-        invoke<number>('get_max_connected_devices'),
-        invoke<number>('get_connected_devices_count'),
+        invoke<number>('server', { command: { method: 'devices_max_get' } }),
+        invoke<number>('server', { command: { method: 'devices_count' } }),
       ]);
       this.maxConnectedDevices.set(max);
       this.maxConnectedDevicesDraft.set(max);
@@ -162,8 +162,8 @@ export class Setting implements OnInit, OnDestroy {
     this.savingDevicesSetting.set(true);
     this.setStatus('', false);
     try {
-      const applied = await invoke<number>('set_max_connected_devices', {
-        value: this.maxConnectedDevicesDraft(),
+      const applied = await invoke<number>('server', {
+        command: { method: 'devices_max_set', value: this.maxConnectedDevicesDraft() },
       });
       this.maxConnectedDevices.set(applied);
       this.maxConnectedDevicesDraft.set(applied);
@@ -174,7 +174,7 @@ export class Setting implements OnInit, OnDestroy {
         false,
       );
     } catch (e) {
-      console.error('set_max_connected_devices failed', e);
+      console.error('devices_max_set failed', e);
       this.setStatus(this.errorMessage(e, "Échec de l'enregistrement. Réessayez."), true);
     } finally {
       this.savingDevicesSetting.set(false);
@@ -187,7 +187,7 @@ export class Setting implements OnInit, OnDestroy {
   private async loadAccounts(): Promise<void> {
     this.loadingAccounts.set(true);
     try {
-      const accounts = await invoke<CashierAccountView[]>('list_accounts');
+      const accounts = await invoke<CashierAccountView[]>('account', { command: { method: 'list' } });
       this.accounts.set(accounts.filter((a) => a.user_type === CASHIER_USER_TYPE));
     } catch (e) {
       console.error('failed to load cashier accounts', e);
@@ -233,18 +233,21 @@ export class Setting implements OnInit, OnDestroy {
     this.creatingAccount.set(true);
     this.setAccountStatus('', false);
     try {
-      const created = await invoke<CashierAccountView>('create_account', {
-        username: this.trimmedNewAccountUsername(),
-        password: this.newAccountPassword(),
-        display_name: '',
-        user_type: CASHIER_USER_TYPE,
+      const created = await invoke<CashierAccountView>('account', {
+        command: {
+          method: 'create',
+          username: this.trimmedNewAccountUsername(),
+          password: this.newAccountPassword(),
+          display_name: '',
+          user_type: CASHIER_USER_TYPE,
+        },
       });
       this.accounts.update((list) => [created, ...list]);
       this.setAccountStatus(`Compte « ${created.username} » créé.`, false);
       this.resetAccountForm();
       this.newAccountUsernameInput?.nativeElement.focus();
     } catch (e) {
-      console.error('create_account failed', e);
+      console.error('account create failed', e);
       const message = this.errorMessage(e, 'Échec de la création du compte. Réessayez.');
       this.setAccountStatus(message, true);
     } finally {
@@ -273,8 +276,6 @@ export class Setting implements OnInit, OnDestroy {
     this.accountStatusMessage.set(message);
     this.accountStatusIsError.set(isError);
   }
-  /** Tauri rejects with `unknown` — usually a string, sometimes an Error or a
-   *  serialized object. Extract something readable, or fall back to `fallback`. */
   private errorMessage(e: unknown, fallback: string): string {
     if (typeof e === 'string') return e.trim() || fallback;
     if (e instanceof Error) return e.message.trim() || fallback;
@@ -332,17 +333,20 @@ export class Setting implements OnInit, OnDestroy {
     this.savingEditAccount.set(true);
     try {
       const displayName = this.editDisplayName().trim();
-      const updated = await invoke<CashierAccountView>('update_account', {
-        username,
-        display_name: displayName,
-        user_type: CASHIER_USER_TYPE,
+      const updated = await invoke<CashierAccountView>('account', {
+        command: {
+          method: 'update',
+          username,
+          display_name: displayName,
+          user_type: CASHIER_USER_TYPE,
+        },
       });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.editingUsername.set(null);
       this.setAccountStatus(`Compte « ${updated.username} » mis à jour.`, false);
       document.getElementById(`account-edit-btn-${updated.username}`)?.focus();
     } catch (e) {
-      console.error('update_account failed', e);
+      console.error('account update failed', e);
       const message = this.errorMessage(e, 'Échec de la mise à jour du compte. Réessayez.');
       this.editAccountError.set(message);
     } finally {
@@ -361,13 +365,13 @@ export class Setting implements OnInit, OnDestroy {
     this.togglingStatusUsername.set(account.username);
     this.setAccountStatus('', false);
     try {
-      const updated = await invoke<CashierAccountView>('suspend_account', {
-        username: account.username,
+      const updated = await invoke<CashierAccountView>('account', {
+        command: { method: 'suspend', username: account.username },
       });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.setAccountStatus(`Compte « ${updated.username} » suspendu.`, false);
     } catch (e) {
-      console.error('suspend_account failed', e);
+      console.error('account suspend failed', e);
       const message = this.errorMessage(e, 'Échec de la suspension du compte. Réessayez.');
       this.setAccountStatus(message, true);
     } finally {
@@ -379,13 +383,13 @@ export class Setting implements OnInit, OnDestroy {
     this.togglingStatusUsername.set(account.username);
     this.setAccountStatus('', false);
     try {
-      const updated = await invoke<CashierAccountView>('reactivate_account', {
-        username: account.username,
+      const updated = await invoke<CashierAccountView>('account', {
+        command: { method: 'reactivate', username: account.username },
       });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.setAccountStatus(`Compte « ${updated.username} » réactivé.`, false);
     } catch (e) {
-      console.error('reactivate_account failed', e);
+      console.error('account reactivate failed', e);
       const message = this.errorMessage(e, 'Échec de la réactivation du compte. Réessayez.');
       this.setAccountStatus(message, true);
     } finally {
@@ -416,13 +420,15 @@ export class Setting implements OnInit, OnDestroy {
     this.deletingAccount.set(true);
     this.deleteAccountError.set('');
     try {
-      await invoke<void>('delete_account', { username: account.username });
+      await invoke<void>('account', {
+        command: { method: 'delete', username: account.username },
+      });
       this.accounts.update((list) => list.filter((a) => a.username !== account.username));
       this.confirmingDeleteUsername.set(null);
       this.setAccountStatus(`Compte « ${account.username} » supprimé définitivement.`, false);
       this.newAccountUsernameInput?.nativeElement.focus();
     } catch (e) {
-      console.error('delete_account failed', e);
+      console.error('account delete failed', e);
       const message = this.errorMessage(e, 'Échec de la suppression du compte. Réessayez.');
       this.deleteAccountError.set(message);
     } finally {

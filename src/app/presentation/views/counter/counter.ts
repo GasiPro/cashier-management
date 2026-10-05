@@ -31,6 +31,7 @@ export interface Order {
   quantity: number;
   status: 'EN_ATTENTE' | 'PAYE' | 'REJETEE';
   time: string;
+  counter_username: string;
   created_at: string;
   paid_at: string | null;
   observation: string;
@@ -192,7 +193,6 @@ export class Counter implements OnInit, OnDestroy {
   async ngOnInit(): Promise<void> {
     this.updateClock();
     this.clockId = setInterval(() => this.updateClock(), 60_000);
-    await this.loadCatalogue();
     this.password = this.ws.getCounterCredentials()?.password ?? '';
     this.newCashierHost = this.cashierHost;
     this.setupWsListeners();
@@ -205,6 +205,7 @@ export class Counter implements OnInit, OnDestroy {
       this.wsConnected.set(true);
       this.waitingApproval.set(false);
       this.ws.send({ type: 'request_orders' });
+      this.ws.send({ type: 'request_pricing' });
     }
   }
   ngOnDestroy(): void {
@@ -267,6 +268,8 @@ export class Counter implements OnInit, OnDestroy {
       if (msg.type === 'connection_approved') {
         this.wsConnected.set(true);
         this.waitingApproval.set(false);
+        this.ws.send({ type: 'request_orders' });
+        this.ws.send({ type: 'request_pricing' });
       } else if (msg.type === 'connection_rejected') {
         this.wsConnected.set(false);
         this.waitingApproval.set(false);
@@ -300,9 +303,12 @@ export class Counter implements OnInit, OnDestroy {
       } else if (msg.type === 'account_update_error') {
         this.savingAccount.set(false);
         this.editAccountError.set(msg.data as string);
+      } else if (msg.type === 'pricing') {
+        this.applyPricing(msg.data as ServiceItem[]);
       } else if (msg.type === 'order_error') {
         this.showToast(msg.data as string);
-      } else if (msg.type === 'order_ack') {
+      } else if (msg.type === 'protocol_error') {
+        this.showToast(msg.data as string);
       }
     });
   }
@@ -413,15 +419,11 @@ export class Counter implements OnInit, OnDestroy {
     }, 100);
   }
   // ── Catalogue ─────────────────────────────────────────────────────────────────
-  private async loadCatalogue(): Promise<void> {
-    try {
-      const services = await invoke<ServiceItem[]>('get_pricing_matrix');
-      this.allServices.set(services);
-      this.extractCategories();
-    } catch (e) {
-      console.error('failed to load pricing matrix', e);
-      this.showToast('Impossible de charger la grille tarifaire.');
-    }
+  /** The catalogue comes from the cashier's server over the WebSocket (`pricing`), so a
+   *  remote counter always sees the cashier's prices rather than a local copy. */
+  private applyPricing(services: ServiceItem[]): void {
+    this.allServices.set(services);
+    this.extractCategories();
   }
   envoyerCommande(): void {
     if (this.cart.length === 0) return;
@@ -638,16 +640,12 @@ export class Counter implements OnInit, OnDestroy {
   isCartItemIncreased(item: CartItem): boolean {
     return item.unitPrice > item.service.price;
   }
-  /** Rejects negative or non-numeric prices instead of silently clamping them, so the
-   *  cart line can show an inline error and block sending until it's corrected. */
   isCartItemPriceInvalid(item: CartItem): boolean {
     return !Number.isFinite(item.unitPrice) || item.unitPrice < 0;
   }
   get hasInvalidCartPrice(): boolean {
     return this.cart.some((item) => this.isCartItemPriceInvalid(item));
   }
-  /** Bound to the price input's (ngModelChange) instead of a two-way [(ngModel)] so
-   *  invalid/empty input can be tracked as NaN (and flagged) rather than coerced. */
   updateItemPrice(item: CartItem, value: number | string | null): void {
     if (value === null || value === '') {
       item.unitPrice = NaN;

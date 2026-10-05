@@ -27,9 +27,9 @@ interface AuthAccount {
 }
 interface AuthResult<T> {
   success: boolean;
-  account: T | null;
-  error: string | null;
-  session_token: string | null;
+  account?: T | null;
+  error?: string | null;
+  session_token?: string | null;
 }
 @Component({
   selector: 'app-login',
@@ -131,9 +131,8 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.adminError.set('');
     this.authenticatingAdmin.set(true);
     try {
-      const result = await invoke<AuthResult<AuthAccount>>('authenticate_admin', {
-        username,
-        password,
+      const result = await invoke<AuthResult<AuthAccount>>('auth', {
+        command: { method: 'admin', username, password },
       });
       if (!result.success || !result.account) {
         this.adminError.set(result.error ?? 'Identifiants invalides.');
@@ -151,15 +150,13 @@ export class LoginComponent implements OnInit, OnDestroy {
       this.showAdminModal.set(false);
       this.router.navigate(['/admin']);
     } catch (e) {
-      console.error('authenticate_admin failed', e);
+      console.error('auth failed', e);
       const message = this.errorMessage(e, 'Identifiants invalides.');
       this.adminError.set(message);
     } finally {
       this.authenticatingAdmin.set(false);
     }
   }
-  /** Tauri rejects with `unknown` — usually a string, sometimes an Error or a
-   *  serialized object. Extract something readable, or fall back to `fallback`. */
   private errorMessage(e: unknown, fallback: string): string {
     if (typeof e === 'string') return e.trim() || fallback;
     if (e instanceof Error) return e.message.trim() || fallback;
@@ -199,7 +196,7 @@ export class LoginComponent implements OnInit, OnDestroy {
   private async loadCashierWsAddress(): Promise<void> {
     this.loadingWsAddress.set(true);
     try {
-      const addr = await invoke<string>('get_ws_address');
+      const addr = await invoke<string>('server', { command: { method: 'get_address' } });
       this.wsAddress.set(addr);
     } catch {
       this.wsAddress.set(DEFAULT_WS);
@@ -237,17 +234,14 @@ export class LoginComponent implements OnInit, OnDestroy {
     this.cashierError.set('');
     this.authenticatingCashier.set(true);
     try {
-      // The backend exposes a single local authentication command; the role is
-      // checked here from the returned account.
-      const result = await invoke<AuthResult<AuthAccount>>('authenticate_admin', {
-        username,
-        password,
+      const result = await invoke<AuthResult<AuthAccount>>('auth', {
+        command: { method: 'cashier', username, password },
       });
       if (!result.success || !result.account) {
         this.cashierError.set(result.error ?? 'Identifiants invalides.');
         return;
       }
-      if (result.account.user_type !== 'caissier' && result.account.user_type !== 'admin') {
+      if (result.account.user_type !== 'caissier') {
         this.cashierError.set("Ce compte n'a pas accès à la caisse.");
         return;
       }
@@ -258,7 +252,7 @@ export class LoginComponent implements OnInit, OnDestroy {
       }
       this.router.navigate(['/caissier']);
     } catch (e) {
-      console.error('authenticate_admin failed', e);
+      console.error('auth failed', e);
       const message = this.errorMessage(e, 'Échec de la connexion. Réessayez.');
       this.cashierError.set(message);
     } finally {
@@ -314,6 +308,20 @@ export class LoginComponent implements OnInit, OnDestroy {
         this.ws.disconnect();
         this.ws.clearCounterCredentials();
         this.counterError.set("Nom d'utilisateur ou mot de passe incorrect, ou connexion refusée par la caisse.");
+        this.counterPassword = '';
+        this.step.set('counter-rejected');
+      } else if (msg.type === 'connection_blocked') {
+        this.wsSubscription?.unsubscribe();
+        this.ws.disconnect();
+        this.ws.clearCounterCredentials();
+        this.counterError.set('Cet appareil ou ce nom d\'utilisateur est bloqué par la caisse.');
+        this.counterPassword = '';
+        this.step.set('counter-rejected');
+      } else if (msg.type === 'protocol_error') {
+        this.wsSubscription?.unsubscribe();
+        this.ws.disconnect();
+        this.ws.clearCounterCredentials();
+        this.counterError.set(typeof msg.data === 'string' && msg.data.trim() ? msg.data : 'Erreur de protocole. Réessayez.');
         this.counterPassword = '';
         this.step.set('counter-rejected');
       }
