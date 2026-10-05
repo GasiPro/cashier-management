@@ -75,9 +75,6 @@ export class Report implements OnInit, OnDestroy {
   private closeSubscription?: Subscription;
   constructor(private ws: WebsocketService) {}
   ngOnInit(): void {
-    // Connection + registration for the admin section is owned by the parent Admin
-    // shell (so the single-use login token is spent once for the whole session, not
-    // re-sent every time a subview mounts) — this view only reads from it.
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
       this.wsConnected.set(true);
       if (msg.type === 'orders') {
@@ -102,7 +99,7 @@ export class Report implements OnInit, OnDestroy {
   }
   private async resyncOrders(): Promise<void> {
     try {
-      const orders = await invoke<OrderLine[]>('get_orders');
+      const orders = await invoke<OrderLine[]>('order', { command: { method: 'list' } });
       this.rawOrders.set(orders);
     } catch (e) {
       console.error('get_orders failed', e);
@@ -696,9 +693,12 @@ export class Report implements OnInit, OnDestroy {
     if (!destinationPath) return;
     const workbookBytes = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer;
     try {
-      await invoke('save_binary_file', {
-        path: destinationPath,
-        data: Array.from(new Uint8Array(workbookBytes)),
+      await invoke('file', {
+        command: {
+          method: 'save_binary',
+          path: destinationPath,
+          data: Array.from(new Uint8Array(workbookBytes)),
+        },
       });
       this.exportError.set('');
     } catch (e) {

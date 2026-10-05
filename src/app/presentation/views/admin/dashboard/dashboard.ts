@@ -107,7 +107,7 @@ export class Dashboard implements OnInit, OnDestroy {
   }
   private async resyncOrders(): Promise<void> {
     try {
-      const orders = await invoke<Order[]>('get_orders');
+      const orders = await invoke<Order[]>('order', { command: { method: 'list' } });
       this.lastOrders = orders;
       this.applyOrders(orders);
     } catch (e) {

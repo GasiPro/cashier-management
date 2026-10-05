@@ -21,26 +21,26 @@ const USER_TYPES: UserTypeChoice[] = [
 ];
 interface AccountHistoryEntry {
   kind: 'created' | 'suspended' | 'reactivated' | 'modified';
-  timestamp: string;
+  at: string;
   reason?: string | null;
 }
 interface AccountView {
-  id: string;
+  id: number;
   username: string;
   display_name: string;
   user_type: UserType;
   status: AccountStatus;
   created_at: string;
-  last_sign_in_at: string | null;
+  last_sign_in_at?: string | null;
   history: AccountHistoryEntry[];
 }
-type ActivityKind = 'created' | 'suspended' | 'reactivated' | 'modified' | 'deleted';
+type ActivityAction = 'Création' | 'Suspension' | 'Réactivation' | 'Modification';
 interface AccountActivity {
-  account_id: string;
-  username: string;
-  kind: ActivityKind;
-  timestamp: string;
-  reason: string | null;
+  id: number;
+  account_username: string;
+  action: ActivityAction;
+  detail: string;
+  at: string;
 }
 @Component({
   selector: 'app-account',
@@ -66,7 +66,7 @@ export class Account implements OnInit {
   private async loadAccounts(): Promise<void> {
     this.loadingAccounts.set(true);
     try {
-      const accounts = await invoke<AccountView[]>('list_accounts');
+      const accounts = await invoke<AccountView[]>('account', { command: { method: 'list' } });
       this.accounts.set(accounts);
     } catch (e) {
       console.error('failed to load accounts', e);
@@ -96,22 +96,6 @@ export class Account implements OnInit {
         return 'Modifié';
       default:
         return entry.kind;
-    }
-  }
-  activityLabel(kind: ActivityKind): string {
-    switch (kind) {
-      case 'created':
-        return 'Compte créé';
-      case 'suspended':
-        return 'Suspendu';
-      case 'reactivated':
-        return 'Réactivé';
-      case 'modified':
-        return 'Modifié';
-      case 'deleted':
-        return 'Supprimé';
-      default:
-        return kind;
     }
   }
   formatAccountDate(isoDate: string): string {
@@ -144,16 +128,15 @@ export class Account implements OnInit {
     const text = String(e).trim();
     return text && text !== '[object Object]' ? text : fallback;
   }
-  // ── Suspend / reactivate ─────────────────────────────────────────────────
   togglingStatusUsername = signal<string | null>(null);
-  /** Reversibly blocks an account from logging in. Kept separate from permanent
-   *  deletion so an account can be temporarily disabled without losing its history. */
   async suspendAccount(account: AccountView): Promise<void> {
     if (this.togglingStatusUsername()) return;
     this.togglingStatusUsername.set(account.username);
     this.setAccountStatus('', false);
     try {
-      const updated = await invoke<AccountView>('suspend_account', { username: account.username });
+      const updated = await invoke<AccountView>('account', {
+        command: { method: 'suspend', username: account.username },
+      });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.setAccountStatus(`Compte « ${updated.username} » suspendu.`, false);
     } catch (e) {
@@ -169,7 +152,9 @@ export class Account implements OnInit {
     this.togglingStatusUsername.set(account.username);
     this.setAccountStatus('', false);
     try {
-      const updated = await invoke<AccountView>('reactivate_account', { username: account.username });
+      const updated = await invoke<AccountView>('account', {
+        command: { method: 'reactivate', username: account.username },
+      });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.setAccountStatus(`Compte « ${updated.username} » réactivé.`, false);
     } catch (e) {
@@ -185,8 +170,8 @@ export class Account implements OnInit {
   editUserType = signal<UserType>('caissier');
   savingEditAccount = signal(false);
   editAccountError = signal('');
-  /** `update_account` only carries the display name and the user type — the backend
-   *  exposes no password parameter, so passwords are never changed from here. */
+  /** The `update` method also accepts an optional password, but this form only sends
+   *  the display name and the user type. */
   canSubmitEditAccount = computed(() => {
     if (this.savingEditAccount()) return false;
     return this.editDisplayName().trim().length <= this.maxDisplayNameLen;
@@ -226,10 +211,13 @@ export class Account implements OnInit {
     this.savingEditAccount.set(true);
     try {
       const displayName = this.editDisplayName().trim();
-      const updated = await invoke<AccountView>('update_account', {
-        username,
-        display_name: displayName,
-        user_type: this.editUserType(),
+      const updated = await invoke<AccountView>('account', {
+        command: {
+          method: 'update',
+          username,
+          display_name: displayName,
+          user_type: this.editUserType(),
+        },
       });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.editingUsername.set(null);
@@ -269,7 +257,9 @@ export class Account implements OnInit {
     this.deletingAccount.set(true);
     this.deleteAccountError.set('');
     try {
-      await invoke<void>('delete_account', { username: account.username });
+      await invoke<void>('account', {
+        command: { method: 'delete', username: account.username },
+      });
       this.accounts.update((list) => list.filter((a) => a.username !== account.username));
       this.confirmingDeleteUsername.set(null);
       this.setAccountStatus(`Compte « ${account.username} » supprimé définitivement.`, false);
@@ -352,11 +342,14 @@ export class Account implements OnInit {
     this.accountFormError.set('');
     this.creatingAccount.set(true);
     try {
-      const created = await invoke<AccountView>('create_account', {
-        username: this.trimmedNewUsername(),
-        password: this.newPassword(),
-        display_name: this.newDisplayName().trim(),
-        user_type: this.newUserType(),
+      const created = await invoke<AccountView>('account', {
+        command: {
+          method: 'create',
+          username: this.trimmedNewUsername(),
+          password: this.newPassword(),
+          display_name: this.newDisplayName().trim(),
+          user_type: this.newUserType(),
+        },
       });
       this.accounts.update((list) => [created, ...list]);
       this.setAccountStatus(`Compte « ${created.username} » créé.`, false);
@@ -384,7 +377,9 @@ export class Account implements OnInit {
   private async loadActivities(): Promise<void> {
     this.loadingActivities.set(true);
     try {
-      const activities = await invoke<AccountActivity[]>('list_account_activities');
+      const activities = await invoke<AccountActivity[]>('account', {
+        command: { method: 'activities' },
+      });
       this.activities.set(activities);
     } catch (e) {
       console.error('failed to load account activities', e);

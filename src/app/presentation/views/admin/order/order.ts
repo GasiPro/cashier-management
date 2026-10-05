@@ -48,9 +48,6 @@ export class Order implements OnInit, OnDestroy {
   private closeSubscription?: Subscription;
   constructor(private ws: WebsocketService) {}
   ngOnInit(): void {
-    // Connection + registration for the admin section is owned by the parent Admin
-    // shell (so the single-use login token is spent once for the whole session, not
-    // re-sent every time a subview mounts) — this view only reads from it.
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
       this.wsConnected.set(true);
       if (msg.type === 'orders') {
@@ -75,7 +72,7 @@ export class Order implements OnInit, OnDestroy {
   }
   private async resyncOrders(): Promise<void> {
     try {
-      const orders = await invoke<OrderLine[]>('get_orders');
+      const orders = await invoke<OrderLine[]>('order', { command: { method: 'list' } });
       this.rawOrders.set(orders);
     } catch (e) {
       console.error('get_orders failed', e);
@@ -254,9 +251,12 @@ export class Order implements OnInit, OnDestroy {
     this.rejectingGroup.set(true);
     this.rejectGroupError.set('');
     try {
-      await invoke<void>('reject_group', {
-        groupId: group.groupId,
-        raison: this.rejectReason().trim() ? this.rejectReason().trim() : null,
+      await invoke<void>('order', {
+        command: {
+          method: 'group_reject',
+          group_id: group.groupId,
+          raison: this.rejectReason().trim() ? this.rejectReason().trim() : null,
+        },
       });
       this.confirmingRejectGroupId.set(null);
     } catch (e) {

@@ -4,24 +4,37 @@ import { FormsModule } from '@angular/forms';
 import { invoke } from '@tauri-apps/api/core';
 const MAX_BLACKLIST_ADDR_LEN = 64;
 const MAX_BLACKLIST_REASON_LEN = 120;
-type ConnectionEvent = 'requested' | 'approved' | 'rejected' | 'disconnected' | 'blocked';
+type PeerId = string | number;
+type ConnectionEvent = 'requested' | 'approved' | 'refused' | 'disconnected' | 'blocked';
 interface PendingConnection {
-  addr: string;
-  username: string;
+  id: PeerId;
+  label: string;
+  username?: string | null;
+  ip_address: string;
+  port: number;
+  requested_at: string;
 }
 interface ConnectedDevice {
-  addr: string;
-  username: string;
+  id: PeerId;
+  label: string;
+  username?: string | null;
+  ip_address: string;
+  port: number;
+  connected_at: string;
 }
 interface ConnectionHistoryEntry {
-  addr: string;
-  username: string;
+  id: PeerId;
+  label: string;
+  username?: string | null;
+  ip_address: string;
   event: ConnectionEvent;
-  timestamp: string;
+  at: string;
 }
 interface BlacklistEntry {
-  addr: string;
-  reason: string | null;
+  id: PeerId;
+  type: 'ip' | 'username';
+  value: string;
+  reason?: string | null;
   created_at: string;
 }
 @Component({
@@ -60,7 +73,6 @@ export class Connexion implements OnInit {
     const text = String(e).trim();
     return text && text !== '[object Object]' ? text : fallback;
   }
-  /** Formats an ISO/RFC3339 timestamp for display; falls back to the raw value if parsing fails. */
   formatDate(isoDate: string): string {
     const date = new Date(isoDate);
     if (Number.isNaN(date.getTime())) return isoDate;
@@ -72,13 +84,20 @@ export class Connexion implements OnInit {
       minute: '2-digit',
     });
   }
+  /** Account username when the device authenticated with one, otherwise the device label. */
+  displayName(item: { username?: string | null; label: string }): string {
+    return item.username?.trim() || item.label;
+  }
+  addrOf(item: { ip_address: string; port: number }): string {
+    return `${item.ip_address}:${item.port}`;
+  }
   eventLabel(event: ConnectionEvent): string {
     switch (event) {
       case 'requested':
         return 'Demande reçue';
       case 'approved':
         return 'Approuvé';
-      case 'rejected':
+      case 'refused':
         return 'Refusé';
       case 'disconnected':
         return 'Déconnecté';
@@ -93,7 +112,7 @@ export class Connexion implements OnInit {
   private async loadWsAddress(): Promise<void> {
     this.loadingWsAddress.set(true);
     try {
-      this.wsAddress.set(await invoke<string>('get_ws_address'));
+      this.wsAddress.set(await invoke<string>('server', { command: { method: 'get_address' } }));
     } catch (e) {
       console.error('failed to load ws address', e);
       this.setStatus(this.errorMessage(e, "Impossible de récupérer l'adresse du serveur."), true);
@@ -112,11 +131,13 @@ export class Connexion implements OnInit {
   }
   pendingConnections = signal<PendingConnection[]>([]);
   loadingPending = signal(true);
-  respondingToAddr = signal<string | null>(null);
+  respondingToId = signal<PeerId | null>(null);
   private async loadPending(): Promise<void> {
     this.loadingPending.set(true);
     try {
-      const pending = await invoke<PendingConnection[]>('list_pending_connections');
+      const pending = await invoke<PendingConnection[]>('server', {
+        command: { method: 'connection_list_pending' },
+      });
       this.pendingConnections.set(pending);
     } catch (e) {
       console.error('failed to load pending connections', e);
@@ -126,44 +147,50 @@ export class Connexion implements OnInit {
     }
   }
   async approveConnection(connection: PendingConnection): Promise<void> {
-    if (this.respondingToAddr()) return;
-    this.respondingToAddr.set(connection.addr);
+    if (this.respondingToId()) return;
+    this.respondingToId.set(connection.id);
     this.setStatus('', false);
     try {
-      await invoke<void>('approve_connection', { addr: connection.addr });
+      await invoke<void>('server', {
+        command: { method: 'connection_approve', id: connection.id },
+      });
       await Promise.all([this.loadPending(), this.loadConnected()]);
-      this.setStatus(`« ${connection.username} » approuvé.`, false);
+      this.setStatus(`« ${this.displayName(connection)} » approuvé.`, false);
     } catch (e) {
       console.error('approve_connection failed', e);
       const message = this.errorMessage(e, "Échec de l'approbation. Réessayez.");
       this.setStatus(message, true);
     } finally {
-      this.respondingToAddr.set(null);
+      this.respondingToId.set(null);
     }
   }
   async rejectConnection(connection: PendingConnection): Promise<void> {
-    if (this.respondingToAddr()) return;
-    this.respondingToAddr.set(connection.addr);
+    if (this.respondingToId()) return;
+    this.respondingToId.set(connection.id);
     this.setStatus('', false);
     try {
-      await invoke<void>('reject_connection', { addr: connection.addr });
-      this.pendingConnections.update((list) => list.filter((c) => c.addr !== connection.addr));
-      this.setStatus(`« ${connection.username} » refusé.`, false);
+      await invoke<void>('server', {
+        command: { method: 'connection_reject', id: connection.id },
+      });
+      this.pendingConnections.update((list) => list.filter((c) => c.id !== connection.id));
+      this.setStatus(`« ${this.displayName(connection)} » refusé.`, false);
     } catch (e) {
       console.error('reject_connection failed', e);
       const message = this.errorMessage(e, 'Échec du refus. Réessayez.');
       this.setStatus(message, true);
     } finally {
-      this.respondingToAddr.set(null);
+      this.respondingToId.set(null);
     }
   }
   connectedDevices = signal<ConnectedDevice[]>([]);
   loadingConnected = signal(true);
-  disconnectingAddr = signal<string | null>(null);
+  disconnectingId = signal<PeerId | null>(null);
   private async loadConnected(): Promise<void> {
     this.loadingConnected.set(true);
     try {
-      const devices = await invoke<ConnectedDevice[]>('list_connected_devices');
+      const devices = await invoke<ConnectedDevice[]>('server', {
+        command: { method: 'connection_list_connected' },
+      });
       this.connectedDevices.set(devices);
     } catch (e) {
       console.error('failed to load connected devices', e);
@@ -173,48 +200,52 @@ export class Connexion implements OnInit {
     }
   }
   async disconnectDevice(device: ConnectedDevice): Promise<void> {
-    if (this.disconnectingAddr()) return;
-    this.disconnectingAddr.set(device.addr);
+    if (this.disconnectingId()) return;
+    this.disconnectingId.set(device.id);
     this.setStatus('', false);
     try {
-      await invoke<void>('disconnect_device', { addr: device.addr });
-      this.connectedDevices.update((list) => list.filter((d) => d.addr !== device.addr));
-      this.setStatus(`« ${device.username} » déconnecté.`, false);
+      await invoke<void>('server', {
+        command: { method: 'connection_disconnect', id: device.id },
+      });
+      this.connectedDevices.update((list) => list.filter((d) => d.id !== device.id));
+      this.setStatus(`« ${this.displayName(device)} » déconnecté.`, false);
     } catch (e) {
       console.error('disconnect_device failed', e);
       const message = this.errorMessage(e, 'Échec de la déconnexion. Réessayez.');
       this.setStatus(message, true);
     } finally {
-      this.disconnectingAddr.set(null);
+      this.disconnectingId.set(null);
     }
   }
-  confirmingBlockAddr = signal<string | null>(null);
-  blockingAddr = signal<string | null>(null);
+  confirmingBlockId = signal<PeerId | null>(null);
+  blockingId = signal<PeerId | null>(null);
   blockError = signal('');
   requestBlockDevice(device: ConnectedDevice): void {
-    this.confirmingBlockAddr.set(device.addr);
+    this.confirmingBlockId.set(device.id);
     this.blockError.set('');
   }
   cancelBlockDevice(): void {
-    this.confirmingBlockAddr.set(null);
+    this.confirmingBlockId.set(null);
     this.blockError.set('');
   }
   /** Disconnects the device and adds its IP address to the blacklist in one step. */
   async confirmBlockDevice(device: ConnectedDevice): Promise<void> {
-    if (this.blockingAddr()) return;
-    this.blockingAddr.set(device.addr);
+    if (this.blockingId()) return;
+    this.blockingId.set(device.id);
     this.blockError.set('');
     try {
-      await invoke<void>('block_device', { addr: device.addr });
+      await invoke<BlacklistEntry>('server', {
+        command: { method: 'connection_block', id: device.id },
+      });
       await Promise.all([this.loadConnected(), this.loadBlacklist()]);
-      this.confirmingBlockAddr.set(null);
-      this.setStatus(`« ${device.username} » bloqué et déconnecté.`, false);
+      this.confirmingBlockId.set(null);
+      this.setStatus(`« ${this.displayName(device)} » bloqué et déconnecté.`, false);
     } catch (e) {
       console.error('block_device failed', e);
       const message = this.errorMessage(e, 'Échec du blocage. Réessayez.');
       this.blockError.set(message);
     } finally {
-      this.blockingAddr.set(null);
+      this.blockingId.set(null);
     }
   }
   history = signal<ConnectionHistoryEntry[]>([]);
@@ -222,7 +253,9 @@ export class Connexion implements OnInit {
   private async loadHistory(): Promise<void> {
     this.loadingHistory.set(true);
     try {
-      const history = await invoke<ConnectionHistoryEntry[]>('list_connection_history');
+      const history = await invoke<ConnectionHistoryEntry[]>('server', {
+        command: { method: 'connection_history' },
+      });
       this.history.set(history);
     } catch (e) {
       console.error('failed to load connection history', e);
@@ -244,13 +277,15 @@ export class Connexion implements OnInit {
       addr.length > 0 &&
       addr.length <= this.maxBlacklistAddrLen &&
       !this.addingBlacklistEntry() &&
-      !this.blacklist().some((b) => b.addr.toLowerCase() === addr.toLowerCase())
+      !this.blacklist().some((b) => b.value.toLowerCase() === addr.toLowerCase())
     );
   });
   private async loadBlacklist(): Promise<void> {
     this.loadingBlacklist.set(true);
     try {
-      const blacklist = await invoke<BlacklistEntry[]>('list_blacklist_entries');
+      const blacklist = await invoke<BlacklistEntry[]>('server', {
+        command: { method: 'connection_blacklist_list' },
+      });
       this.blacklist.set(blacklist);
     } catch (e) {
       console.error('failed to load blacklist', e);
@@ -267,7 +302,7 @@ export class Connexion implements OnInit {
     if (addr.length > this.maxBlacklistAddrLen) {
       return `Cette valeur ne peut pas dépasser ${this.maxBlacklistAddrLen} caractères.`;
     }
-    if (this.blacklist().some((b) => b.addr.toLowerCase() === addr.toLowerCase())) {
+    if (this.blacklist().some((b) => b.value.toLowerCase() === addr.toLowerCase())) {
       return 'Cette adresse est déjà dans la liste noire.';
     }
     return '';
@@ -282,9 +317,13 @@ export class Connexion implements OnInit {
     this.blacklistFormError.set('');
     this.addingBlacklistEntry.set(true);
     try {
-      await invoke<void>('add_blacklist_entry', {
-        addr: this.trimmedNewBlacklistAddr(),
-        reason: this.newBlacklistReason().trim() || null,
+      await invoke<BlacklistEntry>('server', {
+        command: {
+          method: 'connection_blacklist_add',
+          entry_type: 'ip',
+          value: this.trimmedNewBlacklistAddr(),
+          reason: this.newBlacklistReason().trim() || null,
+        },
       });
       await this.loadBlacklist();
       this.newBlacklistAddr.set('');
@@ -298,32 +337,34 @@ export class Connexion implements OnInit {
       this.addingBlacklistEntry.set(false);
     }
   }
-  confirmingRemoveBlacklistAddr = signal<string | null>(null);
-  removingBlacklistAddr = signal<string | null>(null);
+  confirmingRemoveBlacklistId = signal<PeerId | null>(null);
+  removingBlacklistId = signal<PeerId | null>(null);
   removeBlacklistError = signal('');
   requestRemoveBlacklistEntry(entry: BlacklistEntry): void {
-    this.confirmingRemoveBlacklistAddr.set(entry.addr);
+    this.confirmingRemoveBlacklistId.set(entry.id);
     this.removeBlacklistError.set('');
   }
   cancelRemoveBlacklistEntry(): void {
-    this.confirmingRemoveBlacklistAddr.set(null);
+    this.confirmingRemoveBlacklistId.set(null);
     this.removeBlacklistError.set('');
   }
   async confirmRemoveBlacklistEntry(entry: BlacklistEntry): Promise<void> {
-    if (this.removingBlacklistAddr()) return;
-    this.removingBlacklistAddr.set(entry.addr);
+    if (this.removingBlacklistId()) return;
+    this.removingBlacklistId.set(entry.id);
     this.removeBlacklistError.set('');
     try {
-      await invoke<void>('remove_blacklist_entry', { addr: entry.addr });
-      this.blacklist.update((list) => list.filter((b) => b.addr !== entry.addr));
-      this.confirmingRemoveBlacklistAddr.set(null);
+      await invoke<void>('server', {
+        command: { method: 'connection_blacklist_remove', id: entry.id },
+      });
+      this.blacklist.update((list) => list.filter((b) => b.id !== entry.id));
+      this.confirmingRemoveBlacklistId.set(null);
       this.setStatus('Entrée retirée de la liste noire.', false);
     } catch (e) {
       console.error('remove_blacklist_entry failed', e);
       const message = this.errorMessage(e, 'Échec de la suppression. Réessayez.');
       this.removeBlacklistError.set(message);
     } finally {
-      this.removingBlacklistAddr.set(null);
+      this.removingBlacklistId.set(null);
     }
   }
 }

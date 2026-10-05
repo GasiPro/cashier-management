@@ -2,9 +2,7 @@ import { Component, ElementRef, OnInit, signal, computed, ViewChild } from '@ang
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { invoke } from '@tauri-apps/api/core';
-
 export type PricingItemType = 'service' | 'product';
-
 export interface ServiceItem {
   id: string;
   label: string;
@@ -12,23 +10,18 @@ export interface ServiceItem {
   category: string;
   type: PricingItemType;
 }
-
 type TypeFilter = 'all' | PricingItemType;
 type SortKey = 'category' | 'label' | 'price-asc' | 'price-desc';
-
 const MAX_LABEL_LEN = 60;
 const MAX_CATEGORY_LEN = 40;
-
 interface TypeOption {
   value: PricingItemType;
   label: string;
 }
-
 const TYPE_OPTIONS: TypeOption[] = [
   { value: 'service', label: 'Service' },
   { value: 'product', label: 'Produit' },
 ];
-
 @Component({
   selector: 'app-product',
   standalone: true,
@@ -41,21 +34,17 @@ export class Product implements OnInit {
   readonly maxCategoryLen = MAX_CATEGORY_LEN;
   readonly typeOptions = TYPE_OPTIONS;
   @ViewChild('newItemLabelInput') private newItemLabelInput?: ElementRef<HTMLInputElement>;
-
-  // ── Catalogue ──────────────────────────────────────────────────────────────
   items = signal<ServiceItem[]>([]);
   loadingItems = signal(true);
   loadError = signal('');
-
   ngOnInit(): void {
     this.loadItems();
   }
-
   private async loadItems(): Promise<void> {
     this.loadingItems.set(true);
     this.loadError.set('');
     try {
-      const items = await invoke<ServiceItem[]>('get_pricing_matrix');
+      const items = await invoke<ServiceItem[]>('pricing', { command: { method: 'get_matrix' } });
       this.items.set(items);
     } catch (e) {
       console.error('failed to load pricing matrix', e);
@@ -64,23 +53,16 @@ export class Product implements OnInit {
       this.loadingItems.set(false);
     }
   }
-
-  // ── Filters, search & sort ───────────────────────────────────────────────
   typeFilter = signal<TypeFilter>('all');
   categoryFilter = signal<string>('all');
   searchTerm = signal('');
   sortKey = signal<SortKey>('category');
-
-  /** Distinct, alphabetically sorted categories derived from the current catalogue —
-   *  also feeds the add/edit forms' category suggestions so labels stay consistent. */
   readonly categories = computed<string[]>(() => {
     const set = new Set(this.items().map((i) => i.category).filter((c) => c.trim().length > 0));
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'fr'));
   });
-
   readonly serviceCount = computed(() => this.items().filter((i) => i.type === 'service').length);
   readonly productCount = computed(() => this.items().filter((i) => i.type === 'product').length);
-
   setTypeFilter(type: TypeFilter): void {
     this.typeFilter.set(type);
   }
@@ -93,17 +75,14 @@ export class Product implements OnInit {
   isCategoryFilterActive(category: string): boolean {
     return this.categoryFilter() === category;
   }
-
   readonly filtersActive = computed(
     () => this.typeFilter() !== 'all' || this.categoryFilter() !== 'all' || this.searchTerm().trim().length > 0,
   );
-
   resetFilters(): void {
     this.typeFilter.set('all');
     this.categoryFilter.set('all');
     this.searchTerm.set('');
   }
-
   readonly filteredItems = computed<ServiceItem[]>(() => {
     const type = this.typeFilter();
     const category = this.categoryFilter();
@@ -131,11 +110,9 @@ export class Product implements OnInit {
       }
     });
   });
-
   typeLabel(type: PricingItemType): string {
     return type === 'service' ? 'Service' : 'Produit';
   }
-
   typeBadgeClass(type: PricingItemType): string {
     const base = 'inline-flex items-center text-[10px] font-semibold uppercase tracking-wide' +
       ' border rounded-full px-1.5 py-0.5 flex-shrink-0';
@@ -143,8 +120,6 @@ export class Product implements OnInit {
       ? `${base} text-[#1E3A5F] bg-[#EFF4FA] border-[#1E3A5F]/20`
       : `${base} text-emerald-700 bg-emerald-50 border-emerald-200`;
   }
-
-  // ── New item form ─────────────────────────────────────────────────────────
   newItemLabel = signal('');
   newItemCategory = signal('');
   newItemPrice = signal<number | null>(null);
@@ -154,14 +129,11 @@ export class Product implements OnInit {
   /** Result feedback (success or server error) for catalogue actions, announced via aria-live. */
   itemStatusMessage = signal('');
   itemStatusIsError = signal(false);
-
   setNewItemType(type: PricingItemType): void {
     this.newItemType.set(type);
   }
-
   private readonly trimmedNewItemLabel = computed(() => this.newItemLabel().trim());
   private readonly trimmedNewItemCategory = computed(() => this.newItemCategory().trim());
-
   /** Client-side shape check only — the server remains the source of truth, so the
    *  button stays enabled even if this passes; the real rejection (if any) comes
    *  back from `create_pricing_item`. */
@@ -177,7 +149,6 @@ export class Product implements OnInit {
       !this.creatingItem()
     );
   });
-
   private validateItemForm(label: string, category: string, price: number | null, excludeId: string | null): string {
     if (label.length === 0) return 'Le libellé est obligatoire.';
     if (label.length > this.maxLabelLen) return `Le libellé ne peut pas dépasser ${this.maxLabelLen} caractères.`;
@@ -199,7 +170,6 @@ export class Product implements OnInit {
     }
     return '';
   }
-
   async createItem(): Promise<void> {
     if (this.creatingItem()) return;
     const label = this.trimmedNewItemLabel();
@@ -215,11 +185,14 @@ export class Product implements OnInit {
     this.creatingItem.set(true);
     this.setItemStatus('', false);
     try {
-      const created = await invoke<ServiceItem>('create_pricing_item', {
-        label,
-        category,
-        price,
-        itemType: this.newItemType(),
+      const created = await invoke<ServiceItem>('pricing', {
+        command: {
+          method: 'item_create',
+          label,
+          category,
+          price,
+          item_type: this.newItemType(),
+        },
       });
       this.items.update((list) => [created, ...list]);
       this.setItemStatus(`Tarif « ${created.label} » ajouté.`, false);
@@ -233,29 +206,23 @@ export class Product implements OnInit {
       this.creatingItem.set(false);
     }
   }
-
   private resetNewItemForm(): void {
     this.newItemLabel.set('');
     this.newItemCategory.set('');
     this.newItemPrice.set(null);
     this.newItemType.set('service');
   }
-
   private setItemStatus(message: string, isError: boolean): void {
     this.itemStatusMessage.set(message);
     this.itemStatusIsError.set(isError);
   }
-
-  // ── Edit ──────────────────────────────────────────────────────────────────
   editingId = signal<string | null>(null);
   editLabel = signal('');
   editCategory = signal('');
   editPrice = signal<number | null>(null);
   editType = signal<PricingItemType>('service');
   savingItem = signal(false);
-  /** Inline validation or server error for the edit form, announced via aria-live. */
   editItemError = signal('');
-
   startEditItem(item: ServiceItem): void {
     this.confirmingDeleteId.set(null);
     this.editingId.set(item.id);
@@ -265,12 +232,10 @@ export class Product implements OnInit {
     this.editType.set(item.type);
     this.editItemError.set('');
     // Move focus into the panel once it's rendered, so keyboard/screen-reader
-    // users land directly on the field they're most likely to change.
     setTimeout(() => {
       document.getElementById(`edit-item-label-${item.id}`)?.focus();
     });
   }
-
   cancelEditItem(): void {
     const id = this.editingId();
     this.editingId.set(null);
@@ -278,11 +243,9 @@ export class Product implements OnInit {
       document.getElementById(`item-edit-btn-${id}`)?.focus();
     }
   }
-
   setEditType(type: PricingItemType): void {
     this.editType.set(type);
   }
-
   canSubmitEditItem = computed(() => {
     if (this.savingItem()) return false;
     const price = this.editPrice();
@@ -295,7 +258,6 @@ export class Product implements OnInit {
       price >= 0
     );
   });
-
   async saveEditItem(item: ServiceItem): Promise<void> {
     if (this.savingItem()) return;
     const label = this.editLabel().trim();
@@ -309,12 +271,15 @@ export class Product implements OnInit {
     this.editItemError.set('');
     this.savingItem.set(true);
     try {
-      const updated = await invoke<ServiceItem>('update_pricing_item', {
-        id: item.id,
-        label,
-        category,
-        price,
-        itemType: this.editType(),
+      const updated = await invoke<ServiceItem>('pricing', {
+        command: {
+          method: 'item_update',
+          id: item.id,
+          label,
+          category,
+          price,
+          item_type: this.editType(),
+        },
       });
       this.items.update((list) => list.map((i) => (i.id === updated.id ? updated : i)));
       this.editingId.set(null);
@@ -328,23 +293,20 @@ export class Product implements OnInit {
       this.savingItem.set(false);
     }
   }
-
-  // ── Duplicate ─────────────────────────────────────────────────────────────
-  /** Id of the item currently being cloned, used to disable its duplicate button
-   *  while the request is in flight (a pricing matrix often has many near-identical
-   *  rows, e.g. the same garment across categories, so duplicating beats retyping). */
   duplicatingId = signal<string | null>(null);
-
   async duplicateItem(item: ServiceItem): Promise<void> {
     if (this.duplicatingId()) return;
     this.duplicatingId.set(item.id);
     this.setItemStatus('', false);
     try {
-      const created = await invoke<ServiceItem>('create_pricing_item', {
-        label: `${item.label} (copie)`,
-        category: item.category,
-        price: item.price,
-        itemType: item.type,
+      const created = await invoke<ServiceItem>('pricing', {
+        command: {
+          method: 'item_create',
+          label: `${item.label} (copie)`,
+          category: item.category,
+          price: item.price,
+          item_type: item.type,
+        },
       });
       this.items.update((list) => [created, ...list]);
       this.setItemStatus(`Tarif « ${created.label} » créé à partir de « ${item.label} ».`, false);
@@ -357,12 +319,9 @@ export class Product implements OnInit {
       this.duplicatingId.set(null);
     }
   }
-
-  // ── Delete ────────────────────────────────────────────────────────────────
   confirmingDeleteId = signal<string | null>(null);
   deletingItem = signal(false);
   deleteItemError = signal('');
-
   requestDeleteItem(item: ServiceItem): void {
     this.editingId.set(null);
     this.confirmingDeleteId.set(item.id);
@@ -371,7 +330,6 @@ export class Product implements OnInit {
       document.getElementById(`item-delete-confirm-btn-${item.id}`)?.focus();
     });
   }
-
   /** Closes the confirmation step and returns focus to the row's delete button. */
   cancelDeleteItem(): void {
     const id = this.confirmingDeleteId();
@@ -381,13 +339,12 @@ export class Product implements OnInit {
       document.getElementById(`item-delete-btn-${id}`)?.focus();
     }
   }
-
   async confirmDeleteItem(item: ServiceItem): Promise<void> {
     if (this.deletingItem()) return;
     this.deletingItem.set(true);
     this.deleteItemError.set('');
     try {
-      await invoke<void>('delete_pricing_item', { id: item.id });
+      await invoke<void>('pricing', { command: { method: 'item_delete', id: item.id } });
       this.items.update((list) => list.filter((i) => i.id !== item.id));
       this.confirmingDeleteId.set(null);
       this.setItemStatus(`Tarif « ${item.label} » supprimé.`, false);

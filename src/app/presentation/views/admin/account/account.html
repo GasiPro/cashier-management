@@ -28,7 +28,7 @@
         <li [class.bg-gray-50]="account.status === 'suspended'">
           <div class="grid grid-cols-[3.5rem_1fr_1fr_9rem_7rem] sm:items-center gap-3 px-3 py-3">
             <span class="text-sm font-mono text-gray-400 tabular-nums truncate min-w-0">
-              {{ account.id.padStart(3, '0') }}
+              {{ account.id.toString().padStart(3, '0') }}
             </span>
             <div class="min-w-0">
               <p class="text-sm font-medium text-[#1A1A1A] truncate selectable"
@@ -234,12 +234,12 @@
               <p class="text-sm text-gray-400 italic">Aucun évènement enregistré.</p>
               } @else {
               <ul class="space-y-1.5">
-                @for (entry of account.history; track entry.timestamp) {
+                @for (entry of account.history; track $index) {
                 <li class="flex items-start gap-2 text-sm text-gray-600">
                   <span class="w-1.5 h-1.5 rounded-full bg-[#1E3A5F]/40 mt-1.5 flex-shrink-0"></span>
                   <span>
                     {{ historyLabel(entry) }}
-                    <span class="text-gray-400"> — {{ formatAccountDate(entry.timestamp) }}</span>
+                    <span class="text-gray-400"> — {{ formatAccountDate(entry.at) }}</span>
                   </span>
                 </li>
                 }
@@ -281,12 +281,12 @@
             </tr>
           </thead>
           <tbody>
-            @for (activity of activities(); track $index) {
+            @for (activity of activities(); track activity.id) {
             <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-              <td class="px-3 sm:px-4 py-3 font-medium text-[#1A1A1A] whitespace-nowrap">{{ activity.username }}</td>
-              <td class="px-3 sm:px-4 py-3 text-gray-600 whitespace-nowrap">{{ activityLabel(activity.kind) }}</td>
-              <td class="px-3 sm:px-4 py-3 text-gray-500 hidden sm:table-cell truncate max-w-xs">{{ activity.reason || '—' }}</td>
-              <td class="px-3 sm:px-4 py-3 text-right text-gray-400 whitespace-nowrap">{{ formatAccountDate(activity.timestamp) }}</td>
+              <td class="px-3 sm:px-4 py-3 font-medium text-[#1A1A1A] whitespace-nowrap">{{ activity.account_username }}</td>
+              <td class="px-3 sm:px-4 py-3 text-gray-600 whitespace-nowrap">{{ activity.action }}</td>
+              <td class="px-3 sm:px-4 py-3 text-gray-500 hidden sm:table-cell truncate max-w-xs">{{ activity.detail || '—' }}</td>
+              <td class="px-3 sm:px-4 py-3 text-right text-gray-400 whitespace-nowrap">{{ formatAccountDate(activity.at) }}</td>
             </tr>
             }
           </tbody>

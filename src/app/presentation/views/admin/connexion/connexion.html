@@ -46,12 +46,12 @@
         <p class="text-sm text-gray-400 py-2">Aucune demande en attente.</p>
         } @else {
         <div class="space-y-2">
-          @for (connection of pendingConnections(); track connection.addr) {
+          @for (connection of pendingConnections(); track connection.id) {
           <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
             <div class="flex items-center justify-between mb-2">
               <div class="min-w-0">
-                <p class="text-sm font-semibold text-[#1A1A1A] truncate">{{ connection.username }}</p>
-                <p class="text-xs text-gray-400 font-mono mt-0.5">{{ connection.addr }}</p>
+                <p class="text-sm font-semibold text-[#1A1A1A] truncate">{{ displayName(connection) }}</p>
+                <p class="text-xs text-gray-400 font-mono mt-0.5">{{ addrOf(connection) }}</p>
               </div>
               <span class="text-[10px] bg-amber-100 text-amber-700 font-medium px-2 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0">
                 Attente
@@ -59,9 +59,9 @@
             </div>
             <div class="flex gap-2">
               <button type="button" (click)="approveConnection(connection)"
-                [disabled]="respondingToAddr() === connection.addr"
-                [attr.aria-busy]="respondingToAddr() === connection.addr"
-                [attr.aria-label]="'Approuver ' + connection.username"
+                [disabled]="respondingToId() === connection.id"
+                [attr.aria-busy]="respondingToId() === connection.id"
+                [attr.aria-label]="'Approuver ' + displayName(connection)"
                 class="flex-1 bg-[#1E3A5F] text-white text-xs font-semibold py-2 rounded-md
                        hover:bg-[#16304f] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
                        disabled:opacity-40
@@ -69,9 +69,9 @@
                 Approuver
               </button>
               <button type="button" (click)="rejectConnection(connection)"
-                [disabled]="respondingToAddr() === connection.addr"
-                [attr.aria-busy]="respondingToAddr() === connection.addr"
-                [attr.aria-label]="'Refuser ' + connection.username"
+                [disabled]="respondingToId() === connection.id"
+                [attr.aria-busy]="respondingToId() === connection.id"
+                [attr.aria-label]="'Refuser ' + displayName(connection)"
                 class="flex-1 bg-white border border-red-200 text-red-600 text-xs font-semibold py-2 rounded-md
                        hover:bg-red-50 active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
                        disabled:opacity-40
@@ -101,16 +101,16 @@
         <p class="text-sm text-gray-400 py-2">Aucun appareil connecté.</p>
         } @else {
         <div class="space-y-2">
-          @for (device of connectedDevices(); track device.addr) {
+          @for (device of connectedDevices(); track device.id) {
           <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
             <div class="flex items-center justify-between gap-3">
               <div class="min-w-0">
-                <p class="text-sm font-semibold text-[#1A1A1A] truncate">{{ device.username }}</p>
-                <p class="text-xs text-gray-400 font-mono mt-0.5">{{ device.addr }}</p>
+                <p class="text-sm font-semibold text-[#1A1A1A] truncate">{{ displayName(device) }}</p>
+                <p class="text-xs text-gray-400 font-mono mt-0.5">{{ addrOf(device) }}</p>
               </div>
               <div class="flex items-center flex-shrink-0 gap-0.5">
                 <button type="button" (click)="requestBlockDevice(device)"
-                  title="Bloquer" [attr.aria-label]="'Bloquer ' + device.username"
+                  title="Bloquer" [attr.aria-label]="'Bloquer ' + displayName(device)"
                   class="text-gray-400 hover:text-red-600 p-2 rounded-md transition-colors
                          focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -119,9 +119,9 @@
                   </svg>
                 </button>
                 <button type="button" (click)="disconnectDevice(device)"
-                  [disabled]="disconnectingAddr() === device.addr"
-                  [attr.aria-busy]="disconnectingAddr() === device.addr"
-                  title="Déconnecter" [attr.aria-label]="'Déconnecter ' + device.username"
+                  [disabled]="disconnectingId() === device.id"
+                  [attr.aria-busy]="disconnectingId() === device.id"
+                  title="Déconnecter" [attr.aria-label]="'Déconnecter ' + displayName(device)"
                   class="text-gray-400 hover:text-amber-600 p-1.5 rounded-md hover:bg-amber-50 transition-colors
                          disabled:opacity-40
                          focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400">
@@ -131,10 +131,10 @@
                 </button>
               </div>
             </div>
-            @if (confirmingBlockAddr() === device.addr) {
+            @if (confirmingBlockId() === device.id) {
             <div class="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
               <p class="text-xs text-red-800">
-                Bloquer « {{ device.username }} » ({{ device.addr }}) ? L'appareil sera déconnecté et son
+                Bloquer « {{ displayName(device) }} » ({{ addrOf(device) }}) ? L'appareil sera déconnecté et son
                 adresse IP ajoutée à la liste noire — il ne pourra plus se reconnecter tant qu'il y figure.
               </p>
               @if (blockError()) {
@@ -142,16 +142,16 @@
               }
               <div class="flex items-center gap-2 mt-3">
                 <button type="button" (click)="confirmBlockDevice(device)"
-                  [disabled]="blockingAddr() === device.addr"
-                  [attr.aria-busy]="blockingAddr() === device.addr"
+                  [disabled]="blockingId() === device.id"
+                  [attr.aria-busy]="blockingId() === device.id"
                   class="bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-md
                          hover:bg-red-700 active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
                          disabled:opacity-40 disabled:hover:bg-red-600 disabled:active:scale-100
                          focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600">
-                  {{ blockingAddr() === device.addr ? 'Blocage…' : 'Bloquer et déconnecter' }}
+                  {{ blockingId() === device.id ? 'Blocage…' : 'Bloquer et déconnecter' }}
                 </button>
                 <button type="button" (click)="cancelBlockDevice()"
-                  [disabled]="blockingAddr() === device.addr"
+                  [disabled]="blockingId() === device.id"
                   class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
                          focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
                   Annuler
@@ -195,10 +195,10 @@
           <tbody>
             @for (entry of history(); track $index) {
             <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-              <td class="px-3 sm:px-4 py-3 font-medium text-[#1A1A1A] whitespace-nowrap">{{ entry.username }}</td>
-              <td class="px-3 sm:px-4 py-3 text-gray-500 font-mono hidden sm:table-cell whitespace-nowrap">{{ entry.addr }}</td>
+              <td class="px-3 sm:px-4 py-3 font-medium text-[#1A1A1A] whitespace-nowrap">{{ displayName(entry) }}</td>
+              <td class="px-3 sm:px-4 py-3 text-gray-500 font-mono hidden sm:table-cell whitespace-nowrap">{{ entry.ip_address }}</td>
               <td class="px-3 sm:px-4 py-3 text-gray-600 whitespace-nowrap">{{ eventLabel(entry.event) }}</td>
-              <td class="px-3 sm:px-4 py-3 text-right text-gray-400 whitespace-nowrap">{{ formatDate(entry.timestamp) }}</td>
+              <td class="px-3 sm:px-4 py-3 text-right text-gray-400 whitespace-nowrap">{{ formatDate(entry.at) }}</td>
             </tr>
             }
           </tbody>
@@ -227,18 +227,18 @@
         } @else {
         <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg"
           [attr.aria-label]="blacklist().length + ' entrée(s) bloquée(s)'">
-          @for (entry of blacklist(); track entry.addr) {
+          @for (entry of blacklist(); track entry.id) {
           <li class="px-3 py-2.5">
             <div class="flex items-center gap-3">
               <div class="min-w-0 flex-1">
-                <p class="text-sm font-medium text-[#1A1A1A] truncate font-mono">{{ entry.addr }}</p>
+                <p class="text-sm font-medium text-[#1A1A1A] truncate font-mono">{{ entry.value }}</p>
                 @if (entry.reason) {
                 <p class="text-xs text-gray-400 truncate">{{ entry.reason }}</p>
                 }
                 <p class="text-xs text-gray-400">Ajouté le {{ formatDate(entry.created_at) }}</p>
               </div>
               <button type="button" (click)="requestRemoveBlacklistEntry(entry)"
-                [attr.aria-label]="'Retirer ' + entry.addr + ' de la liste noire'"
+                [attr.aria-label]="'Retirer ' + entry.value + ' de la liste noire'"
                 class="flex-shrink-0 text-gray-400 hover:text-red-600 p-2 rounded-md transition-colors
                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -247,10 +247,10 @@
                 </svg>
               </button>
             </div>
-            @if (confirmingRemoveBlacklistAddr() === entry.addr) {
+            @if (confirmingRemoveBlacklistId() === entry.id) {
             <div class="mt-3 pl-0 bg-red-50 border border-red-200 rounded-lg p-3">
               <p class="text-xs text-red-800">
-                Retirer « {{ entry.addr }} » de la liste noire ? La connexion sera de nouveau autorisée.
+                Retirer « {{ entry.value }} » de la liste noire ? La connexion sera de nouveau autorisée.
               </p>
               @if (removeBlacklistError()) {
               <p role="alert" aria-live="assertive" class="text-xs text-red-700 font-medium mt-2">
@@ -259,16 +259,16 @@
               }
               <div class="flex items-center gap-2 mt-3">
                 <button type="button" (click)="confirmRemoveBlacklistEntry(entry)"
-                  [disabled]="removingBlacklistAddr() === entry.addr"
-                  [attr.aria-busy]="removingBlacklistAddr() === entry.addr"
+                  [disabled]="removingBlacklistId() === entry.id"
+                  [attr.aria-busy]="removingBlacklistId() === entry.id"
                   class="bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-md
                          hover:bg-red-700 active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
                          disabled:opacity-40 disabled:hover:bg-red-600 disabled:active:scale-100
                          focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600">
-                  {{ removingBlacklistAddr() === entry.addr ? 'Suppression…' : 'Retirer' }}
+                  {{ removingBlacklistId() === entry.id ? 'Suppression…' : 'Retirer' }}
                 </button>
                 <button type="button" (click)="cancelRemoveBlacklistEntry()"
-                  [disabled]="removingBlacklistAddr() === entry.addr"
+                  [disabled]="removingBlacklistId() === entry.id"
                   class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
                          focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
                   Annuler
