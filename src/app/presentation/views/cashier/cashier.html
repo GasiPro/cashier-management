@@ -117,6 +117,7 @@
             </div>
             <div class="flex items-center gap-2">
               <button (click)="$event.stopPropagation(); openRejectDialog(group)" title="Refuser la commande"
+                [disabled]="busyGroupId() !== null"
                 [attr.aria-label]="'Refuser la commande ' + formatGroupId(group.groupId)"
                 class="text-gray-400 hover:text-red-600 border border-gray-200 hover:border-red-200 hover:bg-red-50
                        p-2 rounded-md transition-colors
@@ -126,6 +127,8 @@
                 </svg>
               </button>
               <button (click)="$event.stopPropagation(); markGroupAsPaid(group.groupId)"
+                [disabled]="busyGroupId() !== null"
+                [attr.aria-busy]="busyGroupId() === group.groupId"
                 [attr.aria-label]="'Encaisser la commande ' + formatGroupId(group.groupId)"
                 class="bg-[#1E3A5F] text-white text-sm font-medium px-4 py-2 rounded-md
                                hover:bg-[#16304f] active:scale-95 transition-all
@@ -260,13 +263,17 @@
               </div>
               <div class="flex gap-2">
                 <button (click)="approveDevice(req.id)"
-                  class="flex-1 bg-[#1E3A5F] text-white text-xs font-semibold py-2 rounded-md
+                  [disabled]="busyDeviceId() !== null"
+                  [attr.aria-busy]="busyDeviceId() === req.id"
+                  class="disabled:opacity-40 flex-1 bg-[#1E3A5F] text-white text-xs font-semibold py-2 rounded-md
                          hover:bg-[#16304f] active:scale-95 transition-all
                          focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
                   Approuver
                 </button>
                 <button (click)="rejectDevice(req.id)"
-                  class="flex-1 bg-white border border-red-200 text-red-600 text-xs font-semibold py-2 rounded-md
+                  [disabled]="busyDeviceId() !== null"
+                  [attr.aria-busy]="busyDeviceId() === req.id"
+                  class="disabled:opacity-40 flex-1 bg-white border border-red-200 text-red-600 text-xs font-semibold py-2 rounded-md
                          hover:bg-red-50 active:scale-95 transition-all
                          focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
                   Refuser
@@ -302,18 +309,58 @@
           }
           <div class="space-y-2">
             @for (dev of connectedDevices(); track dev.id) {
-            <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-center justify-between">
-              <div>
-                <p class="text-sm font-semibold text-[#1A1A1A]">{{ displayName(dev) }}</p>
-                <p class="text-xs text-gray-400 font-mono mt-0.5">{{ addrOf(dev) }}</p>
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <div class="flex items-center justify-between">
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold text-[#1A1A1A] truncate">{{ displayName(dev) }}</p>
+                  <p class="text-xs text-gray-400 font-mono mt-0.5">{{ addrOf(dev) }}</p>
+                </div>
+                <div class="flex items-center flex-shrink-0 gap-0.5">
+                  <button (click)="requestBlockDevice(dev.id)" title="Bloquer"
+                    [attr.aria-label]="'Bloquer ' + displayName(dev)"
+                    class="text-gray-400 hover:text-red-600 p-1.5 rounded-md hover:bg-red-50 transition-colors
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636a9 9 0 11-12.728 0M12 3v9" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 4.5l15 15" />
+                    </svg>
+                  </button>
+                  <button (click)="disconnectDevice(dev.id)" title="Déconnecter"
+                    [disabled]="busyDeviceId() !== null"
+                    [attr.aria-busy]="busyDeviceId() === dev.id"
+                    [attr.aria-label]="'Déconnecter ' + displayName(dev)"
+                    class="text-gray-400 hover:text-amber-600 p-1.5 rounded-md hover:bg-amber-50 transition-colors
+                           disabled:opacity-40
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M18.36 6.64a9 9 0 11-12.73 0M12 2v10" />
+                    </svg>
+                  </button>
+                </div>
               </div>
-              <button (click)="disconnectDevice(dev.id)" title="Déconnecter"
-                class="text-gray-400 hover:text-red-600 p-1.5 rounded-md hover:bg-red-50 transition-colors
-                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M18.36 6.64a9 9 0 11-12.73 0M12 2v10" />
-                </svg>
-              </button>
+              @if (confirmingBlockDeviceId() === dev.id) {
+              <div class="mt-3 bg-red-50 border border-red-200 rounded-lg p-3" role="group"
+                [attr.aria-label]="'Confirmer le blocage de ' + displayName(dev)"
+                (keydown.escape)="cancelBlockDevice()">
+                <p class="text-xs text-red-800">
+                  Bloquer « {{ displayName(dev) }} » ({{ addrOf(dev) }}) ? L'appareil sera déconnecté et son
+                  adresse IP ajoutée à la liste noire.
+                </p>
+                <div class="flex items-center gap-2 mt-3">
+                  <button (click)="blockDevice(dev.id)" [disabled]="busyDeviceId() !== null"
+                    class="bg-red-600 text-white text-xs font-semibold px-3 py-2 rounded-md hover:bg-red-700
+                           active:scale-95 transition-all disabled:opacity-40
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600">
+                    {{ busyDeviceId() === dev.id ? 'Blocage…' : 'Bloquer et déconnecter' }}
+                  </button>
+                  <button (click)="cancelBlockDevice()" [disabled]="busyDeviceId() === dev.id"
+                    class="text-xs text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                    Annuler
+                  </button>
+                </div>
+              </div>
+              }
             </div>
             }
           </div>
@@ -835,6 +882,7 @@
         @if (isGroupPending(group)) {
         <div class="flex items-center gap-2">
           <button (click)="openRejectDialog(group)" title="Refuser la commande"
+            [disabled]="busyGroupId() !== null"
             [attr.aria-label]="'Refuser la commande ' + formatGroupId(group.groupId)"
             class="flex-shrink-0 px-4 py-3 rounded-lg text-sm font-semibold border border-gray-200 text-gray-500
                    hover:bg-red-50 hover:text-red-600 hover:border-red-200 active:scale-95 transition-all
@@ -842,6 +890,7 @@
             Refuser
           </button>
           <button (click)="markGroupAsPaid(group.groupId); closeGroupDetail()"
+            [disabled]="busyGroupId() !== null"
             [attr.aria-label]="'Encaisser la commande ' + formatGroupId(group.groupId)"
             class="flex-1 bg-[#1E3A5F] text-white text-sm font-semibold py-3 rounded-lg
                    hover:bg-[#16304f] active:scale-95 transition-all

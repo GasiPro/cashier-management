@@ -969,7 +969,7 @@
         </div>
         @if (group.status === 'EN_ATTENTE') {
         <div class="flex items-center gap-2">
-          <button (click)="deleteOrderGroup(group.groupId); closeGroupDetail()" title="Annuler la commande"
+          <button (click)="deleteOrderGroup(group.groupId)" title="Annuler la commande"
             [attr.aria-label]="'Annuler la commande ' + groupLabel(group.groupId)"
             class="flex-1 px-4 py-3 rounded-lg text-sm font-semibold border border-gray-200 text-gray-500
                    hover:bg-red-50 hover:text-red-600 hover:border-red-200 active:scale-95 transition-all

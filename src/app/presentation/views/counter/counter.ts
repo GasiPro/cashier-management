@@ -210,6 +210,7 @@ export class Counter implements OnInit, OnDestroy {
   }
   ngOnDestroy(): void {
     clearInterval(this.clockId);
+    if (this.confirmDeleteGroupTimer) clearTimeout(this.confirmDeleteGroupTimer);
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     this.closeSubscription?.unsubscribe();
@@ -474,7 +475,20 @@ export class Counter implements OnInit, OnDestroy {
     this.selectedGroupId.set(null);
   }
   updateOrderLine(order: Order): void {
-    if (!this.wsConnected()) return;
+    if (!this.wsConnected()) {
+      this.showToast('Non connecté à la caisse — vérifiez la connexion réseau');
+      return;
+    }
+    if (
+      order.unit_price === null ||
+      !Number.isFinite(Number(order.unit_price)) ||
+      Number(order.unit_price) < 0 ||
+      !Number.isFinite(Number(order.quantity)) ||
+      Number(order.quantity) < 1
+    ) {
+      this.showToast('Quantité ou prix invalide — la modification n\'a pas été envoyée.');
+      return;
+    }
     const sent = this.ws.send({
       type: 'order_update',
       id: order.id,
@@ -506,20 +520,44 @@ export class Counter implements OnInit, OnDestroy {
     }
   }
   deleteOrderLine(order: Order): void {
-    if (!this.wsConnected()) return;
+    if (!this.wsConnected()) {
+      this.showToast('Non connecté à la caisse — vérifiez la connexion réseau');
+      return;
+    }
     const sent = this.ws.send({ type: 'order_delete', id: order.id });
     if (!sent) {
       this.showToast('Échec de la suppression — vérifiez la connexion réseau.');
     }
   }
+  private confirmDeleteGroupId: number | null = null;
+  private confirmDeleteGroupTimer: ReturnType<typeof setTimeout> | null = null;
   deleteOrderGroup(groupId: number): void {
-    if (!this.wsConnected()) return;
+    if (!this.wsConnected()) {
+      this.showToast('Non connecté à la caisse — vérifiez la connexion réseau');
+      return;
+    }
+    if (this.confirmDeleteGroupId !== groupId) {
+      this.confirmDeleteGroupId = groupId;
+      if (this.confirmDeleteGroupTimer) clearTimeout(this.confirmDeleteGroupTimer);
+      this.confirmDeleteGroupTimer = setTimeout(() => {
+        this.confirmDeleteGroupId = null;
+        this.confirmDeleteGroupTimer = null;
+      }, 4000);
+      this.showToast('Appuyez à nouveau pour annuler cette commande.');
+      return;
+    }
+    this.confirmDeleteGroupId = null;
+    if (this.confirmDeleteGroupTimer) {
+      clearTimeout(this.confirmDeleteGroupTimer);
+      this.confirmDeleteGroupTimer = null;
+    }
     const sent = this.ws.send({ type: 'order_delete_group', group_id: groupId });
     if (!sent) {
       this.showToast('Échec de l\'annulation — vérifiez la connexion réseau.');
       return;
     }
     this.editingGroupId.set(null);
+    this.closeGroupDetail();
     this.showToast('Commande annulée.');
   }
   get filteredServices(): ServiceItem[] {

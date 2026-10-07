@@ -274,39 +274,99 @@ export class Cashier implements OnInit, OnDestroy {
   addrOf(device: { ip_address: string; port: number }): string {
     return `${device.ip_address}:${device.port}`;
   }
+  private errorMessage(e: unknown, fallback: string): string {
+    if (typeof e === 'string') return e.trim() || fallback;
+    if (e instanceof Error) return e.message.trim() || fallback;
+    if (e && typeof e === 'object' && 'message' in e) {
+      const message = String((e as { message: unknown }).message).trim();
+      if (message) return message;
+    }
+    if (e === null || e === undefined) return fallback;
+    const text = String(e).trim();
+    return text && text !== '[object Object]' ? text : fallback;
+  }
+  busyDeviceId = signal<PeerId | null>(null);
+  busyGroupId = signal<number | null>(null);
+  confirmingBlockDeviceId = signal<PeerId | null>(null);
   async approveDevice(id: PeerId): Promise<void> {
+    if (this.busyDeviceId() !== null) return;
+    this.busyDeviceId.set(id);
+    const req = this.pendingRequests().find((r) => r.id === id);
     try {
       await invoke('server', { command: { method: 'connection_approve', id } });
+      this.showToast(`« ${req ? this.displayName(req) : 'Appareil'} » approuvé.`);
     } catch (e) {
       console.error('connection_approve failed', e);
-      this.showToast(typeof e === 'string' ? e : "Impossible d'approuver cet appareil.");
+      this.showToast(this.errorMessage(e, "Impossible d'approuver cet appareil."));
+    } finally {
+      this.busyDeviceId.set(null);
     }
   }
   async rejectDevice(id: PeerId): Promise<void> {
+    if (this.busyDeviceId() !== null) return;
+    this.busyDeviceId.set(id);
+    const req = this.pendingRequests().find((r) => r.id === id);
     try {
       await invoke('server', { command: { method: 'connection_reject', id } });
+      this.showToast(`« ${req ? this.displayName(req) : 'Appareil'} » refusé.`);
     } catch (e) {
       console.error('connection_reject failed', e);
-      this.showToast(typeof e === 'string' ? e : "Impossible de refuser cet appareil.");
+      this.showToast(this.errorMessage(e, "Impossible de refuser cet appareil."));
+    } finally {
+      this.busyDeviceId.set(null);
     }
   }
   async disconnectDevice(id: PeerId): Promise<void> {
+    if (this.busyDeviceId() !== null) return;
+    this.busyDeviceId.set(id);
+    const dev = this.connectedDevices().find((d) => d.id === id);
     try {
       await invoke('server', { command: { method: 'connection_disconnect', id } });
+      this.showToast(`« ${dev ? this.displayName(dev) : 'Appareil'} » déconnecté.`);
     } catch (e) {
       console.error('connection_disconnect failed', e);
-      this.showToast(typeof e === 'string' ? e : "Impossible de déconnecter cet appareil.");
+      this.showToast(this.errorMessage(e, "Impossible de déconnecter cet appareil."));
+    } finally {
+      this.busyDeviceId.set(null);
+    }
+  }
+  requestBlockDevice(id: PeerId): void {
+    this.confirmingBlockDeviceId.set(id);
+  }
+  cancelBlockDevice(): void {
+    this.confirmingBlockDeviceId.set(null);
+  }
+  async blockDevice(id: PeerId): Promise<void> {
+    if (this.busyDeviceId() !== null) return;
+    this.busyDeviceId.set(id);
+    const dev = this.connectedDevices().find((d) => d.id === id);
+    try {
+      await invoke('server', { command: { method: 'connection_block', id } });
+      this.confirmingBlockDeviceId.set(null);
+      this.showToast(`« ${dev ? this.displayName(dev) : 'Appareil'} » bloqué et déconnecté.`);
+    } catch (e) {
+      console.error('connection_block failed', e);
+      this.showToast(this.errorMessage(e, "Impossible de bloquer cet appareil."));
+    } finally {
+      this.busyDeviceId.set(null);
     }
   }
   async markGroupAsPaid(groupId: number): Promise<void> {
+    if (this.busyGroupId() !== null) return;
+    this.busyGroupId.set(groupId);
     try {
       await invoke('order', { command: { method: 'group_mark_paid', group_id: groupId } });
+      this.showToast(`Commande ${this.formatGroupId(groupId)} encaissée.`);
     } catch (e) {
       console.error('group_mark_paid failed', e);
-      this.showToast(typeof e === 'string' ? e : "Impossible d'encaisser cette commande.");
+      this.showToast(this.errorMessage(e, "Impossible d'encaisser cette commande."));
+    } finally {
+      this.busyGroupId.set(null);
     }
   }
   async rejectGroup(groupId: number, raison?: string): Promise<void> {
+    if (this.busyGroupId() !== null) return;
+    this.busyGroupId.set(groupId);
     try {
       await invoke('order', {
         command: {
@@ -315,9 +375,12 @@ export class Cashier implements OnInit, OnDestroy {
           raison: raison?.trim() ? raison.trim() : null,
         },
       });
+      this.showToast(`Commande ${this.formatGroupId(groupId)} refusée.`);
     } catch (e) {
       console.error('group_reject failed', e);
-      this.showToast(typeof e === 'string' ? e : "Impossible de refuser cette commande.");
+      this.showToast(this.errorMessage(e, "Impossible de refuser cette commande."));
+    } finally {
+      this.busyGroupId.set(null);
     }
   }
   openRejectDialog(group: OrderGroup): void {
