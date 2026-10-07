@@ -1,9 +1,15 @@
-import { Component, OnInit, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { invoke } from '@tauri-apps/api/core';
+import { Subscription } from 'rxjs';
+import { WebsocketService, WsMessage } from '../../../../core/service/websocket.service';
 const MAX_BLACKLIST_ADDR_LEN = 64;
 const MAX_BLACKLIST_REASON_LEN = 120;
+const IPV4_OCTET = '(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)';
+const IPV4_REGEX = new RegExp(`^${IPV4_OCTET}(\\.${IPV4_OCTET}){3}$`);
+const IPV6_REGEX = /^[0-9a-fA-F:]+$/;
+type BlacklistEntryType = 'ip' | 'username';
 type PeerId = string | number;
 type ConnectionEvent = 'requested' | 'approved' | 'refused' | 'disconnected' | 'blocked';
 interface PendingConnection {
@@ -44,15 +50,36 @@ interface BlacklistEntry {
   templateUrl: './connexion.html',
   styleUrl: './connexion.css',
 })
-export class Connexion implements OnInit {
+export class Connexion implements OnInit, OnDestroy {
   readonly maxBlacklistAddrLen = MAX_BLACKLIST_ADDR_LEN;
   readonly maxBlacklistReasonLen = MAX_BLACKLIST_REASON_LEN;
+  private wsSubscription?: Subscription;
+  private openSubscription?: Subscription;
+  constructor(private ws: WebsocketService) {}
   ngOnInit(): void {
     this.loadWsAddress();
     this.loadPending();
     this.loadConnected();
     this.loadHistory();
     this.loadBlacklist();
+    this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
+      if (msg.type === 'connection_requests') {
+        void this.loadPending(true);
+        void this.loadHistory(true);
+      } else if (msg.type === 'connection_devices') {
+        void this.loadConnected(true);
+        void this.loadHistory(true);
+      }
+    });
+    this.openSubscription = this.ws.onOpened().subscribe(() => {
+      void this.loadPending(true);
+      void this.loadConnected(true);
+      void this.loadHistory(true);
+    });
+  }
+  ngOnDestroy(): void {
+    this.wsSubscription?.unsubscribe();
+    this.openSubscription?.unsubscribe();
   }
   statusMessage = signal('');
   statusIsError = signal(false);
@@ -84,7 +111,6 @@ export class Connexion implements OnInit {
       minute: '2-digit',
     });
   }
-  /** Account username when the device authenticated with one, otherwise the device label. */
   displayName(item: { username?: string | null; label: string }): string {
     return item.username?.trim() || item.label;
   }
@@ -132,8 +158,8 @@ export class Connexion implements OnInit {
   pendingConnections = signal<PendingConnection[]>([]);
   loadingPending = signal(true);
   respondingToId = signal<PeerId | null>(null);
-  private async loadPending(): Promise<void> {
-    this.loadingPending.set(true);
+  private async loadPending(silent = false): Promise<void> {
+    if (!silent) this.loadingPending.set(true);
     try {
       const pending = await invoke<PendingConnection[]>('server', {
         command: { method: 'connection_list_pending' },
@@ -141,7 +167,9 @@ export class Connexion implements OnInit {
       this.pendingConnections.set(pending);
     } catch (e) {
       console.error('failed to load pending connections', e);
-      this.setStatus(this.errorMessage(e, 'Impossible de charger les demandes de connexion.'), true);
+      if (!silent) {
+        this.setStatus(this.errorMessage(e, 'Impossible de charger les demandes de connexion.'), true);
+      }
     } finally {
       this.loadingPending.set(false);
     }
@@ -154,7 +182,7 @@ export class Connexion implements OnInit {
       await invoke<void>('server', {
         command: { method: 'connection_approve', id: connection.id },
       });
-      await Promise.all([this.loadPending(), this.loadConnected()]);
+      await Promise.all([this.loadPending(true), this.loadConnected(true), this.loadHistory(true)]);
       this.setStatus(`« ${this.displayName(connection)} » approuvé.`, false);
     } catch (e) {
       console.error('approve_connection failed', e);
@@ -174,6 +202,7 @@ export class Connexion implements OnInit {
       });
       this.pendingConnections.update((list) => list.filter((c) => c.id !== connection.id));
       this.setStatus(`« ${this.displayName(connection)} » refusé.`, false);
+      void this.loadHistory(true);
     } catch (e) {
       console.error('reject_connection failed', e);
       const message = this.errorMessage(e, 'Échec du refus. Réessayez.');
@@ -185,8 +214,8 @@ export class Connexion implements OnInit {
   connectedDevices = signal<ConnectedDevice[]>([]);
   loadingConnected = signal(true);
   disconnectingId = signal<PeerId | null>(null);
-  private async loadConnected(): Promise<void> {
-    this.loadingConnected.set(true);
+  private async loadConnected(silent = false): Promise<void> {
+    if (!silent) this.loadingConnected.set(true);
     try {
       const devices = await invoke<ConnectedDevice[]>('server', {
         command: { method: 'connection_list_connected' },
@@ -194,7 +223,9 @@ export class Connexion implements OnInit {
       this.connectedDevices.set(devices);
     } catch (e) {
       console.error('failed to load connected devices', e);
-      this.setStatus(this.errorMessage(e, 'Impossible de charger les appareils connectés.'), true);
+      if (!silent) {
+        this.setStatus(this.errorMessage(e, 'Impossible de charger les appareils connectés.'), true);
+      }
     } finally {
       this.loadingConnected.set(false);
     }
@@ -209,6 +240,7 @@ export class Connexion implements OnInit {
       });
       this.connectedDevices.update((list) => list.filter((d) => d.id !== device.id));
       this.setStatus(`« ${this.displayName(device)} » déconnecté.`, false);
+      void this.loadHistory(true);
     } catch (e) {
       console.error('disconnect_device failed', e);
       const message = this.errorMessage(e, 'Échec de la déconnexion. Réessayez.');
@@ -237,7 +269,7 @@ export class Connexion implements OnInit {
       await invoke<BlacklistEntry>('server', {
         command: { method: 'connection_block', id: device.id },
       });
-      await Promise.all([this.loadConnected(), this.loadBlacklist()]);
+      await Promise.all([this.loadConnected(true), this.loadBlacklist(true), this.loadHistory(true)]);
       this.confirmingBlockId.set(null);
       this.setStatus(`« ${this.displayName(device)} » bloqué et déconnecté.`, false);
     } catch (e) {
@@ -250,8 +282,8 @@ export class Connexion implements OnInit {
   }
   history = signal<ConnectionHistoryEntry[]>([]);
   loadingHistory = signal(true);
-  private async loadHistory(): Promise<void> {
-    this.loadingHistory.set(true);
+  private async loadHistory(silent = false): Promise<void> {
+    if (!silent) this.loadingHistory.set(true);
     try {
       const history = await invoke<ConnectionHistoryEntry[]>('server', {
         command: { method: 'connection_history' },
@@ -259,7 +291,9 @@ export class Connexion implements OnInit {
       this.history.set(history);
     } catch (e) {
       console.error('failed to load connection history', e);
-      this.setStatus(this.errorMessage(e, "Impossible de charger l'historique des connexions."), true);
+      if (!silent) {
+        this.setStatus(this.errorMessage(e, "Impossible de charger l'historique des connexions."), true);
+      }
     } finally {
       this.loadingHistory.set(false);
     }
@@ -270,6 +304,14 @@ export class Connexion implements OnInit {
   newBlacklistReason = signal('');
   addingBlacklistEntry = signal(false);
   blacklistFormError = signal('');
+  newBlacklistType = signal<BlacklistEntryType>('ip');
+  setBlacklistType(type: BlacklistEntryType): void {
+    this.newBlacklistType.set(type);
+    this.blacklistFormError.set('');
+  }
+  private isValidIp(value: string): boolean {
+    return IPV4_REGEX.test(value) || (value.includes(':') && IPV6_REGEX.test(value));
+  }
   private readonly trimmedNewBlacklistAddr = computed(() => this.newBlacklistAddr().trim());
   canSubmitBlacklist = computed(() => {
     const addr = this.trimmedNewBlacklistAddr();
@@ -277,11 +319,13 @@ export class Connexion implements OnInit {
       addr.length > 0 &&
       addr.length <= this.maxBlacklistAddrLen &&
       !this.addingBlacklistEntry() &&
-      !this.blacklist().some((b) => b.value.toLowerCase() === addr.toLowerCase())
+      !this.blacklist().some(
+        (b) => b.type === this.newBlacklistType() && b.value.toLowerCase() === addr.toLowerCase(),
+      )
     );
   });
-  private async loadBlacklist(): Promise<void> {
-    this.loadingBlacklist.set(true);
+  private async loadBlacklist(silent = false): Promise<void> {
+    if (!silent) this.loadingBlacklist.set(true);
     try {
       const blacklist = await invoke<BlacklistEntry[]>('server', {
         command: { method: 'connection_blacklist_list' },
@@ -289,21 +333,29 @@ export class Connexion implements OnInit {
       this.blacklist.set(blacklist);
     } catch (e) {
       console.error('failed to load blacklist', e);
-      this.setStatus(this.errorMessage(e, 'Impossible de charger la liste noire.'), true);
+      if (!silent) {
+        this.setStatus(this.errorMessage(e, 'Impossible de charger la liste noire.'), true);
+      }
     } finally {
       this.loadingBlacklist.set(false);
     }
   }
   private validateBlacklistForm(): string {
     const addr = this.trimmedNewBlacklistAddr();
+    const type = this.newBlacklistType();
     if (addr.length === 0) {
-      return 'Saisissez une adresse IP.';
+      return type === 'ip' ? 'Saisissez une adresse IP.' : "Saisissez un nom d'utilisateur.";
+    }
+    if (type === 'ip' && !this.isValidIp(addr)) {
+      return 'Adresse IP invalide (ex : 192.168.1.42).';
     }
     if (addr.length > this.maxBlacklistAddrLen) {
       return `Cette valeur ne peut pas dépasser ${this.maxBlacklistAddrLen} caractères.`;
     }
-    if (this.blacklist().some((b) => b.value.toLowerCase() === addr.toLowerCase())) {
-      return 'Cette adresse est déjà dans la liste noire.';
+    if (this.blacklist().some((b) => b.type === type && b.value.toLowerCase() === addr.toLowerCase())) {
+      return type === 'ip'
+        ? 'Cette adresse est déjà dans la liste noire.'
+        : "Ce nom d'utilisateur est déjà dans la liste noire.";
     }
     return '';
   }
@@ -320,7 +372,7 @@ export class Connexion implements OnInit {
       await invoke<BlacklistEntry>('server', {
         command: {
           method: 'connection_blacklist_add',
-          entry_type: 'ip',
+          entry_type: this.newBlacklistType(),
           value: this.trimmedNewBlacklistAddr(),
           reason: this.newBlacklistReason().trim() || null,
         },

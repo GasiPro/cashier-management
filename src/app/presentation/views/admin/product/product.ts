@@ -48,10 +48,24 @@ export class Product implements OnInit {
       this.items.set(items);
     } catch (e) {
       console.error('failed to load pricing matrix', e);
-      this.loadError.set('Impossible de charger la grille tarifaire.');
+      this.loadError.set(this.errorMessage(e, 'Impossible de charger la grille tarifaire.'));
     } finally {
       this.loadingItems.set(false);
     }
+  }
+  reload(): void {
+    void this.loadItems();
+  }
+  private errorMessage(e: unknown, fallback: string): string {
+    if (typeof e === 'string') return e.trim() || fallback;
+    if (e instanceof Error) return e.message.trim() || fallback;
+    if (e && typeof e === 'object' && 'message' in e) {
+      const message = String((e as { message: unknown }).message).trim();
+      if (message) return message;
+    }
+    if (e === null || e === undefined) return fallback;
+    const text = String(e).trim();
+    return text && text !== '[object Object]' ? text : fallback;
   }
   typeFilter = signal<TypeFilter>('all');
   categoryFilter = signal<string>('all');
@@ -200,7 +214,7 @@ export class Product implements OnInit {
       this.newItemLabelInput?.nativeElement.focus();
     } catch (e) {
       console.error('create_pricing_item failed', e);
-      const message = typeof e === 'string' ? e : "Échec de l'ajout du tarif. Réessayez.";
+      const message = this.errorMessage(e, "Échec de l'ajout du tarif. Réessayez.");
       this.setItemStatus(message, true);
     } finally {
       this.creatingItem.set(false);
@@ -287,7 +301,7 @@ export class Product implements OnInit {
       document.getElementById(`item-edit-btn-${updated.id}`)?.focus();
     } catch (e) {
       console.error('update_pricing_item failed', e);
-      const message = typeof e === 'string' ? e : 'Échec de la mise à jour du tarif. Réessayez.';
+      const message = this.errorMessage(e, 'Échec de la mise à jour du tarif. Réessayez.');
       this.editItemError.set(message);
     } finally {
       this.savingItem.set(false);
@@ -313,7 +327,7 @@ export class Product implements OnInit {
       this.startEditItem(created);
     } catch (e) {
       console.error('create_pricing_item (duplicate) failed', e);
-      const message = typeof e === 'string' ? e : 'Échec de la duplication du tarif. Réessayez.';
+      const message = this.errorMessage(e, 'Échec de la duplication du tarif. Réessayez.');
       this.setItemStatus(message, true);
     } finally {
       this.duplicatingId.set(null);
@@ -351,7 +365,7 @@ export class Product implements OnInit {
       this.newItemLabelInput?.nativeElement.focus();
     } catch (e) {
       console.error('delete_pricing_item failed', e);
-      const message = typeof e === 'string' ? e : 'Échec de la suppression du tarif. Réessayez.';
+      const message = this.errorMessage(e, 'Échec de la suppression du tarif. Réessayez.');
       this.deleteItemError.set(message);
     } finally {
       this.deletingItem.set(false);

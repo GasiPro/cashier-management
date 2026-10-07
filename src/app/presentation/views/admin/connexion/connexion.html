@@ -132,7 +132,9 @@
               </div>
             </div>
             @if (confirmingBlockId() === device.id) {
-            <div class="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+            <div class="mt-3 bg-red-50 border border-red-200 rounded-lg p-3" role="group"
+              [attr.aria-label]="'Confirmer le blocage de ' + displayName(device)"
+              (keydown.escape)="cancelBlockDevice()">
               <p class="text-xs text-red-800">
                 Bloquer « {{ displayName(device) }} » ({{ addrOf(device) }}) ? L'appareil sera déconnecté et son
                 adresse IP ajoutée à la liste noire — il ne pourra plus se reconnecter tant qu'il y figure.
@@ -212,7 +214,7 @@
           Liste noire
         </h2>
         <p class="text-xs text-gray-400 mt-0.5">
-          Bloquez une adresse IP pour l'empêcher de se connecter. Retirez une entrée à tout moment pour
+          Bloquez une adresse IP ou un nom d'utilisateur pour l'empêcher de se connecter. Retirez une entrée à tout moment pour
           autoriser à nouveau la connexion.
         </p>
       </div>
@@ -231,7 +233,12 @@
           <li class="px-3 py-2.5">
             <div class="flex items-center gap-3">
               <div class="min-w-0 flex-1">
-                <p class="text-sm font-medium text-[#1A1A1A] truncate font-mono">{{ entry.value }}</p>
+                <p class="text-sm font-medium text-[#1A1A1A] truncate font-mono">
+                  {{ entry.value }}
+                  <span class="ml-1 font-sans text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                    {{ entry.type === 'username' ? "Utilisateur" : 'IP' }}
+                  </span>
+                </p>
                 @if (entry.reason) {
                 <p class="text-xs text-gray-400 truncate">{{ entry.reason }}</p>
                 }
@@ -248,7 +255,9 @@
               </button>
             </div>
             @if (confirmingRemoveBlacklistId() === entry.id) {
-            <div class="mt-3 pl-0 bg-red-50 border border-red-200 rounded-lg p-3">
+            <div class="mt-3 pl-0 bg-red-50 border border-red-200 rounded-lg p-3" role="group"
+              [attr.aria-label]="'Confirmer le retrait de ' + entry.value"
+              (keydown.escape)="cancelRemoveBlacklistEntry()">
               <p class="text-xs text-red-800">
                 Retirer « {{ entry.value }} » de la liste noire ? La connexion sera de nouveau autorisée.
               </p>
@@ -283,20 +292,51 @@
       </div>
       <form (ngSubmit)="addBlacklistEntry()" novalidate>
         <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          Bloquer une adresse IP
+          Ajouter une entrée
         </h3>
         <div class="space-y-4">
           <div>
+            <span class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+              Type
+            </span>
+            <div class="flex gap-2" role="radiogroup" aria-label="Type d'entrée">
+              <button type="button" role="radio" [attr.aria-checked]="newBlacklistType() === 'ip'"
+                (click)="setBlacklistType('ip')"
+                class="flex-1 text-sm font-medium border rounded-lg px-4 py-2 transition-colors
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
+                [class.bg-[#EFF4FA]]="newBlacklistType() === 'ip'"
+                [class.text-[#1E3A5F]]="newBlacklistType() === 'ip'"
+                [class.border-[#1E3A5F]]="newBlacklistType() === 'ip'"
+                [class.bg-white]="newBlacklistType() !== 'ip'"
+                [class.text-gray-600]="newBlacklistType() !== 'ip'"
+                [class.border-gray-200]="newBlacklistType() !== 'ip'">
+                Adresse IP
+              </button>
+              <button type="button" role="radio" [attr.aria-checked]="newBlacklistType() === 'username'"
+                (click)="setBlacklistType('username')"
+                class="flex-1 text-sm font-medium border rounded-lg px-4 py-2 transition-colors
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
+                [class.bg-[#EFF4FA]]="newBlacklistType() === 'username'"
+                [class.text-[#1E3A5F]]="newBlacklistType() === 'username'"
+                [class.border-[#1E3A5F]]="newBlacklistType() === 'username'"
+                [class.bg-white]="newBlacklistType() !== 'username'"
+                [class.text-gray-600]="newBlacklistType() !== 'username'"
+                [class.border-gray-200]="newBlacklistType() !== 'username'">
+                Nom d'utilisateur
+              </button>
+            </div>
+          </div>
+          <div>
             <label for="new-blacklist-addr"
               class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-              Adresse IP
+              {{ newBlacklistType() === 'ip' ? 'Adresse IP' : "Nom d'utilisateur" }}
             </label>
             <input id="new-blacklist-addr" type="text" name="newBlacklistAddr"
               [ngModel]="newBlacklistAddr()"
               (ngModelChange)="newBlacklistAddr.set($event)"
               spellcheck="false"
               [attr.maxlength]="maxBlacklistAddrLen"
-              placeholder="ex : 192.168.1.42"
+              [placeholder]="newBlacklistType() === 'ip' ? 'ex : 192.168.1.42' : 'ex : caisse2'"
               class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-[#1A1A1A] font-mono
                      focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
           </div>

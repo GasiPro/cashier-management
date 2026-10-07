@@ -83,6 +83,41 @@ export class Order implements OnInit, OnDestroy {
     this.openSubscription?.unsubscribe();
     this.closeSubscription?.unsubscribe();
   }
+  orderStatusMessage = signal('');
+  orderStatusIsError = signal(false);
+  private setOrderStatus(message: string, isError: boolean): void {
+    this.orderStatusMessage.set(message);
+    this.orderStatusIsError.set(isError);
+  }
+  private errorMessage(e: unknown, fallback: string): string {
+    if (typeof e === 'string') return e.trim() || fallback;
+    if (e instanceof Error) return e.message.trim() || fallback;
+    if (e && typeof e === 'object' && 'message' in e) {
+      const message = String((e as { message: unknown }).message).trim();
+      if (message) return message;
+    }
+    if (e === null || e === undefined) return fallback;
+    const text = String(e).trim();
+    return text && text !== '[object Object]' ? text : fallback;
+  }
+  markingPaidGroupId = signal<number | null>(null);
+  async markGroupAsPaid(group: OrderGroup): Promise<void> {
+    if (this.markingPaidGroupId() !== null) return;
+    this.markingPaidGroupId.set(group.groupId);
+    this.setOrderStatus('', false);
+    try {
+      await invoke<void>('order', {
+        command: { method: 'group_mark_paid', group_id: group.groupId },
+      });
+      await this.resyncOrders();
+      this.setOrderStatus(`Commande ${this.formatGroupId(group.groupId)} encaissée.`, false);
+    } catch (e) {
+      console.error('group_mark_paid failed', e);
+      this.setOrderStatus(this.errorMessage(e, "Échec de l'encaissement de la commande. Réessayez."), true);
+    } finally {
+      this.markingPaidGroupId.set(null);
+    }
+  }
   readonly groups = computed<OrderGroup[]>(() => {
     const map = new Map<number, OrderLine[]>();
     for (const line of this.rawOrders()) {
@@ -250,6 +285,7 @@ export class Order implements OnInit, OnDestroy {
     if (this.rejectingGroup()) return;
     this.rejectingGroup.set(true);
     this.rejectGroupError.set('');
+    this.setOrderStatus('', false);
     try {
       await invoke<void>('order', {
         command: {
@@ -258,10 +294,13 @@ export class Order implements OnInit, OnDestroy {
           raison: this.rejectReason().trim() ? this.rejectReason().trim() : null,
         },
       });
+      await this.resyncOrders();
       this.confirmingRejectGroupId.set(null);
+      this.setOrderStatus(`Commande ${this.formatGroupId(group.groupId)} refusée.`, false);
+      document.getElementById(`order-toggle-btn-${group.groupId}`)?.focus();
     } catch (e) {
       console.error('reject_group failed', e);
-      const message = typeof e === 'string' ? e : 'Échec du refus de la commande. Réessayez.';
+      const message = this.errorMessage(e, 'Échec du refus de la commande. Réessayez.');
       this.rejectGroupError.set(message);
     } finally {
       this.rejectingGroup.set(false);

@@ -8,6 +8,7 @@ const MIN_PASSWORD_LEN = 8;
 const MAX_DISPLAY_NAME_LEN = 40;
 const PASSWORD_HAS_LETTER = /[A-Za-z]/;
 const PASSWORD_HAS_DIGIT = /\d/;
+const LS_USERNAME = 'gasipro:username';
 type AccountStatus = 'active' | 'suspended';
 type UserType = 'admin' | 'caissier' | 'comptoir';
 interface UserTypeChoice {
@@ -62,6 +63,22 @@ export class Account implements OnInit {
   }
   accounts = signal<AccountView[]>([]);
   loadingAccounts = signal(true);
+  searchTerm = signal('');
+  readonly filteredAccounts = computed<AccountView[]>(() => {
+    const term = this.searchTerm().trim().toLowerCase();
+    if (!term) return this.accounts();
+    return this.accounts().filter(
+      (a) =>
+        a.username.toLowerCase().includes(term) ||
+        a.display_name.toLowerCase().includes(term) ||
+        this.userTypeLabel(a.user_type).toLowerCase().includes(term),
+    );
+  });
+  private readonly currentUsername = (localStorage.getItem(LS_USERNAME) ?? '').trim().toLowerCase();
+  /** The signed-in admin cannot suspend or delete their own account from this screen. */
+  isSelf(account: AccountView): boolean {
+    return this.currentUsername.length > 0 && account.username.toLowerCase() === this.currentUsername;
+  }
   expandedUsername = signal<string | null>(null);
   private async loadAccounts(): Promise<void> {
     this.loadingAccounts.set(true);
@@ -130,7 +147,7 @@ export class Account implements OnInit {
   }
   togglingStatusUsername = signal<string | null>(null);
   async suspendAccount(account: AccountView): Promise<void> {
-    if (this.togglingStatusUsername()) return;
+    if (this.togglingStatusUsername() || this.isSelf(account)) return;
     this.togglingStatusUsername.set(account.username);
     this.setAccountStatus('', false);
     try {
@@ -139,6 +156,7 @@ export class Account implements OnInit {
       });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.setAccountStatus(`Compte « ${updated.username} » suspendu.`, false);
+      void this.loadActivities(true);
     } catch (e) {
       console.error('suspend_account failed', e);
       const message = this.errorMessage(e, 'Échec de la suspension du compte. Réessayez.');
@@ -157,6 +175,7 @@ export class Account implements OnInit {
       });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.setAccountStatus(`Compte « ${updated.username} » réactivé.`, false);
+      void this.loadActivities(true);
     } catch (e) {
       console.error('reactivate_account failed', e);
       const message = this.errorMessage(e, 'Échec de la réactivation du compte. Réessayez.');
@@ -170,17 +189,33 @@ export class Account implements OnInit {
   editUserType = signal<UserType>('caissier');
   savingEditAccount = signal(false);
   editAccountError = signal('');
-  /** The `update` method also accepts an optional password, but this form only sends
-   *  the display name and the user type. */
+  editPassword = signal('');
+  editPasswordConfirm = signal('');
+  showEditPassword = signal(false);
+  toggleEditPasswordVisibility(): void {
+    this.showEditPassword.update((v) => !v);
+  }
+  /** The password is optional when editing: left empty, the current one is kept. */
   canSubmitEditAccount = computed(() => {
     if (this.savingEditAccount()) return false;
-    return this.editDisplayName().trim().length <= this.maxDisplayNameLen;
+    if (this.editDisplayName().trim().length > this.maxDisplayNameLen) return false;
+    const password = this.editPassword();
+    if (password.length === 0 && this.editPasswordConfirm().length === 0) return true;
+    return (
+      password.length >= this.minPasswordLen &&
+      PASSWORD_HAS_LETTER.test(password) &&
+      PASSWORD_HAS_DIGIT.test(password) &&
+      password === this.editPasswordConfirm()
+    );
   });
   startEditAccount(account: AccountView): void {
     this.confirmingDeleteUsername.set(null);
     this.editingUsername.set(account.username);
     this.editDisplayName.set(account.display_name);
     this.editUserType.set(account.user_type);
+    this.editPassword.set('');
+    this.editPasswordConfirm.set('');
+    this.showEditPassword.set(false);
     this.editAccountError.set('');
     setTimeout(() => {
       document.getElementById(`edit-display-name-${account.username}`)?.focus();
@@ -189,6 +224,9 @@ export class Account implements OnInit {
   cancelEditAccount(): void {
     const username = this.editingUsername();
     this.editingUsername.set(null);
+    this.editPassword.set('');
+    this.editPasswordConfirm.set('');
+    this.showEditPassword.set(false);
     if (username) {
       document.getElementById(`account-edit-btn-${username}`)?.focus();
     }
@@ -196,6 +234,18 @@ export class Account implements OnInit {
   private validateEditAccountForm(): string {
     if (this.editDisplayName().trim().length > this.maxDisplayNameLen) {
       return `Le nom affiché ne peut pas dépasser ${this.maxDisplayNameLen} caractères.`;
+    }
+    const password = this.editPassword();
+    if (password.length > 0 || this.editPasswordConfirm().length > 0) {
+      if (password.length < this.minPasswordLen) {
+        return `Le mot de passe doit contenir au moins ${this.minPasswordLen} caractères.`;
+      }
+      if (!PASSWORD_HAS_LETTER.test(password) || !PASSWORD_HAS_DIGIT.test(password)) {
+        return 'Le mot de passe doit contenir au moins une lettre et un chiffre.';
+      }
+      if (password !== this.editPasswordConfirm()) {
+        return 'Les mots de passe ne correspondent pas.';
+      }
     }
     return '';
   }
@@ -211,17 +261,28 @@ export class Account implements OnInit {
     this.savingEditAccount.set(true);
     try {
       const displayName = this.editDisplayName().trim();
+      const newPassword = this.editPassword();
       const updated = await invoke<AccountView>('account', {
         command: {
           method: 'update',
           username,
           display_name: displayName,
           user_type: this.editUserType(),
+          ...(newPassword.length > 0 ? { password: newPassword } : {}),
         },
       });
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.editingUsername.set(null);
-      this.setAccountStatus(`Compte « ${updated.username} » mis à jour.`, false);
+      this.editPassword.set('');
+      this.editPasswordConfirm.set('');
+      this.showEditPassword.set(false);
+      this.setAccountStatus(
+        newPassword.length > 0
+          ? `Compte « ${updated.username} » mis à jour, mot de passe modifié.`
+          : `Compte « ${updated.username} » mis à jour.`,
+        false,
+      );
+      void this.loadActivities(true);
       document.getElementById(`account-edit-btn-${updated.username}`)?.focus();
     } catch (e) {
       console.error('update_account failed', e);
@@ -235,6 +296,7 @@ export class Account implements OnInit {
   deletingAccount = signal(false);
   deleteAccountError = signal('');
   requestDeleteAccount(account: AccountView): void {
+    if (this.isSelf(account)) return;
     this.editingUsername.set(null);
     this.confirmingDeleteUsername.set(account.username);
     this.deleteAccountError.set('');
@@ -253,7 +315,7 @@ export class Account implements OnInit {
   /** Permanently removes the account — irreversible, unlike `suspendAccount`. Only
    *  reachable after `requestDeleteAccount`'s confirmation step. */
   async confirmDeleteAccount(account: AccountView): Promise<void> {
-    if (this.deletingAccount()) return;
+    if (this.deletingAccount() || this.isSelf(account)) return;
     this.deletingAccount.set(true);
     this.deleteAccountError.set('');
     try {
@@ -263,6 +325,7 @@ export class Account implements OnInit {
       this.accounts.update((list) => list.filter((a) => a.username !== account.username));
       this.confirmingDeleteUsername.set(null);
       this.setAccountStatus(`Compte « ${account.username} » supprimé définitivement.`, false);
+      void this.loadActivities(true);
     } catch (e) {
       console.error('delete_account failed', e);
       const message = this.errorMessage(e, 'Échec de la suppression du compte. Réessayez.');
@@ -354,6 +417,7 @@ export class Account implements OnInit {
       this.accounts.update((list) => [created, ...list]);
       this.setAccountStatus(`Compte « ${created.username} » créé.`, false);
       this.closeCreatePanel();
+      void this.loadActivities(true);
     } catch (e) {
       console.error('create_account failed', e);
       const message = this.errorMessage(e, 'Échec de la création du compte. Réessayez.');
@@ -374,8 +438,8 @@ export class Account implements OnInit {
   // ── Account activity ─────────────────────────────────────────────────────
   activities = signal<AccountActivity[]>([]);
   loadingActivities = signal(true);
-  private async loadActivities(): Promise<void> {
-    this.loadingActivities.set(true);
+  private async loadActivities(silent = false): Promise<void> {
+    if (!silent) this.loadingActivities.set(true);
     try {
       const activities = await invoke<AccountActivity[]>('account', {
         command: { method: 'activities' },
@@ -383,7 +447,9 @@ export class Account implements OnInit {
       this.activities.set(activities);
     } catch (e) {
       console.error('failed to load account activities', e);
-      this.setAccountStatus(this.errorMessage(e, "Impossible de charger l'activité des comptes."), true);
+      if (!silent) {
+        this.setAccountStatus(this.errorMessage(e, "Impossible de charger l'activité des comptes."), true);
+      }
     } finally {
       this.loadingActivities.set(false);
     }

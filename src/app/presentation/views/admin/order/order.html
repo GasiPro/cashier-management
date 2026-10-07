@@ -15,7 +15,7 @@
         {{ wsConnected() ? 'Connecté' : 'Connexion…' }}
       </span>
     </div>
-    <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div class="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-3">
       <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
         <p class="text-[11px] text-gray-400 uppercase tracking-wide">Total</p>
         <p class="text-lg font-semibold text-[#1A1A1A] tabular-nums mt-0.5">{{ totalCount() }}</p>
@@ -27,6 +27,10 @@
       <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
         <p class="text-[11px] text-gray-400 uppercase tracking-wide">En attente</p>
         <p class="text-lg font-semibold text-amber-700 tabular-nums mt-0.5">{{ pendingCount() }}</p>
+      </div>
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+        <p class="text-[11px] text-gray-400 uppercase tracking-wide">Refusées</p>
+        <p class="text-lg font-semibold text-red-700 tabular-nums mt-0.5">{{ rejectedCount() }}</p>
       </div>
       <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
         <p class="text-[11px] text-gray-400 uppercase tracking-wide">Chiffre encaissé</p>
@@ -56,6 +60,7 @@
         [class.text-gray-600]="!isStatusFilterActive('all')"
         [class.border-gray-200]="!isStatusFilterActive('all')">
         Tous
+        <span class="ml-1 tabular-nums opacity-70">({{ totalCount() }})</span>
       </button>
       <button type="button" (click)="setStatusFilter('EN_ATTENTE')" [attr.aria-pressed]="isStatusFilterActive('EN_ATTENTE')"
         class="flex-shrink-0 text-xs font-semibold border px-4 py-1.5 rounded-full transition-colors
@@ -67,6 +72,7 @@
         [class.text-gray-600]="!isStatusFilterActive('EN_ATTENTE')"
         [class.border-gray-200]="!isStatusFilterActive('EN_ATTENTE')">
         En attente
+        <span class="ml-1 tabular-nums opacity-70">({{ pendingCount() }})</span>
       </button>
       <button type="button" (click)="setStatusFilter('PAYE')" [attr.aria-pressed]="isStatusFilterActive('PAYE')"
         class="flex-shrink-0 text-xs font-semibold border px-4 py-1.5 rounded-full transition-colors
@@ -78,6 +84,7 @@
         [class.text-gray-600]="!isStatusFilterActive('PAYE')"
         [class.border-gray-200]="!isStatusFilterActive('PAYE')">
         Payées
+        <span class="ml-1 tabular-nums opacity-70">({{ paidCount() }})</span>
       </button>
       <button type="button" (click)="setStatusFilter('REJETEE')" [attr.aria-pressed]="isStatusFilterActive('REJETEE')"
         class="flex-shrink-0 text-xs font-semibold border px-4 py-1.5 rounded-full transition-colors
@@ -89,6 +96,7 @@
         [class.text-gray-600]="!isStatusFilterActive('REJETEE')"
         [class.border-gray-200]="!isStatusFilterActive('REJETEE')">
         Refusées
+        <span class="ml-1 tabular-nums opacity-70">({{ rejectedCount() }})</span>
       </button>
     </div>
     <div class="mb-6 flex items-center justify-between gap-2">
@@ -114,6 +122,12 @@
         </select>
       </div>
     </div>
+    @if (orderStatusMessage()) {
+    <p role="status" aria-live="polite" class="text-xs mb-3"
+      [class.text-emerald-700]="!orderStatusIsError()" [class.text-red-600]="orderStatusIsError()">
+      {{ orderStatusMessage() }}
+    </p>
+    }
     @if (!wsConnected() && totalCount() === 0) {
     <p class="text-sm text-gray-400 italic py-4">Connexion au poste caisse…</p>
     } @else if (totalCount() === 0) {
@@ -155,6 +169,19 @@
             {{ group.totalAmount | number:'1.0-0' }} Ar
           </p>
           @if (group.status === 'EN_ATTENTE') {
+          <button type="button" [id]="'order-paid-btn-' + group.groupId"
+            (click)="markGroupAsPaid(group)"
+            [disabled]="markingPaidGroupId() !== null"
+            [attr.aria-busy]="markingPaidGroupId() === group.groupId"
+            [attr.aria-label]="'Marquer la commande ' + formatGroupId(group.groupId) + ' comme payée'"
+            title="Marquer comme payée"
+            class="text-gray-400 hover:text-emerald-600 p-2 rounded-md transition-colors flex-shrink-0
+                   disabled:opacity-40
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          </button>
           <button type="button" [id]="'order-reject-btn-' + group.groupId"
             (click)="confirmingRejectGroupId() === group.groupId ? cancelRejectGroup() : requestRejectGroup(group)"
             [attr.aria-expanded]="confirmingRejectGroupId() === group.groupId"
