@@ -317,7 +317,7 @@ export class LoginComponent implements OnInit, OnDestroy {
         this.counterError.set('Cet appareil ou ce nom d\'utilisateur est bloqué par la caisse.');
         this.counterPassword = '';
         this.step.set('counter-rejected');
-      } else if (msg.type === 'protocol_error') {
+      } else if (msg.type === 'error_protocol') {
         this.wsSubscription?.unsubscribe();
         this.ws.disconnect();
         this.ws.clearCounterCredentials();

@@ -287,7 +287,7 @@ export class Counter implements OnInit, OnDestroy {
         this.orderGroups.set(newGroups);
       } else if (msg.type === 'time') {
         this.currentTime.set(msg.data as string);
-      } else if (msg.type === 'account') {
+      } else if (msg.type === 'account_data') {
         const account = msg.data as { display_name: string };
         this.accountDisplayName.set(account.display_name);
         this.editDisplayName.set(account.display_name);
@@ -305,9 +305,9 @@ export class Counter implements OnInit, OnDestroy {
         this.editAccountError.set(msg.data as string);
       } else if (msg.type === 'pricing') {
         this.applyPricing(msg.data as ServiceItem[]);
-      } else if (msg.type === 'order_error') {
+      } else if (msg.type === 'error_order') {
         this.showToast(msg.data as string);
-      } else if (msg.type === 'protocol_error') {
+      } else if (msg.type === 'error_protocol') {
         this.showToast(msg.data as string);
       }
     });
@@ -325,7 +325,7 @@ export class Counter implements OnInit, OnDestroy {
     this.editAccountError.set('');
     this.showAccountPanel = true;
     if (this.wsConnected()) {
-      this.ws.send({ type: 'get_account' });
+      this.ws.send({ type: 'account_get' });
     }
   }
   closeAccountPanel(): void {
@@ -369,7 +369,7 @@ export class Counter implements OnInit, OnDestroy {
     this.savingAccount.set(true);
     const displayName = this.editDisplayName().trim();
     const password = this.editPassword().length > 0 ? this.editPassword() : null;
-    const sent = this.ws.send({ type: 'update_account', display_name: displayName, password });
+    const sent = this.ws.send({ type: 'account_update', display_name: displayName, password });
     if (!sent) {
       this.savingAccount.set(false);
       this.editAccountError.set('Échec de l\'enregistrement — vérifiez la connexion réseau.');
@@ -435,7 +435,7 @@ export class Counter implements OnInit, OnDestroy {
       this.showToast('Non connecté à la caisse — vérifiez la connexion réseau');
       return;
     }
-    const sent = this.ws.send({ type: 'create_order', cart: this.cart });
+    const sent = this.ws.send({ type: 'order_create', cart: this.cart });
     if (!sent) {
       this.showToast("Échec de l'envoi de la commande — vérifiez la connexion réseau.");
       return;
@@ -476,7 +476,7 @@ export class Counter implements OnInit, OnDestroy {
   updateOrderLine(order: Order): void {
     if (!this.wsConnected()) return;
     const sent = this.ws.send({
-      type: 'update_order',
+      type: 'order_update',
       id: order.id,
       quantity: order.quantity,
       unit_price: order.unit_price,
@@ -507,14 +507,14 @@ export class Counter implements OnInit, OnDestroy {
   }
   deleteOrderLine(order: Order): void {
     if (!this.wsConnected()) return;
-    const sent = this.ws.send({ type: 'delete_order', id: order.id });
+    const sent = this.ws.send({ type: 'order_delete', id: order.id });
     if (!sent) {
       this.showToast('Échec de la suppression — vérifiez la connexion réseau.');
     }
   }
   deleteOrderGroup(groupId: number): void {
     if (!this.wsConnected()) return;
-    const sent = this.ws.send({ type: 'delete_order_group', group_id: groupId });
+    const sent = this.ws.send({ type: 'order_delete_group', group_id: groupId });
     if (!sent) {
       this.showToast('Échec de l\'annulation — vérifiez la connexion réseau.');
       return;

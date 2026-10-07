@@ -218,7 +218,7 @@ export class Cashier implements OnInit, OnDestroy {
       .then((max) => this.maxConnectedDevices.set(max))
       .catch(() => {});
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
-      if (msg.type === 'protocol_error') {
+      if (msg.type === 'error_protocol') {
         if (!this.approved) {
           this.returnToLogin();
         }
@@ -232,7 +232,7 @@ export class Cashier implements OnInit, OnDestroy {
         this.currentTime.set(msg.data as string);
       } else if (msg.type === 'connection_requests') {
         this.pendingRequests.set(msg.data as ConnectionRequest[]);
-      } else if (msg.type === 'connected_devices') {
+      } else if (msg.type === 'connection_devices') {
         this.connectedDevices.set(msg.data as ConnectedDevice[]);
       }
     });
@@ -252,7 +252,7 @@ export class Cashier implements OnInit, OnDestroy {
       this.returnToLogin();
       return;
     }
-    this.ws.send({ type: 'cashier_register', username: this.username, token });
+    this.ws.send({ type: 'register_cashier', username: this.username, token });
   }
   private returnToLogin(): void {
     this.wsSubscription?.unsubscribe();
@@ -268,7 +268,6 @@ export class Cashier implements OnInit, OnDestroy {
   get totalPendingRequests(): number {
     return this.pendingRequests().length;
   }
-  /** Account username when the device authenticated with one, otherwise the device label. */
   displayName(device: { username?: string | null; label: string }): string {
     return device.username?.trim() || device.label;
   }

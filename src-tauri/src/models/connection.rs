@@ -97,19 +97,31 @@ pub struct ConnectionHistoryEntry {
     pub timestamp: String,
 }
 #[derive(Debug, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum ClientMessage {
+    #[serde(rename = "register_cashier")]
     CashierRegister { username: String, token: String },
+    #[serde(rename = "register_admin")]
     AdminRegister { #[serde(default)] username: Option<String>, token: String },
+    #[serde(rename = "register_counter")]
     CounterRegister { #[serde(default)] username: Option<String>, token: String },
+    #[serde(rename = "request_connection")]
     RequestConnection { username: String, password: String },
+    #[serde(rename = "order_create")]
     CreateOrder { cart: Vec<CartItem> },
+    #[serde(rename = "order_update")]
     UpdateOrder { id: i64, quantity: u32, unit_price: u32 },
+    #[serde(rename = "order_delete")]
     DeleteOrder { id: i64 },
+    #[serde(rename = "order_delete_group")]
     DeleteOrderGroup { group_id: i64 },
+    #[serde(rename = "request_orders")]
     RequestOrders,
+    #[serde(rename = "request_pricing")]
     RequestPricing,
+    #[serde(rename = "account_get")]
     GetAccount,
+    #[serde(rename = "account_update")]
     UpdateAccount { display_name: String, password: Option<String> },
 }
 #[derive(Debug, Serialize, Clone)]
@@ -141,19 +153,32 @@ pub struct ConnectionHistoryView {
     pub at: String,
 }
 #[derive(Debug, Serialize, Clone)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type")]
 pub enum ServerMessage {
+    #[serde(rename = "orders")]
     Orders { data: Vec<Order> },
+    #[serde(rename = "time")]
     Time { data: String },
+    #[serde(rename = "connection_requests")]
     ConnectionRequests { data: Vec<ConnectionRequest> },
+    #[serde(rename = "connection_devices")]
     ConnectedDevices { data: Vec<ConnectedDevice> },
+    #[serde(rename = "connection_approved")]
     ConnectionApproved,
+    #[serde(rename = "connection_rejected")]
     ConnectionRejected,
+    #[serde(rename = "connection_blocked")]
     ConnectionBlocked,
+    #[serde(rename = "account_data")]
     Account { data: Account },
+    #[serde(rename = "account_updated")]
     AccountUpdated { data: Account },
+    #[serde(rename = "account_update_error")]
     AccountUpdateError { data: String },
+    #[serde(rename = "error_order")]
     OrderError { data: String },
+    #[serde(rename = "pricing")]
     Pricing { data: Vec<ServiceItem> },
+    #[serde(rename = "error_protocol")]
     ProtocolError { data: String },
 }

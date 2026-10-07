@@ -51,7 +51,7 @@ export class Admin implements OnInit, OnDestroy {
   }
   ngOnInit(): void {
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
-      if (msg.type === 'protocol_error') {
+      if (msg.type === 'error_protocol') {
         if (!this.approved) {
           this.returnToLogin();
         }
@@ -65,12 +65,6 @@ export class Admin implements OnInit, OnDestroy {
       this.registerOnOpen();
     }
   }
-  /**
-   * Sends `admin_register` with the token captured at login. The token is single-use,
-   * so a reconnect that lands here after the session was already approved (dropped
-   * connection, etc.) can't be recovered by resending it — the operator has to log in
-   * again to mint a fresh one.
-   */
   private registerOnOpen(): void {
     if (this.approved) {
       this.returnToLogin();
@@ -81,7 +75,7 @@ export class Admin implements OnInit, OnDestroy {
       this.returnToLogin();
       return;
     }
-    this.ws.send({ type: 'admin_register', token });
+    this.ws.send({ type: 'register_admin', token });
   }
   private returnToLogin(): void {
     this.wsSubscription?.unsubscribe();
@@ -94,7 +88,6 @@ export class Admin implements OnInit, OnDestroy {
     this.openSubscription?.unsubscribe();
     this.ws.disconnect();
   }
-  /** True when the given child route segment is the one currently outlet-rendered. */
   isActive(route: string): boolean {
     const path = this.currentUrl().split('?')[0].split('#')[0];
     return path === `/admin/${route}` || path.startsWith(`/admin/${route}/`);
