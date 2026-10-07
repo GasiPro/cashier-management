@@ -105,10 +105,10 @@ const HISTORIQUE_ALL_COUNTERS = 'Tous';
 })
 export class Cashier implements OnInit, OnDestroy {
   username = localStorage.getItem(LS_USERNAME) ?? 'Caisse';
-  private displayName = localStorage.getItem(LS_DISPLAY_NAME) ?? '';
+  private accountDisplayName = localStorage.getItem(LS_DISPLAY_NAME) ?? '';
   /** Name shown in the navbar — the account display name when one exists, otherwise the username. */
   get displayLabel(): string {
-    return this.displayName.trim() ? this.displayName : this.username;
+    return this.accountDisplayName.trim() ? this.accountDisplayName : this.username;
   }
   currentTime = signal('');
   pendingGroups = signal<OrderGroup[]>([]);
