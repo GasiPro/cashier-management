@@ -1,0 +1,119 @@
+@if (store.orderGroups().length > 0) {
+<div class="mt-4 bg-white border border-gray-200 rounded-xl p-5">
+  <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">Historique</h3>
+  <div class="space-y-2">
+    @for (g of store.recentOrderGroups(); track g.groupId) {
+    <div class="text-sm border-b border-gray-50 last:border-0 pb-2 last:pb-0">
+      <div class="flex items-start justify-between gap-2">
+        <div class="flex items-start gap-2 min-w-0 cursor-pointer rounded -m-1 p-1
+                    hover:bg-gray-50 transition-colors
+                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]"
+             role="button" tabindex="0"
+             [attr.aria-label]="'Voir le détail de la commande ' + store.groupLabel(g.groupId)"
+             (click)="store.openGroupDetail(g)"
+             (keydown.enter)="store.openGroupDetail(g)"
+             (keydown.space)="$event.preventDefault(); store.openGroupDetail(g)">
+          <span class="font-mono text-gray-500 font-semibold flex-shrink-0 mt-0.5">{{ store.groupLabel(g.groupId) }}</span>
+          <div class="min-w-0">
+            <p class="text-gray-600 text-xs leading-snug line-clamp-2">{{ store.groupSummary(g) }}</p>
+            <p class="text-gray-400 text-[11px] leading-snug mt-0.5">{{ store.groupTimeLabel(g) }}</p>
+            @if (g.status === 'REJETEE') {
+            <p class="text-red-600 text-[11px] leading-snug mt-0.5 italic">
+              {{ store.groupRejectReason(g) || 'Aucune raison fournie par la caisse.' }}
+            </p>
+            }
+            @if (store.groupHasDiscount(g)) {
+            <span class="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-amber-700
+                         bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full"
+                  title="Un ou plusieurs prix ont été réduits par le comptoir">
+              <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M20.59 13.41L11 3.83A2 2 0 009.59 3.24H4a1 1 0 00-1 1v5.59a2 2 0 00.59 1.41l9.58 9.58a2 2 0 002.82 0l4.6-4.6a2 2 0 000-2.82z"/>
+                <circle cx="7.5" cy="7.5" r="1.5"/>
+              </svg>
+              Remise
+              <span class="sr-only">appliquée sur cette commande</span>
+            </span>
+            }
+            @if (store.groupHasIncrease(g)) {
+            <span class="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-sky-700
+                         bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full"
+                  title="Un ou plusieurs prix ont été majorés par le comptoir">
+              <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M5 12l7-7 7 7"/>
+              </svg>
+              Majoration
+              <span class="sr-only">appliquée sur cette commande</span>
+            </span>
+            }
+          </div>
+        </div>
+        <div class="flex items-center gap-1 flex-shrink-0">
+          @if (g.status === 'EN_ATTENTE') {
+          <button (click)="store.toggleEditGroup(g.groupId)" title="Modifier"
+            class="text-gray-400 hover:text-[#1E3A5F] p-1 rounded transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
+          <button (click)="store.deleteOrderGroup(g.groupId)" title="Annuler la commande"
+            class="text-gray-400 hover:text-red-600 p-1 rounded transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          }
+          <span class="text-xs px-2 py-0.5 rounded-full font-medium" [class]="store.groupStatusClass(g)">
+            {{ store.groupStatusLabel(g) }}
+          </span>
+        </div>
+      </div>
+      @if (g.status === 'EN_ATTENTE' && store.isEditingGroup(g.groupId)) {
+      <div class="mt-2 ml-1 space-y-2 bg-[#F7F9FC] border border-gray-100 rounded-lg p-2.5">
+        @for (line of g.lines; track line.id) {
+        <div class="flex items-center gap-2">
+          <span class="flex-1 min-w-0 text-xs text-gray-600 truncate">{{ line.service_type }}</span>
+          <div class="flex items-center gap-1 flex-shrink-0">
+            <button (click)="store.decrementOrderLine(line)" class="w-5 h-5 rounded border border-gray-200 flex items-center justify-center
+                             text-gray-500 hover:bg-gray-100 transition-colors leading-none text-xs
+                             focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">−</button>
+            <span class="w-4 text-center text-xs font-semibold text-[#1A1A1A] tabular-nums">{{ line.quantity }}</span>
+            <button (click)="store.incrementOrderLine(line)" class="w-5 h-5 rounded border border-gray-200 flex items-center justify-center
+                             text-gray-500 hover:bg-gray-100 transition-colors leading-none text-xs
+                             focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">+</button>
+          </div>
+          <label class="sr-only" [attr.for]="'edit-price-sb-' + line.id">Prix unitaire pour {{ line.service_type }}</label>
+          <input [id]="'edit-price-sb-' + line.id" type="number" [(ngModel)]="line.unit_price" (change)="store.updateOrderLine(line)" min="0"
+            [attr.aria-describedby]="(store.isLineDiscounted(line) || store.isLineIncreased(line)) ? ('edit-price-sb-hint-' + line.id) : null"
+            class="w-16 border rounded px-1 py-0.5 text-xs font-medium flex-shrink-0
+                   text-[#1A1A1A] focus:outline-none focus:border-[#1E3A5F] transition-colors tabular-nums"
+            [class]="store.isLineDiscounted(line) ? 'border-amber-300 bg-amber-50' : store.isLineIncreased(line) ? 'border-sky-300 bg-sky-50' : 'border-gray-200'" />
+          @if (store.isLineDiscounted(line)) {
+          <span [id]="'edit-price-sb-hint-' + line.id" class="text-[10px] text-amber-600 flex-shrink-0 whitespace-nowrap">
+            <span aria-hidden="true">initial {{ line.original_unit_price | number:'1.0-0' }} Ar</span>
+            <span class="sr-only">Prix réduit, initialement {{ line.original_unit_price }} Ar</span>
+          </span>
+          } @else if (store.isLineIncreased(line)) {
+          <span [id]="'edit-price-sb-hint-' + line.id" class="text-[10px] text-sky-600 flex-shrink-0 whitespace-nowrap">
+            <span aria-hidden="true">initial {{ line.original_unit_price | number:'1.0-0' }} Ar</span>
+            <span class="sr-only">Prix majoré, initialement {{ line.original_unit_price }} Ar</span>
+          </span>
+          }
+          <button (click)="store.deleteOrderLine(line)" title="Supprimer cette ligne"
+            class="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400 rounded">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        }
+      </div>
+      }
+    </div>
+    }
+  </div>
+</div>
+}

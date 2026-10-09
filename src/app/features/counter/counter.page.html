@@ -1,0 +1,61 @@
+<div class="bg-[#FAFAFA] h-screen overflow-hidden flex">
+  <app-left-sidebar role="counter"></app-left-sidebar>
+  <div class="flex-1 min-w-0 h-screen overflow-hidden flex flex-col">
+  <app-navbar role="counter" [displayLabel]="store.displayLabel()" [currentTime]="store.currentTime()">
+    <app-connection-status navbarActions></app-connection-status>
+    <ng-container navbarMenuItems>
+      <button role="menuitem" (click)="store.closeAllPanels(); store.showServerPanel = true" autofocus
+        class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
+        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <rect x="2" y="4" width="20" height="16" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 8h.01M6 12h.01"/>
+        </svg>
+        Connexion
+      </button>
+      <button role="menuitem" (click)="store.closeAllPanels(); store.showHistoriquePanel = true"
+        class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
+        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3M21 12a9 9 0 11-9-9 9 9 0 019 9z"/>
+        </svg>
+        <span class="flex-1">Historique</span>
+        @if (store.orderGroups().length > 0) {
+        <span class="text-[10px] bg-gray-100 text-gray-600 font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0">
+          {{ store.orderGroups().length }}
+        </span>
+        }
+      </button>
+      <button role="menuitem" (click)="store.closeAllPanels(); store.openAccountPanel()"
+        class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
+        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+        </svg>
+        Mon compte
+      </button>
+    </ng-container>
+  </app-navbar>
+  <div class="relative flex-1 min-h-0">
+  <app-connection-overlay></app-connection-overlay>
+  <main class="h-full overflow-y-auto max-w-6xl w-full mx-auto px-4 sm:px-6 py-6">
+    <div class="flex flex-col lg:flex-row gap-6">
+      <div class="flex-1 min-w-0">
+        <app-service-picker></app-service-picker>
+      </div>
+      <div class="w-full lg:w-80 flex-shrink-0 sticky top-20">
+        <div class="sticky top-20">
+          <app-ticket-summary></app-ticket-summary>
+          <app-order-history></app-order-history>
+        </div>
+      </div>
+    </div>
+  </main>
+  <app-server-panel></app-server-panel>
+  <app-order-history-panel></app-order-history-panel>
+  <app-account-panel></app-account-panel>
+  <app-order-detail-modal></app-order-detail-modal>
+  </div>
+  <app-bottom-bar role="counter" [connected]="store.wsConnected()" [notifications]="store.notifications()"></app-bottom-bar>
+  </div>
+</div>

@@ -1,0 +1,131 @@
+@if (store.showServerPanel) {
+<div class="absolute inset-0 z-30 flex items-start justify-end" (click)="store.showServerPanel = false">
+  <div class="absolute inset-0 bg-black/20"></div>
+  <div class="relative bg-white border-l border-gray-200 shadow-2xl w-full max-w-sm h-full overflow-y-auto flex flex-col"
+       (click)="$event.stopPropagation()">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+      <h2 class="text-base font-semibold text-[#1A1A1A]">Connexion serveur</h2>
+      <button (click)="store.showServerPanel = false"
+        class="text-gray-400 hover:text-gray-600 p-1
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <div class="flex-1 px-6 py-5 space-y-6">
+      <div>
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Connexion actuelle</p>
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-gray-500">Identifiant</span>
+            <span class="text-sm font-semibold text-[#1A1A1A]">{{ store.username }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-gray-500">Serveur caisse</span>
+            <span class="text-sm font-mono text-[#1E3A5F]">{{ store.cashierHost }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-gray-500">Statut</span>
+            <span class="flex items-center gap-1 text-xs font-medium"
+              [class]="store.wsConnected() ? 'text-emerald-600' : store.waitingApproval() ? 'text-amber-600' : 'text-red-500'">
+              <span class="w-1.5 h-1.5 rounded-full inline-block"
+                [class]="store.wsConnected() ? 'bg-emerald-400' : store.waitingApproval() ? 'bg-amber-400 animate-pulse' : 'bg-red-400'">
+              </span>
+              @if (store.wsConnected()) { Connecté et approuvé }
+              @else if (store.waitingApproval()) { En attente d'approbation }
+              @else { Déconnecté }
+            </span>
+          </div>
+        </div>
+      </div>
+      @if (store.serverConnectError()) {
+      <div role="alert" aria-live="assertive"
+        class="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
+        <svg class="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+        </svg>
+        <p class="text-xs text-red-700">{{ store.serverConnectError() }}</p>
+      </div>
+      }
+      <div>
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Se connecter à un autre serveur</p>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1.5" id="new-cashier-host-label">Adresse de la caisse</label>
+            <input
+              type="text"
+              [(ngModel)]="store.newCashierHost"
+              (input)="store.onNewCashierHostChanged()"
+              (blur)="store.checkNewCashierHost()"
+              (keydown.enter)="store.connectToNewCashier()"
+              placeholder="ex : 192.168.1.5:8080"
+              autocomplete="off"
+              spellcheck="false"
+              inputmode="url"
+              pattern="^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|[A-Za-z0-9.-]+):\d{1,5}$"
+              title="Adresse IP (ou nom d'hôte) suivie du port, ex : 192.168.1.5:8080"
+              aria-labelledby="new-cashier-host-label"
+              aria-describedby="new-cashier-host-hint"
+              [attr.aria-invalid]="store.newCashierAddressCheck() === 'invalid_format' || store.newCashierAddressCheck() === 'unreachable' ? 'true' : null"
+              class="w-full border rounded-lg px-3.5 py-2.5 text-sm font-mono text-[#1A1A1A]
+                     focus:outline-none transition-colors placeholder-gray-300"
+              [class]="store.newCashierAddressCheck() === 'invalid_format' || store.newCashierAddressCheck() === 'unreachable'
+                ? 'border-red-300 focus:border-red-500'
+                : 'border-gray-200 focus:border-[#1E3A5F]'" />
+            <div id="new-cashier-host-hint" aria-live="polite">
+              @if (store.newCashierAddressCheck() === 'checking') {
+              <p class="text-xs text-gray-400 mt-1.5 flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full border-2 border-gray-300 border-t-transparent animate-spin inline-block"></span>
+                Vérification de l'adresse…
+              </p>
+              } @else if (store.newCashierAddressCheck() === 'invalid_format') {
+              <p class="text-xs text-red-600 mt-1.5 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Format d'adresse invalide. Utilisez IP:port, ex : 192.168.1.5:8080.
+              </p>
+              } @else if (store.newCashierAddressCheck() === 'unreachable') {
+              <p class="text-xs text-amber-600 mt-1.5 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-8.94 3.94h.008v.008h-.008v-.008z" />
+                </svg>
+                Aucun serveur trouvé à cette adresse — il est peut-être éteint. Vérifiez-la avant de continuer.
+              </p>
+              } @else if (store.newCashierAddressCheck() === 'reachable') {
+              <p class="text-xs text-emerald-600 mt-1.5 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+                Serveur détecté à cette adresse.
+              </p>
+              }
+            </div>
+          </div>
+          <button (click)="store.connectToNewCashier()"
+            [disabled]="!store.newCashierHost.trim() || store.newCashierAddressCheck() === 'invalid_format'"
+            [attr.aria-describedby]="store.newCashierAddressCheck() === 'invalid_format' ? 'new-cashier-host-hint' : null"
+            class="w-full bg-[#1E3A5F] text-white text-sm font-semibold py-2.5 rounded-lg
+                   hover:bg-[#16304f] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
+            Changer de serveur
+          </button>
+        </div>
+      </div>
+      <div class="pt-2 border-t border-gray-100">
+        <button (click)="store.disconnectFromCashier()"
+          class="w-full border border-red-200 text-red-600 text-sm font-medium py-2.5 rounded-lg
+                 hover:bg-red-50 active:scale-95 transition-all
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
+          Déconnecter ce poste
+        </button>
+        <p class="text-xs text-gray-400 text-center mt-2">
+          Retourne à l'écran de connexion.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+}

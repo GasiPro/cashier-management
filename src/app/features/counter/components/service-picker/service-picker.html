@@ -1,0 +1,41 @@
+<h1 class="text-base font-semibold text-[#1A1A1A] mb-4">Nouvelle commande</h1>
+<div class="flex gap-2 mb-3">
+  @for (tf of store.typeFilters; track tf.value) {
+  <button (click)="store.setTypeFilter(tf.value)" [class]="store.activeTypeFilter === tf.value
+        ? 'bg-[#1E3A5F] text-white border-[#1E3A5F]'
+        : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'" class="flex-shrink-0 text-xs font-semibold border px-4 py-1.5 rounded-full
+             transition-colors whitespace-nowrap
+             focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+    {{ tf.label }}
+  </button>
+  }
+</div>
+<div class="flex gap-2 mb-4 overflow-x-auto pb-1">
+  @for (cat of store.filteredCategories; track cat) {
+  <button (click)="store.setCategory(cat)" [class]="store.activeCategory === cat
+        ? 'bg-[#EFF4FA] text-[#1E3A5F] border-[#1E3A5F]'
+        : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'" class="flex-shrink-0 text-xs font-medium border px-3 py-1 rounded-full
+             transition-colors whitespace-nowrap
+             focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+    {{ cat }}
+  </button>
+  }
+</div>
+<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+  @for (service of store.filteredServices; track service.id) {
+  <button (click)="store.selectService(service)" [class]="store.isInCart(service)
+        ? 'bg-[#EFF4FA] border-[#1E3A5F]'
+        : 'bg-white border-gray-200 hover:border-gray-300'" class="relative text-left border rounded-lg px-3.5 py-3 transition-all
+             focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+    @if (store.cartQty(service) > 0) {
+    <span class="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#1E3A5F] text-white
+                     text-[10px] font-bold flex items-center justify-center leading-none">
+      {{ store.cartQty(service) }}
+    </span>
+    }
+    <p class="text-xs text-gray-400 mb-0.5 leading-tight">{{ service.category }}</p>
+    <p class="text-sm font-medium text-[#1A1A1A] leading-snug">{{ service.label }}</p>
+    <p class="text-sm font-semibold text-[#1E3A5F] mt-1 tabular-nums">{{ service.price | number:'1.0-0' }} Ar</p>
+  </button>
+  }
+</div>
