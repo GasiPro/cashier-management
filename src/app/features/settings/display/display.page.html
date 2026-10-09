@@ -1,0 +1,139 @@
+<div class="bg-[#FAFAFA] h-screen overflow-hidden flex">
+  <app-left-sidebar role="cashier"></app-left-sidebar>
+  <div class="flex-1 min-w-0 h-screen overflow-hidden flex flex-col">
+  <app-navbar role="cashier" [displayLabel]="displayLabel" [currentTime]="currentTime()" [backRoute]="'/reglages'" [showMenuButton]="false"></app-navbar>
+  <main class="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-6">
+    <div class="max-w-3xl mx-auto space-y-6">
+      @if (loading()) {
+      <p class="text-sm text-gray-400 italic py-4">Chargement…</p>
+      } @else {
+      <section aria-labelledby="theme-setting-heading"
+        class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
+        <div class="mb-4">
+          <h2 id="theme-setting-heading" class="text-base font-semibold text-[#1A1A1A]">
+            Thème
+          </h2>
+          <p class="text-xs text-gray-400 mt-0.5">
+            Choisissez l'apparence générale de l'application.
+          </p>
+        </div>
+        <div role="radiogroup" aria-labelledby="theme-setting-heading" class="flex flex-wrap gap-2">
+          @for (choice of themeChoices; track choice.value) {
+          <button type="button" role="radio" [attr.aria-checked]="themeDraft() === choice.value"
+            (click)="selectTheme(choice.value)"
+            class="px-4 py-2 rounded-lg text-sm font-semibold border transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
+            [class.bg-[#1E3A5F]]="themeDraft() === choice.value"
+            [class.text-white]="themeDraft() === choice.value"
+            [class.border-[#1E3A5F]]="themeDraft() === choice.value"
+            [class.bg-white]="themeDraft() !== choice.value"
+            [class.text-gray-600]="themeDraft() !== choice.value"
+            [class.border-gray-200]="themeDraft() !== choice.value">
+            {{ choice.label }}
+          </button>
+          }
+        </div>
+      </section>
+      <section aria-labelledby="background-setting-heading"
+        class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
+        <div class="mb-4">
+          <h2 id="background-setting-heading" class="text-base font-semibold text-[#1A1A1A]">
+            Couleur de fond
+          </h2>
+          <p class="text-xs text-gray-400 mt-0.5">
+            Personnalisez la couleur de fond de l'application.
+          </p>
+        </div>
+        <div class="flex items-center gap-3 mb-4">
+          <input type="color" [value]="backgroundColorDraft()"
+            (input)="onBackgroundColorInput($any($event.target).value)"
+            aria-label="Choisir une couleur de fond personnalisée"
+            class="w-10 h-10 rounded-md border border-gray-200 cursor-pointer p-0 bg-transparent" />
+          <span class="text-sm font-mono text-gray-600">{{ backgroundColorDraft() }}</span>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          @for (preset of backgroundPresets; track preset) {
+          <button type="button" [attr.aria-label]="'Couleur ' + preset"
+            [attr.aria-pressed]="backgroundColorDraft() === preset"
+            (click)="selectBackgroundPreset(preset)"
+            [style.background-color]="preset"
+            class="w-8 h-8 rounded-full border-2 transition-transform hover:scale-110
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
+            [class.border-[#1E3A5F]]="backgroundColorDraft() === preset"
+            [class.border-gray-200]="backgroundColorDraft() !== preset">
+          </button>
+          }
+        </div>
+      </section>
+      <section aria-labelledby="font-size-setting-heading"
+        class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
+        <div class="mb-4">
+          <h2 id="font-size-setting-heading" class="text-base font-semibold text-[#1A1A1A]">
+            Taille de police
+          </h2>
+          <p class="text-xs text-gray-400 mt-0.5">
+            Ajustez la taille du texte affiché dans l'application.
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" (click)="decrementFontSize()"
+            [disabled]="fontSizeDraft() <= minFontSize"
+            aria-label="Diminuer la taille de police"
+            class="w-9 h-9 flex items-center justify-center rounded-md border border-gray-200 text-gray-600
+                   hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
+            </svg>
+          </button>
+          <input type="number" inputmode="numeric" [attr.min]="minFontSize" [attr.max]="maxFontSize"
+            [value]="fontSizeDraft()"
+            (input)="onFontSizeInput($any($event.target).value)"
+            aria-describedby="font-size-help"
+            class="w-20 text-center font-semibold text-[#1A1A1A] border border-gray-200 rounded-md py-1.5
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]" />
+          <button type="button" (click)="incrementFontSize()"
+            [disabled]="fontSizeDraft() >= maxFontSize"
+            aria-label="Augmenter la taille de police"
+            class="w-9 h-9 flex items-center justify-center rounded-md border border-gray-200 text-gray-600
+                   hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m-7-7h14" />
+            </svg>
+          </button>
+          <span id="font-size-help" class="text-xs text-gray-400 ml-1">px</span>
+        </div>
+        <p class="mt-4 text-sm text-gray-600" [style.font-size.px]="fontSizeDraft()">
+          Aperçu du texte à cette taille.
+        </p>
+      </section>
+      <div class="flex items-center gap-2">
+        <button type="button" (click)="save()"
+          [disabled]="!dirty() || saving()"
+          [attr.aria-busy]="saving()"
+          class="bg-[#1E3A5F] text-white text-sm font-semibold px-4 py-2 rounded-md
+                 hover:bg-[#16304f] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
+                 disabled:opacity-40 disabled:hover:bg-[#1E3A5F] disabled:active:scale-100
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+          {{ saving() ? 'Enregistrement…' : 'Enregistrer' }}
+        </button>
+        <button type="button" (click)="resetDraft()"
+          [disabled]="!dirty() || saving()"
+          class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
+                 disabled:opacity-40
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+          Annuler
+        </button>
+      </div>
+      <p role="status" aria-live="polite" class="text-xs"
+        [class.text-red-600]="statusIsError()"
+        [class.text-emerald-600]="!statusIsError() && statusMessage()">
+        {{ statusMessage() }}
+      </p>
+      }
+    </div>
+  </main>
+  <app-bottom-bar role="cashier"></app-bottom-bar>
+  </div>
+</div>

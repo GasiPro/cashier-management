@@ -1,0 +1,431 @@
+<div class="bg-[#FAFAFA] h-screen overflow-hidden flex">
+  <app-left-sidebar role="cashier"></app-left-sidebar>
+  <div class="flex-1 min-w-0 h-screen overflow-hidden flex flex-col">
+  <app-navbar role="cashier" [displayLabel]="displayLabel" [currentTime]="currentTime()" [backRoute]="'/caissier'" [showMenuButton]="false"></app-navbar>
+  <main class="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-6">
+    <div class="max-w-3xl mx-auto space-y-6">
+      <section aria-labelledby="devices-setting-heading"
+        class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
+        <div class="mb-1">
+          <h2 id="devices-setting-heading" class="text-base font-semibold text-[#1A1A1A]">
+            Appareils connectés
+          </h2>
+          <p class="text-xs text-gray-400 mt-0.5">
+            Limite le nombre de comptoirs pouvant être connectés à la caisse en même temps.
+          </p>
+        </div>
+        @if (loadingDevicesSetting()) {
+        <p class="text-sm text-gray-400 italic py-4">Chargement…</p>
+        } @else {
+        <div class="flex items-center gap-2 mt-4 mb-5">
+          <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            Actuellement connectés
+          </span>
+          <span role="status" aria-live="polite"
+            class="text-xs bg-gray-100 text-gray-700 font-semibold px-1.5 py-0.5 rounded-full">
+            {{ connectedDevicesCount() }}{{ maxConnectedDevices() > 0 ? ' / ' + maxConnectedDevices() : '' }}
+          </span>
+        </div>
+        @if (atDevicesCapacity()) {
+        <div role="status" class="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-5">
+          <svg class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+          <p class="text-xs text-amber-800">
+            La limite est atteinte : les nouvelles demandes de connexion seront automatiquement refusées
+            tant qu'un appareil ne se déconnecte pas ou que la limite n'est pas augmentée.
+          </p>
+        </div>
+        }
+        <div>
+          <label for="max-connected-devices-input"
+            class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Nombre maximum d'appareils connectés
+          </label>
+          <div class="flex items-center gap-2">
+            <button type="button" (click)="decrementMaxConnectedDevices()"
+              [disabled]="maxConnectedDevicesDraft() <= 0"
+              aria-label="Diminuer le nombre maximum d'appareils"
+              class="w-9 h-9 flex items-center justify-center rounded-md border border-gray-200 text-gray-600
+                     hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent transition-colors
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
+              </svg>
+            </button>
+            <input id="max-connected-devices-input" type="number" inputmode="numeric"
+              min="0" [attr.max]="maxAllowedConnectedDevices"
+              [value]="maxConnectedDevicesDraft()"
+              (input)="onMaxConnectedDevicesInput($any($event.target).value)"
+              aria-describedby="max-connected-devices-help"
+              class="w-20 text-center font-semibold text-[#1A1A1A] border border-gray-200 rounded-md py-1.5
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]" />
+            <button type="button" (click)="incrementMaxConnectedDevices()"
+              [disabled]="maxConnectedDevicesDraft() >= maxAllowedConnectedDevices"
+              aria-label="Augmenter le nombre maximum d'appareils"
+              class="w-9 h-9 flex items-center justify-center rounded-md border border-gray-200 text-gray-600
+                     hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent transition-colors
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
+            <span class="text-sm text-gray-400 ml-1">
+              {{ maxConnectedDevicesDraft() === 0 ? 'Illimité' : 'appareil(s)' }}
+            </span>
+          </div>
+          <p id="max-connected-devices-help" class="text-xs text-gray-400 mt-2">
+            0 = illimité. Un appareil déjà connecté n'est pas déconnecté si vous baissez la limite —
+            elle s'applique seulement aux nouvelles connexions.
+          </p>
+        </div>
+        <div class="flex items-center gap-2 mt-5">
+          <button type="button" (click)="saveMaxConnectedDevices()"
+            [disabled]="!devicesSettingDirty() || savingDevicesSetting()"
+            [attr.aria-busy]="savingDevicesSetting()"
+            class="bg-[#1E3A5F] text-white text-sm font-semibold px-4 py-2 rounded-md
+                   hover:bg-[#16304f] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
+                   disabled:opacity-40 disabled:hover:bg-[#1E3A5F] disabled:active:scale-100
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            {{ savingDevicesSetting() ? 'Enregistrement…' : 'Enregistrer' }}
+          </button>
+          @if (devicesSettingDirty()) {
+          <button type="button" (click)="resetMaxConnectedDevicesDraft()"
+            [disabled]="savingDevicesSetting()"
+            class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            Annuler
+          </button>
+          }
+        </div>
+        <p role="status" aria-live="polite"
+          class="text-xs mt-3"
+          [class.text-red-600]="statusIsError()"
+          [class.text-emerald-600]="!statusIsError() && statusMessage()">
+          {{ statusMessage() }}
+        </p>
+        }
+      </section>
+      <section aria-labelledby="display-setting-heading"
+        class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h2 id="display-setting-heading" class="text-base font-semibold text-[#1A1A1A]">
+              Affichage
+            </h2>
+            <p class="text-xs text-gray-400 mt-0.5">
+              Thème, couleur de fond et taille de police.
+            </p>
+          </div>
+          <button type="button" (click)="goToDisplaySettings()"
+            class="text-sm font-semibold text-[#1E3A5F] hover:underline px-3 py-2 rounded-md
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            Gérer →
+          </button>
+        </div>
+      </section>
+      <section aria-labelledby="cashier-accounts-heading"
+        class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
+        <div class="mb-1">
+          <h2 id="cashier-accounts-heading" class="text-base font-semibold text-[#1A1A1A]">
+            Comptes caissier
+          </h2>
+          <p class="text-xs text-gray-400 mt-0.5">
+            Créez un compte pour un poste caisse. Le nom d'utilisateur ne pourra plus être modifié une fois le
+            compte créé ; le nom affiché et le mot de passe, eux, peuvent l'être à tout moment. Un compte peut être
+            suspendu (temporaire, réversible) ou supprimé définitivement (irréversible).
+          </p>
+        </div>
+        <div class="mt-4 mb-6">
+          <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Comptes existants
+          </h3>
+          @if (loadingAccounts()) {
+          <p class="text-sm text-gray-400 italic py-2">Chargement…</p>
+          } @else if (accounts().length === 0) {
+          <p class="text-sm text-gray-400 py-2">Aucun compte caissier créé pour le moment.</p>
+          } @else {
+          <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg"
+            [attr.aria-label]="accounts().length + ' compte(s) caissier créé(s)'">
+            @for (account of accounts(); track account.username) {
+            <li class="px-3 py-2.5" [class.bg-gray-50]="account.status === 'suspended'">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-[#1E3A5F]/10 text-[#1E3A5F] text-xs font-semibold
+                            flex items-center justify-center flex-shrink-0 uppercase"
+                  [class.opacity-50]="account.status === 'suspended'" aria-hidden="true">
+                  {{ (account.display_name || account.username).charAt(0) }}
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-2">
+                    <p class="text-sm font-medium text-[#1A1A1A] truncate selectable"
+                      [class.text-gray-400]="account.status === 'suspended'">
+                      {{ account.display_name || account.username }}
+                    </p>
+                    @if (account.status === 'suspended') {
+                    <span class="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide
+                                 text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5
+                                 flex-shrink-0">
+                      Suspendu
+                    </span>
+                    }
+                  </div>
+                  @if (account.display_name) {
+                  <p class="text-xs text-gray-400 truncate selectable">{{ account.username }}</p>
+                  } @else {
+                  <p class="text-xs text-gray-400 italic truncate">Aucun nom affiché défini</p>
+                  }
+                  <p class="text-xs text-gray-400">Créé le {{ formatAccountDate(account.created_at) }}</p>
+                </div>
+                <div class="flex items-center flex-shrink-0 gap-0.5">
+                  @if (account.status === 'suspended') {
+                  <button type="button" [id]="'account-suspend-toggle-' + account.username"
+                    (click)="reactivateAccount(account)"
+                    [disabled]="togglingStatusUsername() === account.username"
+                    [attr.aria-busy]="togglingStatusUsername() === account.username"
+                    [attr.aria-label]="'Réactiver le compte ' + (account.display_name || account.username)"
+                    class="text-gray-400 hover:text-emerald-600 p-2 rounded-md transition-colors
+                           disabled:opacity-40
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                    </svg>
+                  </button>
+                  } @else {
+                  <button type="button" [id]="'account-suspend-toggle-' + account.username"
+                    (click)="suspendAccount(account)"
+                    [disabled]="togglingStatusUsername() === account.username"
+                    [attr.aria-busy]="togglingStatusUsername() === account.username"
+                    [attr.aria-label]="'Suspendre le compte ' + (account.display_name || account.username)"
+                    class="text-gray-400 hover:text-amber-600 p-2 rounded-md transition-colors
+                           disabled:opacity-40
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+                    </svg>
+                  </button>
+                  }
+                  <button type="button" [id]="'account-edit-btn-' + account.username"
+                    (click)="editingUsername() === account.username ? cancelEditAccount() : startEditAccount(account)"
+                    [attr.aria-expanded]="editingUsername() === account.username"
+                    [attr.aria-controls]="'account-edit-panel-' + account.username"
+                    [attr.aria-label]="(editingUsername() === account.username ? 'Fermer la modification du compte ' : 'Modifier le compte ') + (account.display_name || account.username)"
+                    class="text-gray-400 hover:text-[#1E3A5F] p-2 rounded-md transition-colors
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z" />
+                    </svg>
+                  </button>
+                  <button type="button" [id]="'account-delete-btn-' + account.username"
+                    (click)="confirmingDeleteUsername() === account.username ? cancelDeleteAccount() : requestDeleteAccount(account)"
+                    [attr.aria-expanded]="confirmingDeleteUsername() === account.username"
+                    [attr.aria-controls]="'account-delete-panel-' + account.username"
+                    [attr.aria-label]="'Supprimer définitivement le compte ' + (account.display_name || account.username)"
+                    class="text-gray-400 hover:text-red-600 p-2 rounded-md transition-colors
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              @if (confirmingDeleteUsername() === account.username) {
+              <div [id]="'account-delete-panel-' + account.username" role="group"
+                [attr.aria-label]="'Confirmer la suppression du compte ' + account.username"
+                (keydown.escape)="cancelDeleteAccount()"
+                class="mt-3 pl-11">
+                <div class="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p class="text-xs text-red-800">
+                    Supprimer définitivement le compte « {{ account.username }} » ? Cette action est
+                    <strong>irréversible</strong> — contrairement à la suspension, le compte ne pourra pas être
+                    restauré. Si vous souhaitez seulement le rendre inutilisable temporairement, préférez
+                    « Suspendre ».
+                  </p>
+                  @if (deleteAccountError()) {
+                  <p role="alert" aria-live="assertive" class="text-xs text-red-700 font-medium mt-2">
+                    {{ deleteAccountError() }}
+                  </p>
+                  }
+                  <div class="flex items-center gap-2 mt-3">
+                    <button type="button" [id]="'account-delete-confirm-btn-' + account.username"
+                      (click)="confirmDeleteAccount(account)"
+                      [disabled]="deletingAccount()"
+                      [attr.aria-busy]="deletingAccount()"
+                      class="bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-md
+                             hover:bg-red-700 active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
+                             disabled:opacity-40 disabled:hover:bg-red-600 disabled:active:scale-100
+                             focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600">
+                      {{ deletingAccount() ? 'Suppression…' : 'Supprimer définitivement' }}
+                    </button>
+                    <button type="button" (click)="cancelDeleteAccount()"
+                      [disabled]="deletingAccount()"
+                      class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
+                             focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              </div>
+              }
+              @if (editingUsername() === account.username) {
+              <div [id]="'account-edit-panel-' + account.username" role="group"
+                [attr.aria-label]="'Modifier le compte ' + account.username"
+                (keydown.escape)="cancelEditAccount()"
+                class="mt-3 pl-11 space-y-4">
+                <div>
+                  <label [attr.for]="'edit-display-name-' + account.username"
+                    class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    Nom affiché
+                  </label>
+                  <input [id]="'edit-display-name-' + account.username" type="text"
+                    [name]="'editDisplayName-' + account.username"
+                    [ngModel]="editDisplayName()"
+                    (ngModelChange)="editDisplayName.set($event)"
+                    [attr.maxlength]="maxDisplayNameLen"
+                    [attr.aria-describedby]="'edit-display-name-help-' + account.username"
+                    placeholder="ex : Caisse principale"
+                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A]
+                           focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+                  <p [id]="'edit-display-name-help-' + account.username" class="text-xs text-gray-400 mt-1.5">
+                    Facultatif — laissé vide, c'est à la personne qui utilise ce compte au comptoir de le remplir.
+                  </p>
+                </div>
+                <p class="text-xs text-gray-400">
+                  Le mot de passe ne peut pas être modifié ici. Il est changé par la personne
+                  elle-même depuis le comptoir, via sa connexion WebSocket.
+                </p>
+                <p role="alert" aria-live="assertive" class="text-xs text-red-600">{{ editAccountError() }}</p>
+                <div class="flex items-center gap-2">
+                  <button type="button" (click)="saveEditAccount()"
+                    [disabled]="!canSubmitEditAccount()"
+                    [attr.aria-busy]="savingEditAccount()"
+                    class="bg-[#1E3A5F] text-white text-sm font-semibold px-4 py-2 rounded-md
+                           hover:bg-[#16304f] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
+                           disabled:opacity-40 disabled:hover:bg-[#1E3A5F] disabled:active:scale-100
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                    {{ savingEditAccount() ? 'Enregistrement…' : 'Enregistrer' }}
+                  </button>
+                  <button type="button" (click)="cancelEditAccount()"
+                    [disabled]="savingEditAccount()"
+                    class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                    Annuler
+                  </button>
+                </div>
+              </div>
+              }
+            </li>
+            }
+          </ul>
+          }
+        </div>
+        <form (ngSubmit)="createAccount()" novalidate>
+          <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Nouveau compte
+          </h3>
+          <div class="space-y-4">
+            <div>
+              <label for="new-account-username"
+                class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Nom d'utilisateur
+              </label>
+              <input #newAccountUsernameInput id="new-account-username" type="text"
+                name="newAccountUsername"
+                [ngModel]="newAccountUsername()"
+                (ngModelChange)="newAccountUsername.set($event)"
+                autocomplete="username"
+                spellcheck="false"
+                required
+                [attr.minlength]="minUsernameLen"
+                [attr.maxlength]="maxUsernameLen"
+                aria-describedby="new-account-username-help"
+                placeholder="ex : Caisse 2"
+                class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-[#1A1A1A]
+                       focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+              <p id="new-account-username-help" class="text-xs text-gray-400 mt-1.5">
+                Définitif une fois créé — choisissez un nom que vous reconnaîtrez facilement.
+              </p>
+            </div>
+            <div>
+              <label for="new-account-password"
+                class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Mot de passe
+              </label>
+              <div class="flex items-center gap-2">
+                <input id="new-account-password" [type]="showAccountPassword() ? 'text' : 'password'"
+                  name="newAccountPassword"
+                  [ngModel]="newAccountPassword()"
+                  (ngModelChange)="newAccountPassword.set($event)"
+                  autocomplete="new-password"
+                  required
+                  [attr.minlength]="minPasswordLen"
+                  aria-describedby="new-account-password-help"
+                  placeholder="••••••••"
+                  class="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-[#1A1A1A]
+                         focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+                <button type="button" (click)="toggleAccountPasswordVisibility()"
+                  [attr.aria-pressed]="showAccountPassword()"
+                  [attr.aria-label]="showAccountPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'"
+                  class="flex-shrink-0 border border-gray-200 bg-white rounded-lg p-2.5
+                         hover:bg-gray-50 transition-colors
+                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                  @if (showAccountPassword()) {
+                  <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.243 4.243L9.88 9.88" />
+                  </svg>
+                  } @else {
+                  <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  }
+                </button>
+              </div>
+              <p id="new-account-password-help" class="text-xs text-gray-400 mt-1.5">
+                Au moins {{ minPasswordLen }} caractères, avec une lettre et un chiffre.
+              </p>
+            </div>
+            <div>
+              <label for="new-account-password-confirm"
+                class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Confirmer le mot de passe
+              </label>
+              <input id="new-account-password-confirm" [type]="showAccountPassword() ? 'text' : 'password'"
+                name="newAccountPasswordConfirm"
+                [ngModel]="newAccountPasswordConfirm()"
+                (ngModelChange)="newAccountPasswordConfirm.set($event)"
+                autocomplete="new-password"
+                required
+                placeholder="••••••••"
+                class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-[#1A1A1A]
+                       focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+            </div>
+          </div>
+          <p role="alert" aria-live="assertive" class="text-xs text-red-600 mt-3">
+            {{ accountFormError() }}
+          </p>
+          <div class="flex items-center gap-2 mt-2">
+            <button type="submit"
+              [disabled]="!canSubmitAccount()"
+              [attr.aria-busy]="creatingAccount()"
+              class="bg-[#1E3A5F] text-white text-sm font-semibold px-4 py-2 rounded-md
+                     hover:bg-[#16304f] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
+                     disabled:opacity-40 disabled:hover:bg-[#1E3A5F] disabled:active:scale-100
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+              {{ creatingAccount() ? 'Création…' : 'Créer le compte' }}
+            </button>
+          </div>
+          <p role="status" aria-live="polite"
+            class="text-xs mt-3"
+            [class.text-red-600]="accountStatusIsError()"
+            [class.text-emerald-600]="!accountStatusIsError() && accountStatusMessage()">
+            {{ accountStatusMessage() }}
+          </p>
+        </form>
+      </section>
+    </div>
+  </main>
+  <app-bottom-bar role="cashier"></app-bottom-bar>
+  </div>
+</div>
