@@ -1,0 +1,110 @@
+<div class="bg-[#FAFAFA] h-screen overflow-hidden flex">
+  <app-left-sidebar role="cashier"></app-left-sidebar>
+  <div class="flex-1 min-w-0 h-screen overflow-hidden flex flex-col">
+  <app-navbar role="cashier" [displayLabel]="displayLabel" [currentTime]="currentTime()" [menuBadgeCount]="totalPendingRequests">
+    <app-day-summary navbarActions [revenue]="store.todaysRevenue()" [transactions]="store.todaysPaidGroups().length"></app-day-summary>
+    <ng-container navbarMenuItems>
+      <button role="menuitem" (click)="store.openPanel.set('report')" autofocus
+        class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
+        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6M12 17V7M15 17v-3M4 21h16M5 21V5a1 1 0 011-1h12a1 1 0 011 1v16"/>
+        </svg>
+        Rapport
+      </button>
+      <button role="menuitem" (click)="store.openPanel.set('history')"
+        class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
+        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3M21 12a9 9 0 11-9-9 9 9 0 019 9z"/>
+        </svg>
+        Historique
+      </button>
+      <button role="menuitem" (click)="store.openPanel.set('devices')"
+        class="w-full flex items-center gap-3 text-left text-sm text-gray-700 px-4 py-2.5 hover:bg-gray-50 transition-colors
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
+        <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 21h8M12 17v4"/>
+        </svg>
+        <span class="flex-1">Appareils</span>
+        @if (totalPendingRequests > 0) {
+        <span class="text-[10px] bg-red-100 text-red-700 font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0">
+          {{ totalPendingRequests }}
+        </span>
+        }
+      </button>
+    </ng-container>
+  </app-navbar>
+  <div class="relative flex-1 min-h-0">
+  <main class="h-full overflow-y-auto max-w-5xl w-full mx-auto px-4 sm:px-6 py-6">
+    <app-pending-list
+      [groups]="orders.pendingGroups()"
+      [busyGroupId]="store.busyGroupId()"
+      (opened)="store.openGroupDetail($event)"
+      (rejectRequested)="store.openRejectDialog($event)"
+      (payRequested)="markGroupAsPaid($event)"></app-pending-list>
+    <app-paid-table
+      [groups]="store.recentPaidGroups()"
+      [totalCount]="orders.paidGroups().length"
+      (opened)="store.openGroupDetail($event)"></app-paid-table>
+  </main>
+  @if (store.openPanel() === 'devices') {
+  <app-devices-panel
+    [wsAddress]="wsAddress()"
+    [pendingRequests]="devices.pendingRequests()"
+    [connectedDevices]="devices.connectedDevices()"
+    [maxConnectedDevices]="devices.maxConnectedDevices()"
+    [atDeviceCapacity]="devices.atDeviceCapacity()"
+    [busyDeviceId]="store.busyDeviceId()"
+    [confirmingBlockDeviceId]="store.confirmingBlockDeviceId()"
+    (closed)="store.closePanel()"
+    (copyAddress)="copyWsAddress()"
+    (settingsRequested)="goToSettings()"
+    (approved)="approveDevice($event)"
+    (rejected)="rejectDevice($event)"
+    (disconnected)="disconnectDevice($event)"
+    (blockRequested)="store.requestBlockDevice($event)"
+    (blockCancelled)="store.cancelBlockDevice()"
+    (blocked)="blockDevice($event)"></app-devices-panel>
+  }
+  @if (store.openPanel() === 'report') {
+  <app-report-panel
+    [paidOrders]="orders.paidOrders()"
+    [pendingCount]="orders.pendingGroups().length"
+    (closed)="store.closePanel()"
+    (notify)="store.notify($event)"></app-report-panel>
+  }
+  @if (store.openPanel() === 'history') {
+  <app-history-panel
+    [groups]="store.filteredHistoriqueGroups()"
+    [usernames]="store.historiqueUsernames()"
+    [selectedUser]="store.selectedHistoriqueUser()"
+    [allCounters]="store.historiqueAllCounters"
+    [totalAmount]="store.historiqueTotalAmount()"
+    [groupsByDay]="store.historiqueGroupsByDay()"
+    [hasPaidGroups]="orders.paidGroups().length > 0"
+    (closed)="store.closePanel()"
+    (userFilterChange)="store.setHistoriqueUserFilter($event)"
+    (groupOpened)="store.openGroupDetail($event)"></app-history-panel>
+  }
+  @if (store.selectedGroup(); as group) {
+  <app-order-detail-modal
+    [group]="group"
+    [busyGroupId]="store.busyGroupId()"
+    (closed)="store.closeGroupDetail()"
+    (rejectRequested)="store.openRejectDialog($event)"
+    (payRequested)="markGroupAsPaid($event); store.closeGroupDetail()"></app-order-detail-modal>
+  }
+  @if (store.rejectGroupTarget(); as group) {
+  <app-reject-dialog
+    [group]="group"
+    [reason]="store.rejectReason()"
+    (reasonChange)="store.rejectReason.set($event)"
+    (closed)="store.closeRejectDialog()"
+    (confirmed)="confirmRejectGroup()"></app-reject-dialog>
+  }
+  </div>
+  <app-bottom-bar role="cashier" [connected]="wsConnected()" [notifications]="store.notifications()"></app-bottom-bar>
+  </div>
+</div>

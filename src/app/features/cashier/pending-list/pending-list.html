@@ -1,0 +1,93 @@
+<section class="mb-8">
+  <div class="flex items-center gap-2 mb-4">
+    <span class="inline-flex items-center gap-1.5 text-xs font-medium
+                 text-amber-700 bg-amber-50 border border-amber-200
+                 px-2.5 py-1 rounded-full uppercase tracking-wide">
+      <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block"></span>
+      En attente
+    </span>
+    <span class="text-sm text-gray-400">({{ groups().length }})</span>
+  </div>
+  @if (groups().length === 0) {
+  <div class="text-center py-16 text-gray-400">
+    <svg class="w-8 h-8 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2
+                 M9 5a2 2 0 002 2h2a2 2 0 002-2" />
+    </svg>
+    <p class="text-sm">Aucun client en attente d'encaissement.</p>
+  </div>
+  }
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    @for (group of groups(); track group.groupId) {
+    <div class="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 hover:shadow-sm
+                transition-all flex flex-col justify-between cursor-pointer
+                focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]"
+         role="button" tabindex="0"
+         [attr.aria-label]="'Voir le détail de la commande ' + formatGroupId(group.groupId)"
+         (click)="opened.emit(group)"
+         (keydown.enter)="opened.emit(group)"
+         (keydown.space)="$event.preventDefault(); opened.emit(group)">
+      <div>
+        <div class="flex items-start justify-between mb-2">
+          <div class="min-w-0">
+            <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Commande</p>
+            <p class="text-2xl font-bold text-[#1E3A5F] tabular-nums leading-tight">{{ formatGroupId(group.groupId) }}</p>
+            @if (group.counterUsername) {
+            <p class="text-xs text-gray-400 mt-0.5">Envoyée par <span class="font-medium text-gray-500">{{ group.counterUsername }}</span></p>
+            }
+          </div>
+          <span class="text-xs text-gray-400 mt-1 whitespace-nowrap">{{ formatCreatedLabel(group) }}</span>
+        </div>
+        <p class="text-sm text-gray-600 leading-snug mb-3 line-clamp-3">{{ getGroupItemsSummary(group) }}</p>
+        @if (groupHasDiscount(group) || groupHasIncrease(group)) {
+        <div class="flex items-center gap-1.5 mb-3">
+          @if (groupHasDiscount(group)) {
+          <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700
+                       bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full"
+                title="Un ou plusieurs prix ont été réduits par le comptoir">
+            Remise
+            <span class="sr-only">appliquée sur cette commande</span>
+          </span>
+          }
+          @if (groupHasIncrease(group)) {
+          <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700
+                       bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full"
+                title="Un ou plusieurs prix ont été majorés par le comptoir">
+            Majoration
+            <span class="sr-only">appliquée sur cette commande</span>
+          </span>
+          }
+        </div>
+        }
+      </div>
+      <div class="flex items-center justify-between pt-3 border-t border-gray-50">
+        <div>
+          <p class="text-xs text-gray-400">Total à payer</p>
+          <p class="text-lg font-bold text-[#1A1A1A] tabular-nums">{{ group.totalAmount | number:'1.0-0' }} Ar</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button (click)="$event.stopPropagation(); rejectRequested.emit(group)" title="Refuser la commande"
+            [disabled]="busyGroupId() !== null"
+            [attr.aria-label]="'Refuser la commande ' + formatGroupId(group.groupId)"
+            class="text-gray-400 hover:text-red-600 border border-gray-200 hover:border-red-200 hover:bg-red-50
+                   p-2 rounded-md transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <button (click)="$event.stopPropagation(); payRequested.emit(group.groupId)"
+            [disabled]="busyGroupId() !== null"
+            [attr.aria-busy]="busyGroupId() === group.groupId"
+            [attr.aria-label]="'Encaisser la commande ' + formatGroupId(group.groupId)"
+            class="bg-[#1E3A5F] text-white text-sm font-medium px-4 py-2 rounded-md
+                           hover:bg-[#16304f] active:scale-95 transition-all
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
+            Encaisser
+          </button>
+        </div>
+      </div>
+    </div>
+    }
+  </div>
+</section>
