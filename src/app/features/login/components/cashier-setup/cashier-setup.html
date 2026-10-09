@@ -1,0 +1,120 @@
+<div>
+  <button (click)="back.emit()" class="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600
+                                     transition-colors mb-8 -ml-1 focus-visible:outline focus-visible:outline-2
+                                     focus-visible:outline-[#1E3A5F] rounded">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+    </svg>
+    Retour
+  </button>
+  <div class="mb-8">
+    <div class="flex items-center gap-2 mb-1">
+      <div class="w-6 h-6 rounded-full bg-amber-50 flex items-center justify-center flex-shrink-0">
+        <svg class="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 14l2 2 4-4M4 6h16M4 10h16M4 14h4m-4 4h4" />
+        </svg>
+      </div>
+      <span class="text-xs font-medium text-amber-600 uppercase tracking-wide">Poste caisse</span>
+    </div>
+    <h1 class="text-2xl font-semibold text-[#1A1A1A]">Configuration caissier</h1>
+    <p class="text-sm text-gray-500 mt-1">Entrez votre nom, puis partagez l'adresse aux comptoirs.</p>
+  </div>
+  <div class="space-y-5">
+    <div>
+      <label for="cashier-username" class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+        Votre nom / identifiant
+      </label>
+      <input
+        id="cashier-username"
+        type="text"
+        [(ngModel)]="username"
+        (keydown.enter)="submitted.emit()"
+        placeholder="ex : Caisse principale"
+        autocomplete="username"
+        autofocus
+        [attr.aria-invalid]="error() ? true : null"
+        aria-describedby="cashier-login-error"
+        class="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-[#1A1A1A]
+               focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+    </div>
+    <div>
+      <label for="cashier-password" class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+        Mot de passe
+      </label>
+      <div class="flex items-center gap-2">
+        <input
+          id="cashier-password"
+          [type]="showPassword() ? 'text' : 'password'"
+          [(ngModel)]="password"
+          (keydown.enter)="submitted.emit()"
+          placeholder="••••••••"
+          autocomplete="current-password"
+          [attr.aria-invalid]="error() ? true : null"
+          aria-describedby="cashier-password-help cashier-login-error"
+          class="flex-1 border border-gray-200 rounded-lg px-4 py-3 text-sm text-[#1A1A1A]
+                 focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+        <button type="button" (click)="togglePasswordVisibility()"
+          [attr.aria-pressed]="showPassword()"
+          [attr.aria-label]="showPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'"
+          class="flex-shrink-0 border border-gray-200 bg-white rounded-lg p-3
+                 hover:bg-gray-50 transition-colors
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+          @if (showPassword()) {
+          <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.243 4.243L9.88 9.88" />
+          </svg>
+          } @else {
+          <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          }
+        </button>
+      </div>
+      <p id="cashier-password-help" class="text-xs text-gray-400 mt-1.5">
+        Au moins 8 caractères, avec une lettre et un chiffre.
+      </p>
+    </div>
+    <p id="cashier-login-error" role="alert" aria-live="assertive" class="text-xs text-red-600">
+      {{ error() }}
+    </p>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+        Adresse à partager aux comptoirs
+      </label>
+      @if (loadingAddress()) {
+      <div class="flex items-center gap-2 py-3 px-4 border border-gray-100 rounded-lg bg-gray-50">
+        <span class="w-3 h-3 rounded-full border-2 border-[#1E3A5F] border-t-transparent animate-spin inline-block"></span>
+        <span class="text-sm text-gray-400">Récupération de l'adresse…</span>
+      </div>
+      } @else {
+      <div class="flex items-center gap-2">
+        <div class="flex-1 font-mono text-sm bg-[#EFF4FA] border border-[#1E3A5F]/20 text-[#1E3A5F]
+                    px-4 py-3 rounded-lg select-all break-all">
+          {{ address() }}
+        </div>
+        <button (click)="copyAddress.emit()"
+          title="Copier"
+          class="flex-shrink-0 border border-gray-200 bg-white rounded-lg p-3
+                 hover:bg-gray-50 transition-colors
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+          <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+          </svg>
+        </button>
+      </div>
+      <p class="text-xs text-gray-400 mt-1.5">Communiquez cette adresse aux postes comptoirs sur le même réseau.</p>
+      }
+    </div>
+    <button
+      (click)="submitted.emit()"
+      [disabled]="!username().trim() || !password() || authenticating()"
+      [attr.aria-busy]="authenticating()"
+      class="w-full bg-[#1E3A5F] text-white text-sm font-semibold py-3 rounded-lg
+             hover:bg-[#16304f] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
+             focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
+      {{ authenticating() ? 'Connexion…' : 'Démarrer la caisse' }}
+    </button>
+  </div>
+</div>

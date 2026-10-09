@@ -1,0 +1,52 @@
+<div>
+  <div class="mb-10">
+    <h1 class="text-2xl font-semibold text-[#1A1A1A] mb-1">Accès au système</h1>
+    <p class="text-sm text-gray-500">Choisissez votre rôle pour continuer.</p>
+  </div>
+  <div class="space-y-3">
+    <button
+      (click)="selectCashier.emit()"
+      class="w-full text-left group border border-gray-200 rounded-lg px-5 py-5 bg-white
+             hover:border-[#1E3A5F] hover:shadow-sm transition-all duration-150
+             focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:outline-offset-2">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-xs font-medium text-gray-400 uppercase tracking-widest mb-1">Poste caisse</p>
+          <h2 class="text-lg font-semibold text-[#1A1A1A] group-hover:text-[#1E3A5F] transition-colors">Caissier</h2>
+          <p class="text-sm text-gray-500 mt-1">Réception, validation et encaissement des commandes</p>
+        </div>
+        <div class="ml-4 flex-shrink-0">
+          <div class="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center
+                      group-hover:bg-amber-100 transition-colors">
+            <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 14l2 2 4-4M4 6h16M4 10h16M4 14h4m-4 4h4" />
+            </svg>
+          </div>
+        </div>
+      </div>
+    </button>
+    <button
+      (click)="selectCounter.emit()"
+      class="w-full text-left group border border-gray-200 rounded-lg px-5 py-5 bg-white
+             hover:border-[#1E3A5F] hover:shadow-sm transition-all duration-150
+             focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:outline-offset-2">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-xs font-medium text-gray-400 uppercase tracking-widest mb-1">Poste service</p>
+          <h2 class="text-lg font-semibold text-[#1A1A1A] group-hover:text-[#1E3A5F] transition-colors">Comptoir</h2>
+          <p class="text-sm text-gray-500 mt-1">Saisie et envoi des commandes clients à la caisse</p>
+        </div>
+        <div class="ml-4 flex-shrink-0">
+          <div class="w-10 h-10 rounded-full bg-[#1E3A5F]/10 flex items-center justify-center
+                      group-hover:bg-[#1E3A5F]/20 transition-colors">
+            <svg class="w-5 h-5 text-[#1E3A5F]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2
+                       M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+          </div>
+        </div>
+      </div>
+    </button>
+  </div>
+</div>

@@ -1,0 +1,136 @@
+<div>
+  <button (click)="back.emit()" class="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600
+                                     transition-colors mb-8 -ml-1 focus-visible:outline focus-visible:outline-2
+                                     focus-visible:outline-[#1E3A5F] rounded">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+    </svg>
+    Retour
+  </button>
+  <div class="mb-8">
+    <div class="flex items-center gap-2 mb-1">
+      <div class="w-6 h-6 rounded-full bg-[#1E3A5F]/10 flex items-center justify-center flex-shrink-0">
+        <svg class="w-3.5 h-3.5 text-[#1E3A5F]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2
+                   M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+        </svg>
+      </div>
+      <span class="text-xs font-medium text-[#1E3A5F] uppercase tracking-wide">Poste service</span>
+    </div>
+    <h1 class="text-2xl font-semibold text-[#1A1A1A]">Connexion au comptoir</h1>
+    <p class="text-sm text-gray-500 mt-1">Entrez vos informations et connectez-vous à la caisse.</p>
+  </div>
+  <div class="space-y-4">
+    <div>
+      <label for="counter-username" class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+        Votre nom / identifiant
+      </label>
+      <input
+        id="counter-username"
+        type="text"
+        [(ngModel)]="username"
+        placeholder="ex : Comptoir 1"
+        autocomplete="username"
+        autofocus
+        [attr.aria-invalid]="error() ? true : null"
+        aria-describedby="counter-login-error"
+        class="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-[#1A1A1A]
+               focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+    </div>
+    <div>
+      <label for="counter-password" class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+        Mot de passe
+      </label>
+      <div class="flex items-center gap-2">
+        <input
+          id="counter-password"
+          [type]="showPassword() ? 'text' : 'password'"
+          [(ngModel)]="password"
+          (keydown.enter)="submitted.emit()"
+          placeholder="••••••••"
+          autocomplete="current-password"
+          [attr.aria-invalid]="error() ? true : null"
+          aria-describedby="counter-password-help counter-login-error"
+          class="flex-1 border border-gray-200 rounded-lg px-4 py-3 text-sm text-[#1A1A1A]
+                 focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+        <button type="button" (click)="togglePasswordVisibility()"
+          [attr.aria-pressed]="showPassword()"
+          [attr.aria-label]="showPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'"
+          class="flex-shrink-0 border border-gray-200 bg-white rounded-lg p-3
+                 hover:bg-gray-50 transition-colors
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+          @if (showPassword()) {
+          <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.243 4.243L9.88 9.88" />
+          </svg>
+          } @else {
+          <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          }
+        </button>
+      </div>
+      <p id="counter-password-help" class="text-xs text-gray-400 mt-1.5">
+        Au moins 8 caractères, avec une lettre et un chiffre.
+      </p>
+    </div>
+    <p id="counter-login-error" role="alert" aria-live="assertive" class="text-xs text-red-600">
+      {{ error() }}
+    </p>
+    <div>
+      <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5" id="counter-ws-url-label">
+        Adresse de la caisse
+      </label>
+      <input
+        type="text"
+        [(ngModel)]="wsUrl"
+        (input)="urlChanged.emit()"
+        (blur)="urlBlurred.emit()"
+        (keydown.enter)="submitted.emit()"
+        placeholder="ex : 192.168.1.5:8080"
+        autocomplete="off"
+        spellcheck="false"
+        aria-labelledby="counter-ws-url-label"
+        aria-describedby="counter-ws-url-hint"
+        class="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm font-mono text-[#1A1A1A]
+               focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+      <div id="counter-ws-url-hint" aria-live="polite">
+        @if (addressCheck() === 'checking') {
+        <p class="text-xs text-gray-400 mt-1.5 flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full border-2 border-gray-300 border-t-transparent animate-spin inline-block"></span>
+          Vérification de l'adresse…
+        </p>
+        } @else if (addressCheck() === 'unreachable') {
+        <p class="text-xs text-amber-600 mt-1.5 flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-8.94 3.94h.008v.008h-.008v-.008z" />
+          </svg>
+          Aucun serveur trouvé à cette adresse. Vérifiez-la avant de continuer.
+        </p>
+        } @else if (addressCheck() === 'reachable') {
+        <p class="text-xs text-emerald-600 mt-1.5 flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+          Serveur détecté à cette adresse.
+        </p>
+        } @else {
+        <p class="text-xs text-gray-400 mt-1.5">
+          Obtenez cette adresse depuis la page de configuration du caissier.
+        </p>
+        }
+      </div>
+    </div>
+    <button
+      (click)="submitted.emit()"
+      [disabled]="!username().trim() || !password() || !wsUrl().trim()"
+      class="w-full bg-[#1E3A5F] text-white text-sm font-semibold py-3 rounded-lg
+             hover:bg-[#16304f] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
+             focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
+      Se connecter et demander l'accès
+    </button>
+  </div>
+</div>

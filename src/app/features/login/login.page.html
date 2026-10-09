@@ -1,0 +1,62 @@
+<div class="bg-[#FAFAFA] min-h-screen flex flex-col">
+  <header class="px-6 py-5 border-b border-gray-200">
+    <div class="max-w-md mx-auto flex items-center gap-3">
+      <div class="w-7 h-7 bg-[#1E3A5F] rounded-sm flex items-center justify-center">
+        <span class="text-white text-xs font-bold">G</span>
+      </div>
+      <span class="text-sm font-semibold tracking-wide text-gray-800">GasiPro</span>
+    </div>
+  </header>
+  <main class="flex-1 flex items-center justify-center px-4 py-12">
+    <div class="w-full max-w-md">
+      @if (step() === 'role') {
+      <app-role-picker (selectCashier)="selectCashier()" (selectCounter)="selectCounter()" />
+      }
+      @if (step() === 'cashier-setup') {
+      <app-cashier-setup
+        [(username)]="cashierUsername"
+        [(password)]="cashierPassword"
+        [(showPassword)]="showCashierPassword"
+        [error]="cashierError()"
+        [loadingAddress]="loadingWsAddress()"
+        [address]="wsAddress()"
+        [authenticating]="authenticatingCashier()"
+        (back)="goBack()"
+        (submitted)="enterAsCashier()"
+        (copyAddress)="copyWsAddress()" />
+      }
+      @if (step() === 'counter-setup') {
+      <app-counter-setup
+        [(username)]="counterUsername"
+        [(password)]="counterPassword"
+        [(wsUrl)]="counterWsUrl"
+        [(showPassword)]="showCounterPassword"
+        [error]="counterError()"
+        [addressCheck]="addressCheck()"
+        (back)="goBack()"
+        (submitted)="connectAsCounter()"
+        (urlChanged)="onCounterWsUrlChanged()"
+        (urlBlurred)="checkCounterWsUrl()" />
+      }
+      @if (step() === 'counter-waiting' || step() === 'counter-rejected') {
+      <app-counter-waiting
+        [rejected]="step() === 'counter-rejected'"
+        [username]="counterUsername()"
+        [wsUrl]="counterWsUrl()"
+        [error]="counterError()"
+        (cancelled)="goBack()"
+        (retry)="retryConnection()" />
+      }
+    </div>
+  </main>
+  @if (showAdminModal()) {
+  <app-admin-modal
+    [(username)]="adminUsername"
+    [(password)]="adminPassword"
+    [(showPassword)]="showAdminPassword"
+    [error]="adminError()"
+    [authenticating]="authenticatingAdmin()"
+    (closed)="closeAdminModal()"
+    (submitted)="submitAdminLogin()" />
+  }
+</div>
