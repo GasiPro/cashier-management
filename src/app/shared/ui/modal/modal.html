@@ -1,0 +1,29 @@
+<div [class]="overlayClasses()" (click)="closed.emit()" (keydown.escape)="closed.emit()">
+  @if (backdropClasses()) {
+  <div [class]="backdropClasses()" [attr.aria-hidden]="variant() === 'sheet' ? 'true' : null"></div>
+  }
+  <div [attr.id]="panelId() || null" [class]="panelClasses()"
+       role="dialog" aria-modal="true" [attr.aria-labelledby]="headingId() || null"
+       (click)="$event.stopPropagation()">
+    @if (heading()) {
+    <div [class]="headerClasses()">
+      <div class="min-w-0">
+        <h2 [attr.id]="headingId() || null" [class]="headingClasses()">{{ heading() }}</h2>
+        @if (subtitle()) {
+        <p class="text-xs text-gray-400 mt-0.5">{{ subtitle() }}</p>
+        }
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <ng-content select="[modalHeaderExtra]" />
+        <button type="button" (click)="closed.emit()" autofocus [attr.aria-label]="closeLabel()"
+          [class]="closeButtonClasses()">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    }
+    <ng-content />
+  </div>
+</div>

@@ -1,0 +1,6 @@
+<span [class]="classes()" [attr.title]="tooltip() || null">
+  <ng-content />
+  @if (srText()) {
+  <span class="sr-only">{{ srText() }}</span>
+  }
+</span>

@@ -1,0 +1,24 @@
+<div [attr.id]="panelId()" role="group"
+  [attr.aria-label]="ariaLabel()"
+  (keydown.escape)="cancelled.emit()"
+  class="px-3 pb-3">
+  <div class="bg-red-50 border border-red-200 rounded-lg p-3">
+    <p class="text-xs text-red-800"><ng-content /></p>
+    @if (error()) {
+    <p role="alert" aria-live="assertive" class="text-xs text-red-700 font-medium mt-2">
+      {{ error() }}
+    </p>
+    }
+    <div class="flex items-center gap-2 mt-3">
+      <button type="button" app-button variant="danger" [attr.id]="confirmButtonId() || null"
+        (click)="confirmed.emit()"
+        [disabled]="busy()"
+        [attr.aria-busy]="busy()">
+        {{ busy() ? busyLabel() : confirmLabel() }}
+      </button>
+      <button type="button" app-button variant="ghost" (click)="cancelled.emit()" [disabled]="busy()">
+        {{ cancelLabel() }}
+      </button>
+    </div>
+  </div>
+</div>

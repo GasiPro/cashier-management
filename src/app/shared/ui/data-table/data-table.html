@@ -1,0 +1,14 @@
+<div class="bg-white border border-gray-200 rounded-lg overflow-x-auto">
+  <table class="w-full text-sm table-auto" [style.min-width.px]="minWidth()">
+    <thead>
+      <tr class="border-b border-gray-100 bg-gray-50">
+        @for (col of columns(); track $index) {
+        <th [class]="headerClasses(col)">{{ col.label }}</th>
+        }
+      </tr>
+    </thead>
+    <tbody>
+      <ng-content />
+    </tbody>
+  </table>
+</div>
