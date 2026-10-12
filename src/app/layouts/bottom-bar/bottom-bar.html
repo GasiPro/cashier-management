@@ -1,0 +1,88 @@
+<footer class="bg-white border-t border-gray-100 px-4 sm:px-6 py-2 sticky bottom-0 z-40 shrink-0" role="contentinfo"
+  [attr.aria-label]="roleLabel + ' — barre d\'état'">
+  <div class="max-w-6xl mx-auto flex items-center justify-between gap-4">
+    <div class="lex items-center gap-2 text-xs text-gray-400">
+      <span class="text-sm capitalize selectable">{{ currentDate() }}</span>
+      <span class="text-sm" aria-hidden="true"> • </span>
+      <span class="text-sm tabular-nums selectable">{{ currentTime() }}</span>
+    </div>
+    <div class="px-6 py-3 text-center shrink-0">
+      <p class="text-xs text-gray-400">Système de prise de commande</p>
+    </div>
+    <button type="button" (click)="onNotificationsClick()" [attr.aria-label]="resolvedNotificationLabel"
+      [title]="resolvedNotificationLabel" class="relative flex items-center gap-1.5 text-gray-400 hover:text-gray-600 transition-colors p-1 rounded
+             focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+      <span class="w-1.5 h-1.5 rounded-full inline-block flex-shrink-0"
+        [class]="connected ? 'bg-emerald-400' : 'bg-red-400'" aria-hidden="true"></span>
+      <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+      </svg>
+      @if (hasNewNotifications()) {
+      <span class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold
+                   rounded-full flex items-center justify-center leading-none">
+        {{ displayNotificationCount }}
+      </span>
+      }
+    </button>
+  </div>
+  @if (notificationsPanelOpen()) {
+  <div class="fixed right-4 sm:right-6 z-30 bg-white border border-gray-200 rounded-lg shadow-lg
+              flex flex-col overflow-hidden transition-all duration-200"
+    [class]="notificationsExpanded() ? 'bottom-16 w-80 sm:w-96 h-[70vh] max-h-[600px]' : 'bottom-16 w-72'" role="dialog"
+    [attr.aria-label]="resolvedNotificationLabel">
+    <div class="flex items-center justify-between gap-2 px-3 py-2 flex-shrink-0"
+      [class]="notificationsExpanded() ? 'border-b border-gray-100' : ''">
+      <button type="button" (click)="closeNotificationsPanel()" aria-label="Fermer les notifications" title="Fermer"
+        class="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded flex-shrink-0
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+      <span class="text-sm font-medium text-gray-700 truncate">{{ resolvedNotificationLabel }}</span>
+      <button type="button" (click)="toggleNotificationsExpanded()"
+        [attr.aria-label]="notificationsExpanded() ? 'Réduire les notifications' : 'Agrandir les notifications'"
+        [title]="notificationsExpanded() ? 'Réduire' : 'Agrandir'" class="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded flex-shrink-0
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+        @if (notificationsExpanded()) {
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+        } @else {
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
+        </svg>
+        }
+      </button>
+    </div>
+    @if (!notificationsExpanded()) {
+    <div class="px-3 py-2.5 text-sm" role="status" aria-live="polite">
+      @if (latestNotification) {
+      <p class="text-gray-700">{{ latestNotification.message }}</p>
+      } @else {
+      <p class="text-gray-400 italic">Aucune notification</p>
+      }
+    </div>
+    }
+    @if (notificationsExpanded()) {
+    <div class="flex-1 overflow-y-auto px-3 py-2">
+      @if (notifications.length === 0) {
+      <p class="text-sm text-gray-400 italic py-4 text-center">Aucune notification</p>
+      } @else {
+      <div class="space-y-2">
+        @for (n of reversedNotifications; track n.id) {
+        <div class="text-sm text-gray-700 border-b border-gray-100 pb-2 last:border-0">
+          @if (n.time) {
+          <p class="text-[10px] text-gray-400 mb-0.5">{{ n.time }}</p>
+          }
+          <p>{{ n.message }}</p>
+        </div>
+        }
+      </div>
+      }
+    </div>
+    }
+  </div>
+  }
+</footer>
