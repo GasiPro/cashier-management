@@ -6,7 +6,7 @@ import { getStoredDisplayName, getStoredUsername } from '../../../core/storage/l
 import * as settingsApi from '../../../data/settings/settings.api';
 import { ThemeOption } from '../../../data/settings/settings.model';
 import { BottomBar } from '../../../layouts/main-layout/bottom-bar/bottom-bar';
-import { LeftSidebar } from '../../../layouts/main-layout/sidebar/left-sidebar';
+import { LeftSidebar } from '../../../layouts/main-layout/sidebar/sidebar';
 import { Navbar } from '../../../layouts/main-layout/navbar/navbar';
 const MIN_FONT_SIZE = 8;
 const MAX_FONT_SIZE = 32;

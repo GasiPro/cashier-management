@@ -62,7 +62,7 @@ export class AccountsPage implements OnInit {
   private async loadAccounts(): Promise<void> {
     this.loadingAccounts.set(true);
     try {
-      const accounts = await accountApi.list();
+      const accounts = await accountApi.listAccounts();
       this.accounts.set(accounts);
     } catch (e) {
       console.error('failed to load accounts', e);
@@ -117,7 +117,7 @@ export class AccountsPage implements OnInit {
     this.togglingStatusUsername.set(account.username);
     this.setAccountStatus('', false);
     try {
-      const updated = await accountApi.suspend(account.username);
+      const updated = await accountApi.suspendAccount(account.username);
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.setAccountStatus(`Compte « ${updated.username} » suspendu.`, false);
       void this.loadActivities(true);
@@ -134,7 +134,7 @@ export class AccountsPage implements OnInit {
     this.togglingStatusUsername.set(account.username);
     this.setAccountStatus('', false);
     try {
-      const updated = await accountApi.reactivate(account.username);
+      const updated = await accountApi.reactivateAccount(account.username);
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.setAccountStatus(`Compte « ${updated.username} » réactivé.`, false);
       void this.loadActivities(true);
@@ -224,7 +224,7 @@ export class AccountsPage implements OnInit {
     try {
       const displayName = this.editDisplayName().trim();
       const newPassword = this.editPassword();
-      const updated = await accountApi.update({
+      const updated = await accountApi.updateAccount({
         username,
         display_name: displayName,
         user_type: this.editUserType(),
@@ -278,7 +278,7 @@ export class AccountsPage implements OnInit {
     this.deletingAccount.set(true);
     this.deleteAccountError.set('');
     try {
-      await accountApi.remove(account.username);
+      await accountApi.deleteAccount(account.username);
       this.accounts.update((list) => list.filter((a) => a.username !== account.username));
       this.confirmingDeleteUsername.set(null);
       this.setAccountStatus(`Compte « ${account.username} » supprimé définitivement.`, false);
@@ -362,7 +362,7 @@ export class AccountsPage implements OnInit {
     this.accountFormError.set('');
     this.creatingAccount.set(true);
     try {
-      const created = await accountApi.create({
+      const created = await accountApi.createAccount({
         username: this.trimmedNewUsername(),
         password: this.newPassword(),
         display_name: this.newDisplayName().trim(),
@@ -395,7 +395,7 @@ export class AccountsPage implements OnInit {
   private async loadActivities(silent = false): Promise<void> {
     if (!silent) this.loadingActivities.set(true);
     try {
-      const activities = await accountApi.activities();
+      const activities = await accountApi.listAccountActivities();
       this.activities.set(activities);
     } catch (e) {
       console.error('failed to load account activities', e);

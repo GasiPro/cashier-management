@@ -38,7 +38,7 @@ export class PricingPage implements OnInit {
     this.loadingItems.set(true);
     this.loadError.set('');
     try {
-      const items = await pricingApi.getMatrix();
+      const items = await pricingApi.getPricingMatrix();
       this.items.set(items);
     } catch (e) {
       console.error('failed to load pricing matrix', e);
@@ -173,7 +173,7 @@ export class PricingPage implements OnInit {
     const category = this.trimmedNewItemCategory();
     const price = this.newItemPrice();
     const formError = this.validateItemForm(label, category, price, null);
-    if (formError) {
+    if (formError || price === null) {
       this.newItemFormError.set(formError);
       this.setItemStatus('', false);
       return;
@@ -182,7 +182,7 @@ export class PricingPage implements OnInit {
     this.creatingItem.set(true);
     this.setItemStatus('', false);
     try {
-      const created = await pricingApi.itemCreate({
+      const created = await pricingApi.createPricingItem({
         label,
         category,
         price,
@@ -258,15 +258,14 @@ export class PricingPage implements OnInit {
     const category = this.editCategory().trim();
     const price = this.editPrice();
     const formError = this.validateItemForm(label, category, price, item.id);
-    if (formError) {
+    if (formError || price === null) {
       this.editItemError.set(formError);
       return;
     }
     this.editItemError.set('');
     this.savingItem.set(true);
     try {
-      const updated = await pricingApi.itemUpdate({
-        id: item.id,
+      const updated = await pricingApi.updatePricingItem(item.id, {
         label,
         category,
         price,
@@ -290,7 +289,7 @@ export class PricingPage implements OnInit {
     this.duplicatingId.set(item.id);
     this.setItemStatus('', false);
     try {
-      const created = await pricingApi.itemCreate({
+      const created = await pricingApi.createPricingItem({
         label: `${item.label} (copie)`,
         category: item.category,
         price: item.price,
@@ -332,7 +331,7 @@ export class PricingPage implements OnInit {
     this.deletingItem.set(true);
     this.deleteItemError.set('');
     try {
-      await pricingApi.itemDelete(item.id);
+      await pricingApi.deletePricingItem(item.id);
       this.items.update((list) => list.filter((i) => i.id !== item.id));
       this.confirmingDeleteId.set(null);
       this.setItemStatus(`Tarif « ${item.label} » supprimé.`, false);

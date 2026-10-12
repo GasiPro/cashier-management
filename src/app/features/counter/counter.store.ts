@@ -1,11 +1,16 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
-import { WebsocketService } from '../../core/realtime/ws-client';
+import { SessionStore } from '../../core/auth/session.store';
+import { WsClient } from '../../core/realtime/ws-client';
 import { WsMessage } from '../../core/realtime/ws-protocol';
-import { getCashierWsUrl, getUsername, setCashierWsUrl } from '../../core/storage/local-storage';
 import {
-  DEFAULT_WS_HOST,
+  getStoredCashierWsUrl,
+  getStoredUsername,
+  setStoredCashierWsUrl,
+} from '../../core/storage/local-storage';
+import {
+  DEFAULT_WS,
   MAX_USERNAME_LEN,
   MIN_PASSWORD_LEN,
   MIN_USERNAME_LEN,
@@ -17,7 +22,6 @@ import {
   buildGroups,
   formatGroupId,
   getGroupItemsSummary,
-  getGroupTotal,
   isLineDiscounted,
   isLineIncreased,
 } from '../../data/order/order.utils';
@@ -41,8 +45,8 @@ const HISTORIQUE_ALL_STATUSES = 'TOUS';
 const MAX_DISPLAY_NAME_LEN = 40;
 @Injectable()
 export class CounterStore {
-  username = getUsername() ?? 'Comptoir';
-  cashierHost = getCashierWsUrl() ?? DEFAULT_WS_HOST;
+  username = getStoredUsername() ?? 'Comptoir';
+  cashierHost = getStoredCashierWsUrl() ?? DEFAULT_WS;
   private password = '';
   // ── Catalogue ───────────────────────────────────────────────────────────────
   allServices = signal<ServiceItem[]>([]);
@@ -162,12 +166,13 @@ export class CounterStore {
   private closeSubscription?: Subscription;
   constructor(
     private router: Router,
-    private ws: WebsocketService,
+    private ws: WsClient,
+    private session: SessionStore,
   ) {}
   start(): void {
     this.updateClock();
     this.clockId = setInterval(() => this.updateClock(), 60_000);
-    this.password = this.ws.getCounterCredentials()?.password ?? '';
+    this.password = this.session.getCounterCredentials()?.password ?? '';
     this.newCashierHost = this.cashierHost;
     this.setupWsListeners();
     const fullUrl = `ws://${this.cashierHost}`;
@@ -249,7 +254,7 @@ export class CounterStore {
         this.wsConnected.set(false);
         this.waitingApproval.set(false);
         this.ws.disconnect();
-        this.ws.clearCounterCredentials();
+        this.session.clearCounterCredentials();
         this.showToast("Connexion refusée : identifiant ou mot de passe incorrect, ou accès refusé par la caisse.");
       } else if (msg.type === 'connection_blocked') {
         this.wsConnected.set(false);
@@ -289,7 +294,7 @@ export class CounterStore {
   }
   disconnectFromCashier(): void {
     this.ws.disconnect();
-    this.ws.clearCounterCredentials();
+    this.session.clearCounterCredentials();
     this.router.navigate(['/login']);
   }
   openAccountPanel(): void {
@@ -382,7 +387,7 @@ export class CounterStore {
     this.newCashierAddressCheck.set('idle');
     this.serverConnectError.set('');
     this.cashierHost = host;
-    setCashierWsUrl(host);
+    setStoredCashierWsUrl(host);
     // Tear down current connection and set up fresh.
     this.ws.disconnect();
     // Give the socket a tick to close before reconnecting.
@@ -624,7 +629,7 @@ export class CounterStore {
     return getGroupItemsSummary(g);
   }
   groupTotal(g: OrderGroup): number {
-    return getGroupTotal(g);
+    return g.totalAmount;
   }
   historiqueItemCount(g: OrderGroup): number {
     return g.lines.reduce((sum, l) => sum + l.quantity, 0);

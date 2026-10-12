@@ -1,10 +1,9 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { Subscription } from 'rxjs';
-import { WebsocketService } from '../../core/realtime/ws-client';
+import { WsClient } from '../../core/realtime/ws-client';
 import { WsMessage } from '../../core/realtime/ws-protocol';
 import { getMaxDevices, listConnectedDevices, listPendingConnections } from './device.api';
 import { ConnectedDevice, PendingConnection } from './device.model';
-
 @Injectable({ providedIn: 'root' })
 export class DeviceStore {
   readonly pendingConnections = signal<PendingConnection[]>([]);
@@ -12,18 +11,13 @@ export class DeviceStore {
   readonly loadingPending = signal(true);
   readonly loadingConnected = signal(true);
   readonly maxConnectedDevices = signal<number>(0);
-
   readonly totalPendingRequests = computed(() => this.pendingConnections().length);
   readonly atDeviceCapacity = computed(
     () => this.maxConnectedDevices() > 0 && this.connectedDevices().length >= this.maxConnectedDevices(),
   );
-
   private wsSubscription?: Subscription;
   private openSubscription?: Subscription;
-
-  constructor(private ws: WebsocketService) {}
-
-  /** Refreshes the pending list. A non-silent call shows the loading flag and rethrows on failure. */
+  constructor(private ws: WsClient) {}
   async loadPending(silent = false): Promise<void> {
     if (!silent) this.loadingPending.set(true);
     try {
@@ -35,8 +29,6 @@ export class DeviceStore {
       this.loadingPending.set(false);
     }
   }
-
-  /** Refreshes the connected devices list. A non-silent call shows the loading flag and rethrows on failure. */
   async loadConnected(silent = false): Promise<void> {
     if (!silent) this.loadingConnected.set(true);
     try {
@@ -48,20 +40,15 @@ export class DeviceStore {
       this.loadingConnected.set(false);
     }
   }
-
   async loadMaxDevices(): Promise<void> {
     this.maxConnectedDevices.set(await getMaxDevices());
   }
-
   removePending(id: PendingConnection['id']): void {
     this.pendingConnections.update((list) => list.filter((c) => c.id !== id));
   }
-
   removeConnected(id: ConnectedDevice['id']): void {
     this.connectedDevices.update((list) => list.filter((d) => d.id !== id));
   }
-
-  /** Keeps both lists in sync with the server's pushes and on every (re)connection. */
   startLive(): void {
     this.stopLive();
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
@@ -76,7 +63,6 @@ export class DeviceStore {
       void this.loadConnected(true);
     });
   }
-
   stopLive(): void {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();

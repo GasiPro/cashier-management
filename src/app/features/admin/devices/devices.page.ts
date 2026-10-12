@@ -100,7 +100,7 @@ export class DevicesPage implements OnInit, OnDestroy {
   private async loadWsAddress(): Promise<void> {
     this.loadingWsAddress.set(true);
     try {
-      this.wsAddress.set(await deviceApi.getAddress());
+      this.wsAddress.set(await deviceApi.getServerAddress());
     } catch (e) {
       console.error('failed to load ws address', e);
       this.setStatus(errorMessage(e, "Impossible de récupérer l'adresse du serveur."), true);
@@ -123,7 +123,7 @@ export class DevicesPage implements OnInit, OnDestroy {
   private async loadPending(silent = false): Promise<void> {
     if (!silent) this.loadingPending.set(true);
     try {
-      const pending = await deviceApi.listPending();
+      const pending = await deviceApi.listPendingConnections();
       this.pendingConnections.set(pending);
     } catch (e) {
       console.error('failed to load pending connections', e);
@@ -139,7 +139,7 @@ export class DevicesPage implements OnInit, OnDestroy {
     this.respondingToId.set(connection.id);
     this.setStatus('', false);
     try {
-      await deviceApi.approve(connection.id);
+      await deviceApi.approveConnection(connection.id);
       await Promise.all([this.loadPending(true), this.loadConnected(true), this.loadHistory(true)]);
       this.setStatus(`« ${this.displayName(connection)} » approuvé.`, false);
     } catch (e) {
@@ -155,7 +155,7 @@ export class DevicesPage implements OnInit, OnDestroy {
     this.respondingToId.set(connection.id);
     this.setStatus('', false);
     try {
-      await deviceApi.reject(connection.id);
+      await deviceApi.rejectConnection(connection.id);
       this.pendingConnections.update((list) => list.filter((c) => c.id !== connection.id));
       this.setStatus(`« ${this.displayName(connection)} » refusé.`, false);
       void this.loadHistory(true);
@@ -173,7 +173,7 @@ export class DevicesPage implements OnInit, OnDestroy {
   private async loadConnected(silent = false): Promise<void> {
     if (!silent) this.loadingConnected.set(true);
     try {
-      const devices = await deviceApi.listConnected();
+      const devices = await deviceApi.listConnectedDevices();
       this.connectedDevices.set(devices);
     } catch (e) {
       console.error('failed to load connected devices', e);
@@ -189,7 +189,7 @@ export class DevicesPage implements OnInit, OnDestroy {
     this.disconnectingId.set(device.id);
     this.setStatus('', false);
     try {
-      await deviceApi.disconnect(device.id);
+      await deviceApi.disconnectDevice(device.id);
       this.connectedDevices.update((list) => list.filter((d) => d.id !== device.id));
       this.setStatus(`« ${this.displayName(device)} » déconnecté.`, false);
       void this.loadHistory(true);
@@ -218,7 +218,7 @@ export class DevicesPage implements OnInit, OnDestroy {
     this.blockingId.set(device.id);
     this.blockError.set('');
     try {
-      await deviceApi.block(device.id);
+      await deviceApi.blockDevice(device.id);
       await Promise.all([this.loadConnected(true), this.loadBlacklist(true), this.loadHistory(true)]);
       this.confirmingBlockId.set(null);
       this.setStatus(`« ${this.displayName(device)} » bloqué et déconnecté.`, false);
@@ -235,7 +235,7 @@ export class DevicesPage implements OnInit, OnDestroy {
   private async loadHistory(silent = false): Promise<void> {
     if (!silent) this.loadingHistory.set(true);
     try {
-      const history = await deviceApi.listHistory();
+      const history = await deviceApi.listConnectionHistory();
       this.history.set(history);
     } catch (e) {
       console.error('failed to load connection history', e);
@@ -312,7 +312,7 @@ export class DevicesPage implements OnInit, OnDestroy {
     this.blacklistFormError.set('');
     this.addingBlacklistEntry.set(true);
     try {
-      await deviceApi.addBlacklist(
+      await deviceApi.addBlacklistEntry(
         this.newBlacklistType(),
         this.trimmedNewBlacklistAddr(),
         this.newBlacklistReason().trim() || null,
@@ -345,7 +345,7 @@ export class DevicesPage implements OnInit, OnDestroy {
     this.removingBlacklistId.set(entry.id);
     this.removeBlacklistError.set('');
     try {
-      await deviceApi.removeBlacklist(entry.id);
+      await deviceApi.removeBlacklistEntry(entry.id);
       this.blacklist.update((list) => list.filter((b) => b.id !== entry.id));
       this.confirmingRemoveBlacklistId.set(null);
       this.setStatus('Entrée retirée de la liste noire.', false);

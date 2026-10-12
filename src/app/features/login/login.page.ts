@@ -12,37 +12,33 @@ import {
   PASSWORD_HAS_LETTER,
 } from '../../core/config/app.constants';
 import { errorMessage } from '../../core/error/error-messages';
-import { WebsocketService } from '../../core/realtime/ws-client';
+import { SessionStore } from '../../core/auth/session.store';
+import { WsClient } from '../../core/realtime/ws-client';
 import { getServerAddress } from '../../data/device/device.api';
 import { AdminModal } from './components/admin-modal/admin-modal';
 import { CashierSetup } from './components/cashier-setup/cashier-setup';
 import { CounterSetup } from './components/counter-setup/counter-setup';
 import { CounterWaiting } from './components/counter-waiting/counter-waiting';
 import { RolePicker } from './components/role-picker/role-picker';
-
 type Step =
   | 'role'
   | 'cashier-setup'
   | 'counter-setup'
   | 'counter-waiting'
   | 'counter-rejected';
-
 const LS_USERNAME = 'gasipro:username';
 const LS_DISPLAY_NAME = 'gasipro:displayName';
 const LS_CASHIER_URL = 'gasipro:cashierWsUrl';
-
 interface AuthAccount {
   user_type: string;
   display_name: string;
 }
-
 interface AuthResult<T> {
   success: boolean;
   account?: T | null;
   error?: string | null;
   session_token?: string | null;
 }
-
 @Component({
   selector: 'app-login',
   standalone: true,
@@ -52,7 +48,6 @@ interface AuthResult<T> {
 export class LoginPage implements OnInit, OnDestroy {
   step = signal<Step>('role');
   currentDateTime = '';
-
   // Cashier fields
   cashierUsername = signal('');
   cashierPassword = signal('');
@@ -65,30 +60,26 @@ export class LoginPage implements OnInit, OnDestroy {
   /** Inline validation or server error for the cashier login form, announced
    *  via aria-live. */
   cashierError = signal('');
-
   // Counter fields
   counterUsername = signal('');
   counterPassword = signal('');
   counterWsUrl = signal('');
   /** Toggles the counter password field between masked and plain text. */
   showCounterPassword = signal(false);
-
   // State flags
   loadingWsAddress = signal(false);
   counterError = signal('');
   /** Result of probing counterWsUrl for a running server, shown as a hint/warning. */
   addressCheck = signal<'idle' | 'checking' | 'reachable' | 'unreachable'>('idle');
-
   private clockInterval: ReturnType<typeof setInterval> | null = null;
   private wsSubscription?: Subscription;
   private openSubscription?: Subscription;
   private navigatingToCounter = false;
-
   constructor(
     private router: Router,
-    private ws: WebsocketService,
+    private ws: WsClient,
+    private session: SessionStore,
   ) {}
-
   ngOnInit(): void {
     this.updateClock();
     this.clockInterval = setInterval(() => this.updateClock(), 60_000);
@@ -96,7 +87,6 @@ export class LoginPage implements OnInit, OnDestroy {
     this.counterUsername.set(localStorage.getItem(LS_USERNAME) ?? '');
     this.counterWsUrl.set(localStorage.getItem(LS_CASHIER_URL) ?? DEFAULT_WS);
   }
-
   ngOnDestroy(): void {
     if (this.clockInterval) clearInterval(this.clockInterval);
     this.wsSubscription?.unsubscribe();
@@ -106,14 +96,12 @@ export class LoginPage implements OnInit, OnDestroy {
       this.ws.disconnect();
     }
   }
-
   showAdminModal = signal(false);
   adminUsername = signal('');
   adminPassword = signal('');
   showAdminPassword = signal(false);
   authenticatingAdmin = signal(false);
   adminError = signal('');
-
   /** Ctrl+Alt+A on the login screen reveals a hidden admin login popup. */
   @HostListener('document:keydown', ['$event'])
   handleGlobalKeydown(event: KeyboardEvent): void {
@@ -122,7 +110,6 @@ export class LoginPage implements OnInit, OnDestroy {
       this.openAdminModal();
     }
   }
-
   openAdminModal(): void {
     if (this.showAdminModal()) return;
     this.adminUsername.set('');
@@ -131,7 +118,6 @@ export class LoginPage implements OnInit, OnDestroy {
     this.adminError.set('');
     this.showAdminModal.set(true);
   }
-
   closeAdminModal(): void {
     if (this.authenticatingAdmin()) return;
     this.showAdminModal.set(false);
@@ -139,7 +125,6 @@ export class LoginPage implements OnInit, OnDestroy {
     this.adminPassword.set('');
     this.adminError.set('');
   }
-
   /** Verifies the credentials belong to an admin account before leaving the login screen. */
   async submitAdminLogin(): Promise<void> {
     if (this.authenticatingAdmin()) return;
@@ -166,7 +151,7 @@ export class LoginPage implements OnInit, OnDestroy {
       localStorage.setItem(LS_USERNAME, username);
       localStorage.setItem(LS_DISPLAY_NAME, result.account.display_name ?? '');
       if (result.session_token) {
-        this.ws.setSessionToken(result.session_token);
+        this.session.setSessionToken(result.session_token);
       }
       this.showAdminModal.set(false);
       this.router.navigate(['/admin']);
@@ -178,7 +163,6 @@ export class LoginPage implements OnInit, OnDestroy {
       this.authenticatingAdmin.set(false);
     }
   }
-
   private updateClock(): void {
     const now = new Date();
     this.currentDateTime =
@@ -191,7 +175,6 @@ export class LoginPage implements OnInit, OnDestroy {
       ' · ' +
       now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   }
-
   selectCashier(): void {
     this.cashierPassword.set('');
     this.showCashierPassword.set(false);
@@ -199,14 +182,12 @@ export class LoginPage implements OnInit, OnDestroy {
     this.step.set('cashier-setup');
     this.loadCashierWsAddress();
   }
-
   selectCounter(): void {
     this.counterPassword.set('');
     this.showCounterPassword.set(false);
     this.counterError.set('');
     this.step.set('counter-setup');
   }
-
   private async loadCashierWsAddress(): Promise<void> {
     this.loadingWsAddress.set(true);
     try {
@@ -218,7 +199,6 @@ export class LoginPage implements OnInit, OnDestroy {
       this.loadingWsAddress.set(false);
     }
   }
-
   private validateCredentials(username: string, password: string): string {
     if (username.length < MIN_USERNAME_LEN) {
       return `Le nom d'utilisateur doit contenir au moins ${MIN_USERNAME_LEN} caractères.`;
@@ -234,7 +214,6 @@ export class LoginPage implements OnInit, OnDestroy {
     }
     return '';
   }
-
   async enterAsCashier(): Promise<void> {
     if (this.authenticatingCashier()) return;
     const username = this.cashierUsername().trim();
@@ -261,7 +240,7 @@ export class LoginPage implements OnInit, OnDestroy {
       localStorage.setItem(LS_USERNAME, username);
       localStorage.setItem(LS_DISPLAY_NAME, result.account.display_name ?? '');
       if (result.session_token) {
-        this.ws.setSessionToken(result.session_token);
+        this.session.setSessionToken(result.session_token);
       }
       this.router.navigate(['/caissier']);
     } catch (e) {
@@ -272,15 +251,12 @@ export class LoginPage implements OnInit, OnDestroy {
       this.authenticatingCashier.set(false);
     }
   }
-
   copyWsAddress(): void {
     navigator.clipboard.writeText(this.wsAddress()).catch(() => {});
   }
-
   onCounterWsUrlChanged(): void {
     this.addressCheck.set('idle');
   }
-
   async checkCounterWsUrl(): Promise<void> {
     const raw = this.counterWsUrl().trim();
     if (!raw) {
@@ -293,7 +269,6 @@ export class LoginPage implements OnInit, OnDestroy {
     if (this.counterWsUrl().trim() !== raw) return;
     this.addressCheck.set(reachable ? 'reachable' : 'unreachable');
   }
-
   connectAsCounter(): void {
     if (!this.counterUsername().trim() || !this.counterWsUrl().trim() || !this.counterPassword()) return;
     const username = this.counterUsername().trim();
@@ -307,7 +282,7 @@ export class LoginPage implements OnInit, OnDestroy {
     this.step.set('counter-waiting');
     const wsUrl = this.counterWsUrl().trim();
     const fullUrl = wsUrl.startsWith('ws://') ? wsUrl : `ws://${wsUrl}`;
-    this.ws.setCounterCredentials(username, password);
+    this.session.setCounterCredentials(username, password);
     this.ws.connect(fullUrl);
     this.wsSubscription = this.ws.getMessages().subscribe((msg) => {
       if (msg.type === 'connection_approved') {
@@ -320,21 +295,21 @@ export class LoginPage implements OnInit, OnDestroy {
       } else if (msg.type === 'connection_rejected') {
         this.wsSubscription?.unsubscribe();
         this.ws.disconnect();
-        this.ws.clearCounterCredentials();
+        this.session.clearCounterCredentials();
         this.counterError.set("Nom d'utilisateur ou mot de passe incorrect, ou connexion refusée par la caisse.");
         this.counterPassword.set('');
         this.step.set('counter-rejected');
       } else if (msg.type === 'connection_blocked') {
         this.wsSubscription?.unsubscribe();
         this.ws.disconnect();
-        this.ws.clearCounterCredentials();
+        this.session.clearCounterCredentials();
         this.counterError.set('Cet appareil ou ce nom d\'utilisateur est bloqué par la caisse.');
         this.counterPassword.set('');
         this.step.set('counter-rejected');
       } else if (msg.type === 'error_protocol') {
         this.wsSubscription?.unsubscribe();
         this.ws.disconnect();
-        this.ws.clearCounterCredentials();
+        this.session.clearCounterCredentials();
         this.counterError.set(typeof msg.data === 'string' && msg.data.trim() ? msg.data : 'Erreur de protocole. Réessayez.');
         this.counterPassword.set('');
         this.step.set('counter-rejected');
@@ -351,13 +326,11 @@ export class LoginPage implements OnInit, OnDestroy {
       });
     }
   }
-
   retryConnection(): void {
     this.step.set('counter-setup');
     this.counterError.set('');
     this.addressCheck.set('idle');
   }
-
   goBack(): void {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();

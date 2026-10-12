@@ -1,5 +1,5 @@
+import { formatRelativeDay } from '../../shared/utils/date';
 import type { OrderGroup, OrderLine } from './order.model';
-
 export function buildGroups(orders: OrderLine[]): OrderGroup[] {
   const map = new Map<number, OrderLine[]>();
   for (const o of orders) {
@@ -23,7 +23,6 @@ export function buildGroups(orders: OrderLine[]): OrderGroup[] {
   }
   return groups.sort((a, b) => b.groupId - a.groupId);
 }
-
 export function getGroupItemsSummary(group: OrderGroup): string {
   const categoryOrder: string[] = [];
   const byCategory = new Map<string, string[]>();
@@ -41,23 +40,33 @@ export function getGroupItemsSummary(group: OrderGroup): string {
     .map((category) => `${category}: ${byCategory.get(category)!.join(', ')}`)
     .join(' • ');
 }
-
 export function formatGroupId(groupId: number): string {
   return '#' + String(groupId).padStart(4, '0');
 }
-
 export function isLineDiscounted(order: OrderLine): boolean {
   return order.original_unit_price > 0 && order.unit_price < order.original_unit_price;
 }
-
 export function isLineIncreased(order: OrderLine): boolean {
   return order.original_unit_price > 0 && order.unit_price > order.original_unit_price;
 }
-
 export function groupHasDiscount(group: OrderGroup): boolean {
   return group.lines.some((l) => isLineDiscounted(l));
 }
-
 export function groupHasIncrease(group: OrderGroup): boolean {
   return group.lines.some((l) => isLineIncreased(l));
+}
+export function formatPaidLabel(group: OrderGroup): string {
+  if (!group.paidAt) return '';
+  const date = new Date(group.paidAt);
+  const dayLabel = formatRelativeDay(group.paidAt);
+  const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return `Encaissé ${dayLabel} à ${time}`;
+}
+export function formatPaidTime(group: OrderGroup): string {
+  if (!group.paidAt) return '';
+  return new Date(group.paidAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+export function formatCreatedLabel(group: OrderGroup): string {
+  const dayLabel = formatRelativeDay(group.createdAt);
+  return `${dayLabel} à ${group.time}`;
 }

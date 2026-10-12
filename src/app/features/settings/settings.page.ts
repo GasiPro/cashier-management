@@ -16,7 +16,7 @@ import * as accountApi from '../../data/account/account.api';
 import { AccountView, UserType } from '../../data/account/account.model';
 import * as deviceApi from '../../data/device/device.api';
 import { BottomBar } from '../../layouts/main-layout/bottom-bar/bottom-bar';
-import { LeftSidebar } from '../../layouts/main-layout/sidebar/left-sidebar';
+import { LeftSidebar } from '../../layouts/main-layout/sidebar/sidebar';
 import { Navbar } from '../../layouts/main-layout/navbar/navbar';
 const MAX_DISPLAY_NAME_LEN = 40;
 const MAX_ALLOWED_CONNECTED_DEVICES = 50;
@@ -114,7 +114,7 @@ export class SettingsPage implements OnInit, OnDestroy {
   }
   private async refreshConnectedDevicesCount(): Promise<void> {
     try {
-      const connected = await deviceApi.getCount();
+      const connected = await deviceApi.countConnectedDevices();
       this.connectedDevicesCount.set(connected);
     } catch (e) {
       console.error('failed to refresh connected devices count', e);
@@ -124,8 +124,8 @@ export class SettingsPage implements OnInit, OnDestroy {
     this.loadingDevicesSetting.set(true);
     try {
       const [max, connected] = await Promise.all([
-        deviceApi.getMax(),
-        deviceApi.getCount(),
+        deviceApi.getMaxDevices(),
+        deviceApi.countConnectedDevices(),
       ]);
       this.maxConnectedDevices.set(max);
       this.maxConnectedDevicesDraft.set(max);
@@ -158,7 +158,7 @@ export class SettingsPage implements OnInit, OnDestroy {
     this.savingDevicesSetting.set(true);
     this.setStatus('', false);
     try {
-      const applied = await deviceApi.setMax(this.maxConnectedDevicesDraft());
+      const applied = await deviceApi.setMaxDevices(this.maxConnectedDevicesDraft());
       this.maxConnectedDevices.set(applied);
       this.maxConnectedDevicesDraft.set(applied);
       this.setStatus(
@@ -181,7 +181,7 @@ export class SettingsPage implements OnInit, OnDestroy {
   private async loadAccounts(): Promise<void> {
     this.loadingAccounts.set(true);
     try {
-      const accounts = await accountApi.list();
+      const accounts = await accountApi.listAccounts();
       this.accounts.set(accounts.filter((a) => a.user_type === CASHIER_USER_TYPE));
     } catch (e) {
       console.error('failed to load cashier accounts', e);
@@ -227,7 +227,7 @@ export class SettingsPage implements OnInit, OnDestroy {
     this.creatingAccount.set(true);
     this.setAccountStatus('', false);
     try {
-      const created = await accountApi.create({
+      const created = await accountApi.createAccount({
         username: this.trimmedNewAccountUsername(),
         password: this.newAccountPassword(),
         display_name: '',
@@ -313,7 +313,7 @@ export class SettingsPage implements OnInit, OnDestroy {
     this.savingEditAccount.set(true);
     try {
       const displayName = this.editDisplayName().trim();
-      const updated = await accountApi.update({
+      const updated = await accountApi.updateAccount({
         username,
         display_name: displayName,
         user_type: CASHIER_USER_TYPE,
@@ -342,7 +342,7 @@ export class SettingsPage implements OnInit, OnDestroy {
     this.togglingStatusUsername.set(account.username);
     this.setAccountStatus('', false);
     try {
-      const updated = await accountApi.suspend(account.username);
+      const updated = await accountApi.suspendAccount(account.username);
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.setAccountStatus(`Compte « ${updated.username} » suspendu.`, false);
     } catch (e) {
@@ -358,7 +358,7 @@ export class SettingsPage implements OnInit, OnDestroy {
     this.togglingStatusUsername.set(account.username);
     this.setAccountStatus('', false);
     try {
-      const updated = await accountApi.reactivate(account.username);
+      const updated = await accountApi.reactivateAccount(account.username);
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
       this.setAccountStatus(`Compte « ${updated.username} » réactivé.`, false);
     } catch (e) {
@@ -393,7 +393,7 @@ export class SettingsPage implements OnInit, OnDestroy {
     this.deletingAccount.set(true);
     this.deleteAccountError.set('');
     try {
-      await accountApi.remove(account.username);
+      await accountApi.deleteAccount(account.username);
       this.accounts.update((list) => list.filter((a) => a.username !== account.username));
       this.confirmingDeleteUsername.set(null);
       this.setAccountStatus(`Compte « ${account.username} » supprimé définitivement.`, false);

@@ -52,7 +52,7 @@
   @if (store.openPanel() === 'devices') {
   <app-devices-panel
     [wsAddress]="wsAddress()"
-    [pendingRequests]="devices.pendingRequests()"
+    [pendingRequests]="devices.pendingConnections()"
     [connectedDevices]="devices.connectedDevices()"
     [maxConnectedDevices]="devices.maxConnectedDevices()"
     [atDeviceCapacity]="devices.atDeviceCapacity()"

@@ -2,7 +2,8 @@ import { Component, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, Subscription } from 'rxjs';
-import { WebsocketService } from '../../core/realtime/ws-client';
+import { WsRegistration } from '../../core/auth/ws-registration';
+import { WsClient } from '../../core/realtime/ws-client';
 import { WsMessage } from '../../core/realtime/ws-protocol';
 const LS_USERNAME = 'gasipro:username';
 const ADMIN_LOCAL_WS_URL = 'ws://127.0.0.1:8080';
@@ -43,7 +44,8 @@ export class AdminLayout implements OnInit, OnDestroy {
   private approved = false;
   constructor(
     private router: Router,
-    private ws: WebsocketService,
+    private ws: WsClient,
+    private registration: WsRegistration,
   ) {
     this.currentUrl.set(this.router.url);
     this.router.events
@@ -71,12 +73,9 @@ export class AdminLayout implements OnInit, OnDestroy {
       this.returnToLogin();
       return;
     }
-    const token = this.ws.consumeSessionToken();
-    if (!token) {
+    if (!this.registration.registerAdmin()) {
       this.returnToLogin();
-      return;
     }
-    this.ws.send({ type: 'register_admin', token });
   }
   private returnToLogin(): void {
     this.wsSubscription?.unsubscribe();

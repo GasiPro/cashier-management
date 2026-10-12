@@ -6,36 +6,38 @@ import { OrderLine } from '../../../data/order/order.model';
 import {
   Period,
   PeriodBounds,
-  boundsFor,
   mondayOfIsoWeek,
+  periodBounds,
   previousPeriodBounds,
   rangeLabel,
+  reportDefaultFileName,
   toIsoWeekValue,
 } from '../../../data/report/report-period';
 import {
-  ALL_COUNTERS,
+  REPORT_ALL_COUNTERS,
   AdjustmentsSummary,
   CategoryGroup,
   CategoryLine,
   CounterBreakdown,
   CounterSection,
   RevenueTrend,
-  breakdownByCounter,
+  adjustmentsSummaryOf,
+  allOrdersInPeriod,
   buildCategoryGroups,
-  buildSectionsByCounter,
+  byCounterOf,
+  clientsCountOf,
   computeRevenueTrend,
-  computeTopServices,
-  countGroups,
-  countGroupsByStatus,
-  filterOrdersInPeriod,
-  filterPaidInPeriod,
+  counterNames,
+  groupsCountByStatus,
+  itemsCountOf,
   lineShare,
-  listCounters,
   ordersDateBounds,
-  paidTimeRange,
-  sumQuantity,
-  sumRevenue,
-  summarizeAdjustments,
+  paidOrdersInPeriod,
+  revenueForPeriod,
+  revenueOf,
+  sectionsByCounterOf,
+  timeRangeOf,
+  topServicesOf,
 } from '../../../data/report/report.calculator';
 import { exportReportXlsx } from '../../../data/report/report-export';
 import { formatIsoDate, parseIsoDate } from '../../../shared/utils/date';
@@ -49,13 +51,13 @@ import { ReportStore } from './report.store';
   styleUrl: './reports.page.css',
 })
 export class ReportsPage {
-  readonly allCounters = ALL_COUNTERS;
+  readonly allCounters = REPORT_ALL_COUNTERS;
   private readonly orderStore = inject(OrderStore);
   private readonly reportStore = inject(ReportStore);
   readonly wsConnected = this.orderStore.wsConnected;
-  private readonly rawOrders = this.orderStore.lines;
+  private readonly rawOrders = this.orderStore.orders;
   private readonly paidOrders = computed(() => this.rawOrders().filter((o) => o.status === 'PAYE'));
-  readonly counters = computed<string[]>(() => listCounters(this.paidOrders()));
+  readonly counters = computed<string[]>(() => counterNames(this.paidOrders()));
   readonly counterFilter = this.reportStore.counterFilter;
   setCounterFilter(username: string): void {
     this.counterFilter.set(username);
@@ -173,29 +175,31 @@ export class ReportsPage {
     this.showDatePicker.set(false);
   }
   private periodBounds(): PeriodBounds {
-    return boundsFor(this.selectedDate(), this.period());
+    return periodBounds(this.selectedDate(), this.period());
   }
   private readonly periodOrders = computed<OrderLine[]>(() =>
-    filterPaidInPeriod(this.paidOrders(), this.periodBounds(), this.counterFilter()),
+    paidOrdersInPeriod(this.paidOrders(), this.periodBounds(), this.counterFilter()),
   );
-  readonly revenue = computed(() => sumRevenue(this.periodOrders()));
-  readonly clientsCount = computed(() => countGroups(this.periodOrders()));
+  readonly revenue = computed(() => revenueOf(this.periodOrders()));
+  readonly clientsCount = computed(() => clientsCountOf(this.periodOrders()));
   readonly averageBasket = computed(() => {
     const clients = this.clientsCount();
     return clients === 0 ? 0 : this.revenue() / clients;
   });
-  readonly itemsCount = computed(() => sumQuantity(this.periodOrders()));
+  readonly itemsCount = computed(() => itemsCountOf(this.periodOrders()));
   private readonly rawOrdersInPeriod = computed<OrderLine[]>(() =>
-    filterOrdersInPeriod(this.rawOrders(), this.periodBounds(), this.counterFilter()),
+    allOrdersInPeriod(this.rawOrders(), this.periodBounds(), this.counterFilter()),
   );
-  readonly pendingCount = computed(() => countGroupsByStatus(this.rawOrdersInPeriod(), 'EN_ATTENTE'));
-  readonly rejectedCount = computed(() => countGroupsByStatus(this.rawOrdersInPeriod(), 'REJETEE'));
+  readonly pendingCount = computed(() => groupsCountByStatus(this.rawOrdersInPeriod(), 'EN_ATTENTE'));
+  readonly rejectedCount = computed(() => groupsCountByStatus(this.rawOrdersInPeriod(), 'REJETEE'));
   readonly revenueTrend = computed<RevenueTrend>(() =>
     computeRevenueTrend(
-      this.paidOrders(),
-      previousPeriodBounds(this.selectedDate(), this.period()),
-      this.counterFilter(),
       this.revenue(),
+      revenueForPeriod(
+        this.paidOrders(),
+        previousPeriodBounds(this.selectedDate(), this.period()),
+        this.counterFilter(),
+      ),
     ),
   );
   dateLabel(): string {
@@ -228,16 +232,16 @@ export class ReportsPage {
     }
   }
   timeRange(): string {
-    return paidTimeRange(this.periodOrders());
+    return timeRangeOf(this.periodOrders());
   }
-  readonly adjustmentsSummary = computed<AdjustmentsSummary>(() => summarizeAdjustments(this.periodOrders()));
-  readonly byCounter = computed<CounterBreakdown[]>(() => breakdownByCounter(this.periodOrders()));
+  readonly adjustmentsSummary = computed<AdjustmentsSummary>(() => adjustmentsSummaryOf(this.periodOrders()));
+  readonly byCounter = computed<CounterBreakdown[]>(() => byCounterOf(this.periodOrders()));
   readonly categoryGroups = computed<CategoryGroup[]>(() => buildCategoryGroups(this.periodOrders()));
-  readonly topServices = computed<CategoryLine[]>(() => computeTopServices(this.categoryGroups()));
+  readonly topServices = computed<CategoryLine[]>(() => topServicesOf(this.categoryGroups()));
   lineShare(total: number): number {
     return lineShare(total, this.revenue());
   }
-  readonly sectionsByCounter = computed<CounterSection[]>(() => buildSectionsByCounter(this.periodOrders()));
+  readonly sectionsByCounter = computed<CounterSection[]>(() => sectionsByCounterOf(this.periodOrders()));
   expandedCounter = signal<string | null>(null);
   toggleCounterDetail(username: string): void {
     this.expandedCounter.set(this.expandedCounter() === username ? null : username);
@@ -246,18 +250,7 @@ export class ReportsPage {
     return this.expandedCounter() === username;
   }
   private defaultFileName(): string {
-    switch (this.period()) {
-      case 'semaine': {
-        const { start, end } = this.periodBounds();
-        return `rapport_semaine_${start}_au_${end}.xlsx`;
-      }
-      case 'mois':
-        return `rapport_mois_${this.monthInputValue()}.xlsx`;
-      case 'annee':
-        return `rapport_annee_${this.yearInputValue()}.xlsx`;
-      default:
-        return `rapport_du_jour_${this.selectedDate()}.xlsx`;
-    }
+    return reportDefaultFileName(this.period(), this.selectedDate(), this.periodBounds());
   }
   async exportXlsx(): Promise<void> {
     this.exportingReport.set(true);
@@ -271,27 +264,21 @@ export class ReportsPage {
     const result = await exportReportXlsx({
       title: this.title(),
       dateLabel: this.dateLabel(),
-      counterFilter: this.counterFilter(),
-      revenue: this.revenue(),
-      revenueTrend: this.revenueTrend(),
+      counterLabel: this.counterFilter() === REPORT_ALL_COUNTERS ? undefined : this.counterFilter(),
+      orders: this.periodOrders(),
+      trend: this.revenueTrend(),
       comparisonLabel: this.comparisonLabel(),
-      clientsCount: this.clientsCount(),
-      averageBasket: this.averageBasket(),
-      itemsCount: this.itemsCount(),
       pendingCount: this.pendingCount(),
       rejectedCount: this.rejectedCount(),
-      period: this.period(),
-      timeRange: this.timeRange(),
-      byCounter: this.byCounter(),
-      adjustmentsSummary: this.adjustmentsSummary(),
-      sectionsByCounter: this.sectionsByCounter(),
-      periodOrders: this.periodOrders(),
+      timeRange: this.period() === 'jour' ? this.timeRange() : undefined,
       defaultFileName: this.defaultFileName(),
     });
-    if (result.status === 'saved') {
+    if (result === 'saved') {
       this.exportError.set('');
-    } else if (result.status === 'error') {
-      this.exportError.set(result.message);
+    } else if (result === 'dialog_failed') {
+      this.exportError.set("Échec de l'export : impossible d'ouvrir la boîte de dialogue.");
+    } else if (result === 'save_failed') {
+      this.exportError.set("Échec de l'enregistrement du fichier Excel.");
     }
   }
   exportError = signal('');

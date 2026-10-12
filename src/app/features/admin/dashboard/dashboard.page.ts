@@ -43,7 +43,7 @@ export class DashboardPage {
   private readonly orderStore = inject(OrderStore);
   constructor() {
     effect(() => {
-      const orders = this.orderStore.lines();
+      const orders = this.orderStore.orders();
       untracked(() => this.applyOrders(orders));
     });
   }

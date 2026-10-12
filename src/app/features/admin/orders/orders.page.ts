@@ -40,7 +40,7 @@ export class OrdersPage {
       this.markingPaidGroupId.set(null);
     }
   }
-  readonly groups = computed<OrderGroup[]>(() => buildGroups(this.orderStore.lines()));
+  readonly groups = computed<OrderGroup[]>(() => buildGroups(this.orderStore.orders()));
   readonly totalCount = computed(() => this.groups().length);
   readonly paidCount = computed(() => this.groups().filter((g) => g.status === 'PAYE').length);
   readonly pendingCount = computed(() => this.groups().filter((g) => g.status === 'EN_ATTENTE').length);
@@ -169,7 +169,7 @@ export class OrdersPage {
     this.rejectGroupError.set('');
     this.setOrderStatus('', false);
     try {
-      await orderApi.groupReject(
+      await orderApi.rejectGroup(
         group.groupId,
         this.rejectReason().trim() ? this.rejectReason().trim() : null,
       );

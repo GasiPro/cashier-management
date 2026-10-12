@@ -1,6 +1,6 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { Navbar } from '../../layouts/main-layout/navbar/navbar';
-import { LeftSidebar } from '../../layouts/main-layout/sidebar/left-sidebar';
+import { LeftSidebar } from '../../layouts/main-layout/sidebar/sidebar';
 import { BottomBar } from '../../layouts/main-layout/bottom-bar/bottom-bar';
 import { CounterStore } from './counter.store';
 import { ServicePicker } from './components/service-picker/service-picker';
