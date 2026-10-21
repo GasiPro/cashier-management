@@ -1,3 +1,10 @@
+import {
+  MAX_USERNAME_LEN,
+  MIN_PASSWORD_LEN,
+  MIN_USERNAME_LEN,
+  PASSWORD_HAS_DIGIT,
+  PASSWORD_HAS_LETTER,
+} from '../../core/config/app.constants';
 const IPV4_OCTET = '(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)';
 const IPV4_REGEX = new RegExp(`^${IPV4_OCTET}(\\.${IPV4_OCTET}){3}$`);
 const HOSTNAME_REGEX = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*$/;
@@ -26,13 +33,9 @@ const IPV6_REGEX = /^[0-9a-fA-F:]+$/;
 export function isValidIp(value: string): boolean {
   return IPV4_REGEX.test(value) || (value.includes(':') && IPV6_REGEX.test(value));
 }
-export const MIN_PASSWORD_LEN = 8;
-export const PASSWORD_HAS_LETTER = /[A-Za-z]/;
-export const PASSWORD_HAS_DIGIT = /\d/;
 export function hasLetterAndDigit(password: string): boolean {
   return PASSWORD_HAS_LETTER.test(password) && PASSWORD_HAS_DIGIT.test(password);
 }
-/** Returns the UI message for the first broken password rule, or '' when the password is valid. */
 export function passwordRuleError(password: string): string {
   if (password.length < MIN_PASSWORD_LEN) {
     return `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LEN} caractères.`;
@@ -41,4 +44,13 @@ export function passwordRuleError(password: string): string {
     return 'Le mot de passe doit contenir au moins une lettre et un chiffre.';
   }
   return '';
+}
+export function credentialsRuleError(username: string, password: string): string {
+  if (username.length < MIN_USERNAME_LEN) {
+    return `Le nom d'utilisateur doit contenir au moins ${MIN_USERNAME_LEN} caractères.`;
+  }
+  if (username.length > MAX_USERNAME_LEN) {
+    return `Le nom d'utilisateur ne peut pas dépasser ${MAX_USERNAME_LEN} caractères.`;
+  }
+  return passwordRuleError(password);
 }

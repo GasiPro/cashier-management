@@ -1,13 +1,11 @@
 export const DEFAULT_WS = '127.0.0.1:8080';
 export const LOCAL_WS_URL = 'ws://127.0.0.1:8080';
-
 export const WS_RECONNECT_DELAY_MS = 2000;
 export const WS_PROBE_TIMEOUT_MS = 3000;
 export const CONNECTED_DEVICES_POLL_MS = 5000;
-
 export const MIN_USERNAME_LEN = 3;
 export const MAX_USERNAME_LEN = 32;
 export const MIN_PASSWORD_LEN = 8;
 export const MAX_DISPLAY_NAME_LEN = 40;
-export const PASSWORD_HAS_LETTER = /[A-Za-z]/;
+export const PASSWORD_HAS_LETTER = /\p{Alphabetic}/u;
 export const PASSWORD_HAS_DIGIT = /\d/;

@@ -3,18 +3,19 @@ import { Router } from '@angular/router';
 import { invoke } from '@tauri-apps/api/core';
 import { Subscription } from 'rxjs';
 import { take } from 'rxjs/operators';
-import {
-  DEFAULT_WS,
-  MAX_USERNAME_LEN,
-  MIN_PASSWORD_LEN,
-  MIN_USERNAME_LEN,
-  PASSWORD_HAS_DIGIT,
-  PASSWORD_HAS_LETTER,
-} from '../../core/config/app.constants';
+import { DEFAULT_WS } from '../../core/config/app.constants';
 import { errorMessage } from '../../core/error/error-messages';
 import { SessionStore } from '../../core/auth/session.store';
 import { WsClient } from '../../core/realtime/ws-client';
+import {
+  getStoredCashierWsUrl,
+  getStoredUsername,
+  setStoredCashierWsUrl,
+  setStoredDisplayName,
+  setStoredUsername,
+} from '../../core/storage/local-storage';
 import { getServerAddress } from '../../data/device/device.api';
+import { credentialsRuleError } from '../../shared/utils/validators';
 import { AdminModal } from './components/admin-modal/admin-modal';
 import { CashierSetup } from './components/cashier-setup/cashier-setup';
 import { CounterSetup } from './components/counter-setup/counter-setup';
@@ -26,9 +27,6 @@ type Step =
   | 'counter-setup'
   | 'counter-waiting'
   | 'counter-rejected';
-const LS_USERNAME = 'gasipro:username';
-const LS_DISPLAY_NAME = 'gasipro:displayName';
-const LS_CASHIER_URL = 'gasipro:cashierWsUrl';
 interface AuthAccount {
   user_type: string;
   display_name: string;
@@ -83,9 +81,9 @@ export class LoginPage implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.updateClock();
     this.clockInterval = setInterval(() => this.updateClock(), 60_000);
-    this.cashierUsername.set(localStorage.getItem(LS_USERNAME) ?? '');
-    this.counterUsername.set(localStorage.getItem(LS_USERNAME) ?? '');
-    this.counterWsUrl.set(localStorage.getItem(LS_CASHIER_URL) ?? DEFAULT_WS);
+    this.cashierUsername.set(getStoredUsername() ?? '');
+    this.counterUsername.set(getStoredUsername() ?? '');
+    this.counterWsUrl.set(getStoredCashierWsUrl() ?? DEFAULT_WS);
   }
   ngOnDestroy(): void {
     if (this.clockInterval) clearInterval(this.clockInterval);
@@ -148,8 +146,8 @@ export class LoginPage implements OnInit, OnDestroy {
         this.adminError.set('Ce compte n\'a pas les droits administrateur.');
         return;
       }
-      localStorage.setItem(LS_USERNAME, username);
-      localStorage.setItem(LS_DISPLAY_NAME, result.account.display_name ?? '');
+      setStoredUsername(username);
+      setStoredDisplayName(result.account.display_name ?? '');
       if (result.session_token) {
         this.session.setSessionToken(result.session_token);
       }
@@ -199,26 +197,11 @@ export class LoginPage implements OnInit, OnDestroy {
       this.loadingWsAddress.set(false);
     }
   }
-  private validateCredentials(username: string, password: string): string {
-    if (username.length < MIN_USERNAME_LEN) {
-      return `Le nom d'utilisateur doit contenir au moins ${MIN_USERNAME_LEN} caractères.`;
-    }
-    if (username.length > MAX_USERNAME_LEN) {
-      return `Le nom d'utilisateur ne peut pas dépasser ${MAX_USERNAME_LEN} caractères.`;
-    }
-    if (password.length < MIN_PASSWORD_LEN) {
-      return `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LEN} caractères.`;
-    }
-    if (!PASSWORD_HAS_LETTER.test(password) || !PASSWORD_HAS_DIGIT.test(password)) {
-      return 'Le mot de passe doit contenir au moins une lettre et un chiffre.';
-    }
-    return '';
-  }
   async enterAsCashier(): Promise<void> {
     if (this.authenticatingCashier()) return;
     const username = this.cashierUsername().trim();
     const password = this.cashierPassword();
-    const formError = this.validateCredentials(username, password);
+    const formError = credentialsRuleError(username, password);
     if (formError) {
       this.cashierError.set(formError);
       return;
@@ -237,8 +220,8 @@ export class LoginPage implements OnInit, OnDestroy {
         this.cashierError.set("Ce compte n'a pas accès à la caisse.");
         return;
       }
-      localStorage.setItem(LS_USERNAME, username);
-      localStorage.setItem(LS_DISPLAY_NAME, result.account.display_name ?? '');
+      setStoredUsername(username);
+      setStoredDisplayName(result.account.display_name ?? '');
       if (result.session_token) {
         this.session.setSessionToken(result.session_token);
       }
@@ -273,7 +256,7 @@ export class LoginPage implements OnInit, OnDestroy {
     if (!this.counterUsername().trim() || !this.counterWsUrl().trim() || !this.counterPassword()) return;
     const username = this.counterUsername().trim();
     const password = this.counterPassword();
-    const formError = this.validateCredentials(username, password);
+    const formError = credentialsRuleError(username, password);
     if (formError) {
       this.counterError.set(formError);
       return;
@@ -286,8 +269,8 @@ export class LoginPage implements OnInit, OnDestroy {
     this.ws.connect(fullUrl);
     this.wsSubscription = this.ws.getMessages().subscribe((msg) => {
       if (msg.type === 'connection_approved') {
-        localStorage.setItem(LS_USERNAME, username);
-        localStorage.setItem(LS_CASHIER_URL, wsUrl);
+        setStoredUsername(username);
+        setStoredCashierWsUrl(wsUrl);
         this.navigatingToCounter = true;
         this.wsSubscription?.unsubscribe();
         this.openSubscription?.unsubscribe();

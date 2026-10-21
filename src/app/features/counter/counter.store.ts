@@ -11,9 +11,8 @@ import {
 } from '../../core/storage/local-storage';
 import {
   DEFAULT_WS,
-  MAX_USERNAME_LEN,
+  MAX_DISPLAY_NAME_LEN,
   MIN_PASSWORD_LEN,
-  MIN_USERNAME_LEN,
   PASSWORD_HAS_DIGIT,
   PASSWORD_HAS_LETTER,
 } from '../../core/config/app.constants';
@@ -27,7 +26,7 @@ import {
 } from '../../data/order/order.utils';
 import { ServiceItem } from '../../data/pricing/pricing.model';
 import { formatRelativeDay } from '../../shared/utils/date';
-import { isValidHostPort, stripWsScheme } from '../../shared/utils/validators';
+import { credentialsRuleError, isValidHostPort, stripWsScheme } from '../../shared/utils/validators';
 import { BottomBarNotification } from '../../layouts/main-layout/bottom-bar/bottom-bar';
 export interface CartItem {
   service: ServiceItem;
@@ -42,12 +41,12 @@ export interface HistoriqueDayGroup {
   count: number;
 }
 const HISTORIQUE_ALL_STATUSES = 'TOUS';
-const MAX_DISPLAY_NAME_LEN = 40;
 @Injectable()
 export class CounterStore {
   username = getStoredUsername() ?? 'Comptoir';
-  cashierHost = getStoredCashierWsUrl() ?? DEFAULT_WS;
+  cashierHost = stripWsScheme(getStoredCashierWsUrl() ?? DEFAULT_WS);
   private password = '';
+  private pendingPassword: string | null = null;
   // ── Catalogue ───────────────────────────────────────────────────────────────
   allServices = signal<ServiceItem[]>([]);
   categories = signal<string[]>([]);
@@ -195,21 +194,6 @@ export class CounterStore {
     this.closeSubscription?.unsubscribe();
     this.ws.disconnect();
   }
-  private validateCredentials(username: string, password: string): string {
-    if (username.length < MIN_USERNAME_LEN) {
-      return `Le nom d'utilisateur doit contenir au moins ${MIN_USERNAME_LEN} caractères.`;
-    }
-    if (username.length > MAX_USERNAME_LEN) {
-      return `Le nom d'utilisateur ne peut pas dépasser ${MAX_USERNAME_LEN} caractères.`;
-    }
-    if (password.length < MIN_PASSWORD_LEN) {
-      return `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LEN} caractères.`;
-    }
-    if (!PASSWORD_HAS_LETTER.test(password) || !PASSWORD_HAS_DIGIT.test(password)) {
-      return 'Le mot de passe doit contenir au moins une lettre et un chiffre.';
-    }
-    return '';
-  }
   private setupWsListeners(): void {
     // Handle reconnect: re-send request_connection, show waiting overlay.
     this.openSubscription = this.ws.onOpened().subscribe(() => {
@@ -219,7 +203,7 @@ export class CounterStore {
       this.serverConnectError.set('');
       // Credentials are checked locally before request_connection is ever sent,
       // whether this open event is a drop/reconnect or a manual server switch.
-      const formError = this.validateCredentials(this.username, this.password);
+      const formError = credentialsRuleError(this.username, this.password);
       if (formError) {
         this.credentialsError.set(formError);
         this.wsConnected.set(false);
@@ -274,6 +258,11 @@ export class CounterStore {
       } else if (msg.type === 'account_updated') {
         const account = msg.data as { display_name: string };
         this.accountDisplayName.set(account.display_name);
+        if (this.pendingPassword !== null) {
+          this.password = this.pendingPassword;
+          this.session.setCounterCredentials(this.username, this.pendingPassword);
+          this.pendingPassword = null;
+        }
         this.savingAccount.set(false);
         this.editPassword.set('');
         this.editPasswordConfirm.set('');
@@ -281,6 +270,7 @@ export class CounterStore {
         this.showAccountPanel = false;
         this.showToast('Compte mis à jour.');
       } else if (msg.type === 'account_update_error') {
+        this.pendingPassword = null;
         this.savingAccount.set(false);
         this.editAccountError.set(msg.data as string);
       } else if (msg.type === 'pricing') {
@@ -349,8 +339,10 @@ export class CounterStore {
     this.savingAccount.set(true);
     const displayName = this.editDisplayName().trim();
     const password = this.editPassword().length > 0 ? this.editPassword() : null;
+    this.pendingPassword = password;
     const sent = this.ws.send({ type: 'account_update', display_name: displayName, password });
     if (!sent) {
+      this.pendingPassword = null;
       this.savingAccount.set(false);
       this.editAccountError.set('Échec de l\'enregistrement — vérifiez la connexion réseau.');
     }
@@ -460,9 +452,9 @@ export class CounterStore {
     }
     if (
       order.unit_price === null ||
-      !Number.isFinite(Number(order.unit_price)) ||
+      !Number.isInteger(Number(order.unit_price)) ||
       Number(order.unit_price) < 0 ||
-      !Number.isFinite(Number(order.quantity)) ||
+      !Number.isInteger(Number(order.quantity)) ||
       Number(order.quantity) < 1
     ) {
       this.showToast('Quantité ou prix invalide — la modification n\'a pas été envoyée.');
@@ -641,7 +633,7 @@ export class CounterStore {
     return item.unitPrice > item.service.price;
   }
   isCartItemPriceInvalid(item: CartItem): boolean {
-    return !Number.isFinite(item.unitPrice) || item.unitPrice < 0;
+    return !Number.isInteger(item.unitPrice) || item.unitPrice < 0;
   }
   get hasInvalidCartPrice(): boolean {
     return this.cart.some((item) => this.isCartItemPriceInvalid(item));

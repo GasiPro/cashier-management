@@ -155,6 +155,7 @@ export class PricingPage implements OnInit {
     }
     if (price === null || Number.isNaN(price)) return 'Le prix est obligatoire.';
     if (price < 0) return 'Le prix ne peut pas être négatif.';
+    if (!Number.isInteger(price)) return 'Le prix doit être un nombre entier.';
     if (
       this.items().some(
         (i) =>

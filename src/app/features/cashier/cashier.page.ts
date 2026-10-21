@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
-import { LOCAL_WS_URL } from '../../core/config/app.constants';
+import { DEFAULT_WS, LOCAL_WS_URL } from '../../core/config/app.constants';
 import { WsRegistration } from '../../core/auth/ws-registration';
 import { errorMessage } from '../../core/error/error-messages';
 import { WsClient } from '../../core/realtime/ws-client';
@@ -76,7 +76,7 @@ export class CashierPage implements OnInit, OnDestroy {
   ngOnInit(): void {
     getServerAddress()
       .then((addr) => this.wsAddress.set(addr))
-      .catch(() => this.wsAddress.set('127.0.0.1:8080'));
+      .catch(() => this.wsAddress.set(DEFAULT_WS));
     void this.devices.loadMaxDevices().catch(() => {});
     this.orders.start();
     this.devices.startLive();

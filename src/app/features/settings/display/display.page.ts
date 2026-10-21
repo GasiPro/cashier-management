@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { getStoredDisplayName, getStoredUsername } from '../../../core/storage/local-storage';
+import { errorMessage } from '../../../core/error/error-messages';
 import * as settingsApi from '../../../data/settings/settings.api';
 import { ThemeOption } from '../../../data/settings/settings.model';
 import { BottomBar } from '../../../layouts/main-layout/bottom-bar/bottom-bar';
@@ -138,7 +139,7 @@ export class DisplayPage implements OnInit, OnDestroy {
       this.setStatus('Réglages d\'affichage enregistrés.', false);
     } catch (e) {
       console.error('failed to save display settings', e);
-      const message = typeof e === 'string' ? e : "Échec de l'enregistrement. Réessayez.";
+      const message = errorMessage(e, "Échec de l'enregistrement. Réessayez.");
       this.setStatus(message, true);
     } finally {
       this.saving.set(false);

@@ -2,6 +2,7 @@ import { Component, ElementRef, OnInit, signal, computed, ViewChild } from '@ang
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
+  MAX_DISPLAY_NAME_LEN,
   MIN_USERNAME_LEN,
   MAX_USERNAME_LEN,
   MIN_PASSWORD_LEN,
@@ -11,17 +12,7 @@ import {
 import { errorMessage } from '../../../core/error/error-messages';
 import { getStoredUsername } from '../../../core/storage/local-storage';
 import * as accountApi from '../../../data/account/account.api';
-import { AccountActivity, AccountHistoryEntry, AccountView, UserType } from '../../../data/account/account.model';
-const MAX_DISPLAY_NAME_LEN = 40;
-interface UserTypeChoice {
-  value: UserType;
-  label: string;
-}
-const USER_TYPES: UserTypeChoice[] = [
-  { value: 'admin', label: 'Administrateur' },
-  { value: 'caissier', label: 'Caissier' },
-  { value: 'comptoir', label: 'Comptoir' },
-];
+import { AccountActivity, AccountHistoryEntry, AccountView, USER_TYPES, UserType } from '../../../data/account/account.model';
 @Component({
   selector: 'app-admin-accounts',
   standalone: true,

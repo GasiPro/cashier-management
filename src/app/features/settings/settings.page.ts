@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
   CONNECTED_DEVICES_POLL_MS,
+  MAX_DISPLAY_NAME_LEN,
   MIN_USERNAME_LEN,
   MAX_USERNAME_LEN,
   MIN_PASSWORD_LEN,
@@ -15,11 +16,10 @@ import { getStoredDisplayName, getStoredUsername } from '../../core/storage/loca
 import * as accountApi from '../../data/account/account.api';
 import { AccountView, UserType } from '../../data/account/account.model';
 import * as deviceApi from '../../data/device/device.api';
+import { MAX_ALLOWED_CONNECTED_DEVICES } from '../../data/device/device.model';
 import { BottomBar } from '../../layouts/main-layout/bottom-bar/bottom-bar';
 import { LeftSidebar } from '../../layouts/main-layout/sidebar/sidebar';
 import { Navbar } from '../../layouts/main-layout/navbar/navbar';
-const MAX_DISPLAY_NAME_LEN = 40;
-const MAX_ALLOWED_CONNECTED_DEVICES = 50;
 const CASHIER_USER_TYPE: UserType = 'caissier';
 @Component({
   selector: 'app-settings',

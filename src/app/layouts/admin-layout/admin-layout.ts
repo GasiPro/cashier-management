@@ -2,11 +2,11 @@ import { Component, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, Subscription } from 'rxjs';
+import { LOCAL_WS_URL } from '../../core/config/app.constants';
+import { getStoredUsername } from '../../core/storage/local-storage';
 import { WsRegistration } from '../../core/auth/ws-registration';
 import { WsClient } from '../../core/realtime/ws-client';
 import { WsMessage } from '../../core/realtime/ws-protocol';
-const LS_USERNAME = 'gasipro:username';
-const ADMIN_LOCAL_WS_URL = 'ws://127.0.0.1:8080';
 interface AdminNavItem {
   id: string;
   label: string;
@@ -30,7 +30,7 @@ const HOME_ROUTE = 'dashboard';
 export class AdminLayout implements OnInit, OnDestroy {
   readonly navItems = NAV_ITEMS;
   readonly homeRoute = HOME_ROUTE;
-  readonly username = localStorage.getItem(LS_USERNAME) ?? 'Admin';
+  readonly username = getStoredUsername() ?? 'Admin';
   private currentUrl = signal('');
   /**
    * Owns the single WS connection/registration for the whole admin section — child
@@ -63,7 +63,7 @@ export class AdminLayout implements OnInit, OnDestroy {
       this.approved = true;
     });
     this.openSubscription = this.ws.onOpened().subscribe(() => this.registerOnOpen());
-    this.ws.connect(ADMIN_LOCAL_WS_URL);
+    this.ws.connect(LOCAL_WS_URL);
     if (this.ws.isOpen()) {
       this.registerOnOpen();
     }

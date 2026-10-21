@@ -2,7 +2,6 @@ import { Injectable, OnDestroy } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 import { WS_PROBE_TIMEOUT_MS, WS_RECONNECT_DELAY_MS } from '../config/app.constants';
 import type { WsMessage } from './ws-protocol';
-
 @Injectable({ providedIn: 'root' })
 export class WsClient implements OnDestroy {
   private socket: WebSocket | null = null;
@@ -12,29 +11,31 @@ export class WsClient implements OnDestroy {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private url = '';
   private manuallyClosed = false;
-
-  /**
-   * Connect (or reconnect) to a given ws:// address.
-   * No-op if already connected/connecting to the same URL.
-   */
   connect(url: string): void {
     if (this.socket && this.url === url && this.socket.readyState <= WebSocket.OPEN) {
       return;
     }
     this.manuallyClosed = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     this.url = url;
+    this.detachSocket();
     this.open();
   }
-
   private open(): void {
     const socket = new WebSocket(this.url);
     this.socket = socket;
-
     socket.onopen = () => {
+      if (this.socket !== socket) {
+        socket.close();
+        return;
+      }
       this.openEvent$.next();
     };
-
     socket.onmessage = (event: MessageEvent<string>) => {
+      if (this.socket !== socket) return;
       let parsed: WsMessage | null = null;
       try {
         parsed = JSON.parse(event.data) as WsMessage;
@@ -45,19 +46,18 @@ export class WsClient implements OnDestroy {
         this.messages$.next(parsed);
       }
     };
-
     socket.onclose = () => {
+      if (this.socket !== null && this.socket !== socket) return;
       this.closeEvent$.next();
       if (!this.manuallyClosed) {
         this.scheduleReconnect();
       }
     };
-
     socket.onerror = () => {
+      if (this.socket !== socket) return;
       socket.close();
     };
   }
-
   private scheduleReconnect(): void {
     if (this.reconnectTimer) return;
     this.reconnectTimer = setTimeout(() => {
@@ -67,22 +67,13 @@ export class WsClient implements OnDestroy {
       }
     }, WS_RECONNECT_DELAY_MS);
   }
-
-  /** Whether the underlying socket is currently open. */
   isOpen(): boolean {
     return this.socket?.readyState === WebSocket.OPEN;
   }
-
-  /**
-   * Probe whether a WS server is reachable at the given address, without
-   * touching the main connection. Opens a throwaway socket and resolves
-   * `true` if it connects before `timeoutMs`, `false` otherwise.
-   */
   checkAddress(url: string, timeoutMs = WS_PROBE_TIMEOUT_MS): Promise<boolean> {
     return new Promise((resolve) => {
       let settled = false;
       let probe: WebSocket;
-
       const finish = (result: boolean) => {
         if (settled) return;
         settled = true;
@@ -93,9 +84,7 @@ export class WsClient implements OnDestroy {
         probe.close();
         resolve(result);
       };
-
       const timer = setTimeout(() => finish(false), timeoutMs);
-
       try {
         probe = new WebSocket(url);
       } catch {
@@ -107,7 +96,6 @@ export class WsClient implements OnDestroy {
       probe.onerror = () => finish(false);
     });
   }
-
   send(payload: unknown): boolean {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       try {
@@ -119,29 +107,30 @@ export class WsClient implements OnDestroy {
     }
     return false;
   }
-
   getMessages(): Observable<WsMessage> {
     return this.messages$.asObservable();
   }
-
   onOpened(): Observable<void> {
     return this.openEvent$.asObservable();
   }
-
   onClosed(): Observable<void> {
     return this.closeEvent$.asObservable();
   }
-
   disconnect(): void {
     this.manuallyClosed = true;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    this.socket?.close();
-    this.socket = null;
+    this.detachSocket();
   }
-
+  private detachSocket(): void {
+    const previous = this.socket;
+    this.socket = null;
+    if (previous && previous.readyState <= WebSocket.OPEN) {
+      previous.close();
+    }
+  }
   ngOnDestroy(): void {
     this.disconnect();
   }
