@@ -20,8 +20,7 @@ const TYPE_OPTIONS: TypeOption[] = [
   selector: 'app-admin-pricing',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './pricing.page.html',
-  styleUrl: './pricing.page.css',
+  templateUrl: './pricing.page.html'
 })
 export class PricingPage implements OnInit {
   readonly maxLabelLen = MAX_LABEL_LEN;

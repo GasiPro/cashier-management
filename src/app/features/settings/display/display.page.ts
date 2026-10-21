@@ -21,8 +21,7 @@ const BACKGROUND_PRESETS: string[] = ['#FAFAFA', '#FFFFFF', '#F1F5F9', '#1E293B'
   selector: 'app-display-settings',
   standalone: true,
   imports: [CommonModule, FormsModule, Navbar, LeftSidebar, BottomBar],
-  templateUrl: './display.page.html',
-  styleUrl: './display.page.css',
+  templateUrl: './display.page.html'
 })
 export class DisplayPage implements OnInit, OnDestroy {
   readonly minFontSize = MIN_FONT_SIZE;

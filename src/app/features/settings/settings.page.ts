@@ -25,8 +25,7 @@ const CASHIER_USER_TYPE: UserType = 'caissier';
   selector: 'app-settings',
   standalone: true,
   imports: [CommonModule, FormsModule, Navbar, LeftSidebar, BottomBar],
-  templateUrl: './settings.page.html',
-  styleUrl: './settings.page.css',
+  templateUrl: './settings.page.html'
 })
 export class SettingsPage implements OnInit, OnDestroy {
   readonly maxAllowedConnectedDevices = MAX_ALLOWED_CONNECTED_DEVICES;

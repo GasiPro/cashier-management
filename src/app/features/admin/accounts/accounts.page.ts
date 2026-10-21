@@ -17,8 +17,7 @@ import { AccountActivity, AccountHistoryEntry, AccountView, USER_TYPES, UserType
   selector: 'app-admin-accounts',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './accounts.page.html',
-  styleUrl: './accounts.page.css',
+  templateUrl: './accounts.page.html'
 })
 export class AccountsPage implements OnInit {
   readonly userTypes = USER_TYPES;

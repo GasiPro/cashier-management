@@ -24,8 +24,7 @@ const HOME_ROUTE = 'dashboard';
   selector: 'app-admin-layout',
   standalone: true,
   imports: [CommonModule, RouterOutlet, RouterLink],
-  templateUrl: './admin-layout.html',
-  styleUrl: './admin-layout.css',
+  templateUrl: './admin-layout.html'
 })
 export class AdminLayout implements OnInit, OnDestroy {
   readonly navItems = NAV_ITEMS;

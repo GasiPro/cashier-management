@@ -12,8 +12,7 @@ type SortKey = 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc';
   selector: 'app-admin-orders',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './orders.page.html',
-  styleUrl: './orders.page.css',
+  templateUrl: './orders.page.html'
 })
 export class OrdersPage {
   private readonly orderStore = inject(OrderStore);

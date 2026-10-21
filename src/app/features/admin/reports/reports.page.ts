@@ -47,8 +47,7 @@ import { ReportStore } from './report.store';
   standalone: true,
   imports: [CommonModule, FormsModule],
   providers: [ReportStore],
-  templateUrl: './reports.page.html',
-  styleUrl: './reports.page.css',
+  templateUrl: './reports.page.html'
 })
 export class ReportsPage {
   readonly allCounters = REPORT_ALL_COUNTERS;

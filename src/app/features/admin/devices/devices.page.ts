@@ -22,8 +22,7 @@ const MAX_BLACKLIST_REASON_LEN = 120;
   selector: 'app-admin-devices',
   standalone: true,
   imports: [CommonModule, FormsModule],
-  templateUrl: './devices.page.html',
-  styleUrl: './devices.page.css',
+  templateUrl: './devices.page.html'
 })
 export class DevicesPage implements OnInit, OnDestroy {
   readonly maxBlacklistAddrLen = MAX_BLACKLIST_ADDR_LEN;
