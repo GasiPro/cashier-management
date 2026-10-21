@@ -1,9 +1,7 @@
-use crate::domain::connection::{
-    self, optional_username, peer_label,
-};
+use crate::domain::connection::{self, optional_username, peer_label};
 use crate::infrastructure::websocket::{
-    get_connected_devices_list, get_pending_requests_list, is_at_connected_devices_capacity,
-    notify_cashier, resolve_peer_addr, scope_orders_for_peer, PeerMap,
+    is_at_connected_devices_capacity, notify_connected_devices, notify_pending_requests,
+    remove_peer, resolve_peer_addr, scope_orders_for_peer, PeerMap,
 };
 use crate::models::connection::{
     ip_from_addr, next_blacklist_id, next_history_id, BlacklistEntry, BlacklistType,
@@ -14,7 +12,6 @@ use crate::repositories::connection_repository;
 use crate::services::setting_service::MaxConnectedDevices;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
-use tokio_tungstenite::tungstenite::Message;
 
 pub type Blacklist = Arc<SyncMutex<Vec<BlacklistEntry>>>;
 pub type ConnectionHistory = Arc<SyncMutex<Vec<ConnectionHistoryEntry>>>;
@@ -92,38 +89,35 @@ pub async fn approve_connection(
     addr: Option<String>,
 ) -> Result<(), String> {
     let socket_addr = resolve_peer_addr(peers, id, addr).await?;
-    let addr = socket_addr.to_string();
     if is_at_connected_devices_capacity(peers, max_connected_devices).await {
         let max = *max_connected_devices.lock().unwrap();
         return Err(format!(
             "Limite de {max} appareil(s) connecté(s) atteinte. Déconnectez un appareil ou augmentez la limite dans Réglages."
         ));
     }
-    let mut approved_username = String::new();
-    {
+    let approved_username = {
         let mut guard = peers.lock().await;
-        if let Some(peer) = guard.get_mut(&socket_addr) {
-            peer.approved = true;
-            peer.connected_at = Some(chrono::Local::now().to_rfc3339());
-            approved_username = peer.username.clone();
-            let scoped = scope_orders_for_peer(&orders, peer);
-            let _ = peer.tx.send(Message::Text(
-                serde_json::to_string(&ServerMessage::ConnectionApproved)
-                    .unwrap_or_default()
-                    .into(),
-            ));
-            let _ = peer.tx.send(Message::Text(
-                serde_json::to_string(&ServerMessage::Orders { data: scoped })
-                    .unwrap_or_default()
-                    .into(),
-            ));
-        }
-    }
-    record_connection_history(history, Some(app), &addr, &approved_username, ConnectionEvent::Approved);
-    let pending = get_pending_requests_list(peers).await;
-    let connected = get_connected_devices_list(peers).await;
-    notify_cashier(peers, &ServerMessage::ConnectionRequests { data: pending }).await;
-    notify_cashier(peers, &ServerMessage::ConnectedDevices { data: connected }).await;
+        let peer = guard
+            .get_mut(&socket_addr)
+            .filter(|peer| !peer.approved && !peer.username.is_empty())
+            .ok_or_else(|| "Demande de connexion introuvable ou déjà traitée.".to_string())?;
+        peer.approved = true;
+        peer.connected_at = Some(chrono::Local::now().to_rfc3339());
+        peer.send(&ServerMessage::ConnectionApproved);
+        peer.send(&ServerMessage::Orders {
+            data: scope_orders_for_peer(&orders, peer),
+        });
+        peer.username.clone()
+    };
+    record_connection_history(
+        history,
+        Some(app),
+        &socket_addr.to_string(),
+        &approved_username,
+        ConnectionEvent::Approved,
+    );
+    notify_pending_requests(peers).await;
+    notify_connected_devices(peers).await;
     Ok(())
 }
 
@@ -135,23 +129,15 @@ pub async fn reject_connection(
     addr: Option<String>,
 ) -> Result<(), String> {
     let socket_addr = resolve_peer_addr(peers, id, addr).await?;
-    let addr = socket_addr.to_string();
-    let mut rejected_username = String::new();
-    {
-        let mut guard = peers.lock().await;
-        if let Some(peer) = guard.get(&socket_addr) {
-            rejected_username = peer.username.clone();
-            let _ = peer.tx.send(Message::Text(
-                serde_json::to_string(&ServerMessage::ConnectionRejected)
-                    .unwrap_or_default()
-                    .into(),
-            ));
-        }
-        guard.remove(&socket_addr);
-    }
-    record_connection_history(history, Some(app), &addr, &rejected_username, ConnectionEvent::Rejected);
-    let pending = get_pending_requests_list(peers).await;
-    notify_cashier(peers, &ServerMessage::ConnectionRequests { data: pending }).await;
+    let username = remove_peer(peers, socket_addr, &ServerMessage::ConnectionRejected).await;
+    record_connection_history(
+        history,
+        Some(app),
+        &socket_addr.to_string(),
+        &username,
+        ConnectionEvent::Rejected,
+    );
+    notify_pending_requests(peers).await;
     Ok(())
 }
 
@@ -163,23 +149,15 @@ pub async fn disconnect_device(
     addr: Option<String>,
 ) -> Result<(), String> {
     let socket_addr = resolve_peer_addr(peers, id, addr).await?;
-    let addr = socket_addr.to_string();
-    let mut disconnected_username = String::new();
-    {
-        let mut guard = peers.lock().await;
-        if let Some(peer) = guard.get(&socket_addr) {
-            disconnected_username = peer.username.clone();
-            let _ = peer.tx.send(Message::Text(
-                serde_json::to_string(&ServerMessage::ConnectionBlocked)
-                    .unwrap_or_default()
-                    .into(),
-            ));
-        }
-        guard.remove(&socket_addr);
-    }
-    record_connection_history(history, Some(app), &addr, &disconnected_username, ConnectionEvent::Disconnected);
-    let connected = get_connected_devices_list(peers).await;
-    notify_cashier(peers, &ServerMessage::ConnectedDevices { data: connected }).await;
+    let username = remove_peer(peers, socket_addr, &ServerMessage::ConnectionBlocked).await;
+    record_connection_history(
+        history,
+        Some(app),
+        &socket_addr.to_string(),
+        &username,
+        ConnectionEvent::Disconnected,
+    );
+    notify_connected_devices(peers).await;
     Ok(())
 }
 
@@ -194,56 +172,29 @@ pub async fn block_device(
 ) -> Result<BlacklistEntry, String> {
     let socket_addr = resolve_peer_addr(peers, id, addr).await?;
     let addr = socket_addr.to_string();
-    let mut blocked_username = String::new();
-    {
-        let mut guard = peers.lock().await;
-        if let Some(peer) = guard.get(&socket_addr) {
-            blocked_username = peer.username.clone();
-            let _ = peer.tx.send(Message::Text(
-                serde_json::to_string(&ServerMessage::ConnectionBlocked)
-                    .unwrap_or_default()
-                    .into(),
-            ));
-        }
-        guard.remove(&socket_addr);
-    }
-    let entry = block_ip(app, blacklist, &addr, reason).await?;
-    record_connection_history(history, Some(app), &addr, &blocked_username, ConnectionEvent::Blocked);
-    let pending = get_pending_requests_list(peers).await;
-    let connected = get_connected_devices_list(peers).await;
-    notify_cashier(peers, &ServerMessage::ConnectionRequests { data: pending }).await;
-    notify_cashier(peers, &ServerMessage::ConnectedDevices { data: connected }).await;
+    let username = remove_peer(peers, socket_addr, &ServerMessage::ConnectionBlocked).await;
+    let entry = block_ip(app, blacklist, &addr, reason)?;
+    record_connection_history(history, Some(app), &addr, &username, ConnectionEvent::Blocked);
+    notify_pending_requests(peers).await;
+    notify_connected_devices(peers).await;
     Ok(entry)
 }
 
-pub async fn block_ip(
+fn block_ip(
     app: &AppHandle,
     blacklist: &Blacklist,
     addr: &str,
     reason: Option<String>,
 ) -> Result<BlacklistEntry, String> {
-    let mut guard = blacklist.lock().unwrap();
     let ip = ip_from_addr(addr).to_string();
-    let existing = guard
+    let mut guard = blacklist.lock().unwrap();
+    if let Some(existing) = guard
         .iter()
         .find(|e| e.entry_type == BlacklistType::Ip && e.value == ip)
-        .cloned();
-    if let Some(existing) = existing {
-        return Ok(existing);
+    {
+        return Ok(existing.clone());
     }
-    let entry = BlacklistEntry {
-        id: next_blacklist_id(),
-        entry_type: BlacklistType::Ip,
-        value: ip,
-        reason,
-        created_at: chrono::Local::now().to_rfc3339(),
-    };
-    guard.push(entry.clone());
-    if let Err(err) = connection_repository::save_blacklist(app, &guard) {
-        guard.pop();
-        return Err(format!("Échec de l'enregistrement de la liste noire : {err}"));
-    }
-    Ok(entry)
+    insert_blacklist_entry(app, &mut guard, BlacklistType::Ip, ip, reason)
 }
 
 pub async fn add_blacklist_entry(
@@ -275,19 +226,7 @@ pub async fn add_blacklist_entry(
             BlacklistType::Username => "Ce nom d'utilisateur est déjà sur liste noire.".to_string(),
         });
     }
-    let entry = BlacklistEntry {
-        id: next_blacklist_id(),
-        entry_type,
-        value,
-        reason,
-        created_at: chrono::Local::now().to_rfc3339(),
-    };
-    guard.push(entry.clone());
-    if let Err(err) = connection_repository::save_blacklist(app, &guard) {
-        guard.pop();
-        return Err(format!("Échec de l'enregistrement de la liste noire : {err}"));
-    }
-    Ok(entry)
+    insert_blacklist_entry(app, &mut guard, entry_type, value, reason)
 }
 
 pub async fn remove_blacklist_entry(
@@ -311,4 +250,26 @@ pub async fn remove_blacklist_entry(
         return Err(format!("Échec de l'enregistrement de la liste noire : {err}"));
     }
     Ok(())
+}
+
+fn insert_blacklist_entry(
+    app: &AppHandle,
+    entries: &mut Vec<BlacklistEntry>,
+    entry_type: BlacklistType,
+    value: String,
+    reason: Option<String>,
+) -> Result<BlacklistEntry, String> {
+    let entry = BlacklistEntry {
+        id: next_blacklist_id(),
+        entry_type,
+        value,
+        reason,
+        created_at: chrono::Local::now().to_rfc3339(),
+    };
+    entries.push(entry.clone());
+    if let Err(err) = connection_repository::save_blacklist(app, entries) {
+        entries.pop();
+        return Err(format!("Échec de l'enregistrement de la liste noire : {err}"));
+    }
+    Ok(entry)
 }

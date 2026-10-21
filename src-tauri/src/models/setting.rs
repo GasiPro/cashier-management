@@ -3,14 +3,11 @@ use crate::config::setting_config::{
     DEFAULT_BACKGROUND_COLOR, DEFAULT_FONT_SIZE, DEFAULT_MAX_CONNECTED_DEVICES,
 };
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AppSettings {
-    #[serde(default = "default_max_connected_devices")]
     pub max_connected_devices: u32,
-    #[serde(default = "default_background_color")]
     pub background_color: String,
-    #[serde(default = "default_font_size")]
     pub font_size: u32,
-    #[serde(default = "default_theme")]
     pub theme: Theme,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
@@ -36,18 +33,6 @@ impl Theme {
             _ => Err(format!("Thème invalide: {value}")),
         }
     }
-}
-fn default_max_connected_devices() -> u32 {
-    DEFAULT_MAX_CONNECTED_DEVICES
-}
-fn default_background_color() -> String {
-    DEFAULT_BACKGROUND_COLOR.to_string()
-}
-fn default_font_size() -> u32 {
-    DEFAULT_FONT_SIZE
-}
-fn default_theme() -> Theme {
-    Theme::default()
 }
 impl Default for AppSettings {
     fn default() -> Self {

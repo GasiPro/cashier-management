@@ -5,6 +5,9 @@ use chrono::{Local, Utc};
 use std::sync::Mutex;
 use tauri::AppHandle;
 
+const ORDER_NOT_FOUND: &str = "Commande introuvable ou déjà traitée.";
+const GROUP_NOT_FOUND: &str = "Aucune commande en attente trouvée pour ce groupe.";
+
 pub struct OrderService {
     state: Mutex<OrderState>,
     app_handle: Mutex<Option<AppHandle>>,
@@ -37,167 +40,179 @@ impl OrderService {
 
     pub fn load(&self, app: &AppHandle) {
         let orders = OrderApi::load_orders(app);
-        let next_id = OrderApi::load_next_id(app);
-        let next_group_id = OrderApi::load_next_group_id(app);
-        {
-            let mut guard = self.state.lock().unwrap();
-            guard.orders = orders;
-            guard.next_id = next_id;
-            guard.next_group_id = next_group_id;
-        }
+        let next_id = OrderApi::load_next_id(app)
+            .max(orders.iter().map(|o| o.id + 1).max().unwrap_or(0));
+        let next_group_id = OrderApi::load_next_group_id(app)
+            .max(orders.iter().map(|o| o.group_id + 1).max().unwrap_or(0));
+        *self.state.lock().unwrap() = OrderState {
+            orders,
+            next_id,
+            next_group_id,
+        };
         *self.app_handle.lock().unwrap() = Some(app.clone());
     }
 
     pub fn get_orders(&self) -> Vec<Order> {
-        let guard = self.state.lock().unwrap();
-        guard.orders.clone()
+        self.state.lock().unwrap().orders.clone()
     }
 
     pub fn get_pending(&self) -> Vec<Order> {
-        let guard = self.state.lock().unwrap();
-        guard
-            .orders
-            .iter()
-            .filter(|o| o.status == OrderStatus::EnAttente)
-            .cloned()
-            .collect()
+        self.orders_with_status(OrderStatus::EnAttente)
     }
 
     pub fn get_paid(&self) -> Vec<Order> {
-        let guard = self.state.lock().unwrap();
-        guard
-            .orders
-            .iter()
-            .filter(|o| o.status == OrderStatus::Paye)
-            .cloned()
-            .collect()
+        self.orders_with_status(OrderStatus::Paye)
     }
 
     pub fn create_order(&self, cart: &[CartItem], counter_username: &str) -> Result<(), String> {
         if cart.is_empty() {
             return Err("Le panier est vide.".to_string());
         }
-        let mut guard = self.state.lock().unwrap();
-        let snapshot = guard.clone();
-        let now = Local::now();
-        let time = now.format("%H:%M").to_string();
+        let time = Local::now().format("%H:%M").to_string();
         let created_at = Utc::now().to_rfc3339();
-        let group_id = guard.next_group_id;
-        guard.next_group_id += 1;
-        for item in cart {
-            let order = Order {
-                id: guard.next_id,
-                group_id,
-                service_type: format!("{} — {}", item.service.category, item.label),
-                unit_price: item.unit_price,
-                original_unit_price: item.service.price,
-                quantity: item.qty,
-                status: OrderStatus::EnAttente,
-                time: time.clone(),
-                counter_username: counter_username.to_string(),
-                created_at: created_at.clone(),
-                paid_at: None,
-                observation: item.observation.clone(),
-                raison: None,
-            };
-            guard.next_id += 1;
-            guard.orders.push(order);
-        }
-        self.commit(&mut guard, snapshot)
+        self.modify(|state| {
+            let group_id = state.next_group_id;
+            state.next_group_id += 1;
+            for item in cart {
+                state.orders.push(Order {
+                    id: state.next_id,
+                    group_id,
+                    service_type: format!("{} — {}", item.service.category, item.label),
+                    unit_price: item.unit_price,
+                    original_unit_price: item.service.price,
+                    quantity: item.qty,
+                    status: OrderStatus::EnAttente,
+                    time: time.clone(),
+                    counter_username: counter_username.to_string(),
+                    created_at: created_at.clone(),
+                    paid_at: None,
+                    observation: item.observation.clone(),
+                    raison: None,
+                });
+                state.next_id += 1;
+            }
+            Ok(())
+        })
     }
 
     pub fn mark_group_as_paid(&self, group_id: i64) -> Result<(), String> {
-        let mut guard = self.state.lock().unwrap();
-        let snapshot = guard.clone();
         let paid_at = Utc::now().to_rfc3339();
-        let mut changed = false;
-        for order in &mut guard.orders {
-            if order.group_id == group_id && order.status == OrderStatus::EnAttente {
-                order.status = OrderStatus::Paye;
-                order.paid_at = Some(paid_at.clone());
-                changed = true;
-            }
-        }
-        if !changed {
-            return Err("Aucune commande en attente trouvée pour ce groupe.".to_string());
-        }
-        self.commit(&mut guard, snapshot)
+        self.update_pending_group(group_id, |order| {
+            order.status = OrderStatus::Paye;
+            order.paid_at = Some(paid_at.clone());
+        })
     }
 
     pub fn reject_group(&self, group_id: i64, raison: Option<String>) -> Result<(), String> {
-        let mut guard = self.state.lock().unwrap();
-        let snapshot = guard.clone();
-        let mut changed = false;
-        for order in &mut guard.orders {
-            if order.group_id == group_id && order.status == OrderStatus::EnAttente {
-                order.status = OrderStatus::Rejetee;
-                order.raison = raison.clone();
-                changed = true;
-            }
-        }
-        if !changed {
-            return Err("Aucune commande en attente trouvée pour ce groupe.".to_string());
-        }
-        self.commit(&mut guard, snapshot)
+        self.update_pending_group(group_id, |order| {
+            order.status = OrderStatus::Rejetee;
+            order.raison = raison.clone();
+        })
     }
 
-    pub fn update_order(&self, id: i64, quantity: u32, unit_price: u32) -> Result<(), String> {
-        let mut guard = self.state.lock().unwrap();
-        let snapshot = guard.clone();
-        let mut changed = false;
-        if let Some(order) = guard
-            .orders
-            .iter_mut()
-            .find(|o| o.id == id && o.status == OrderStatus::EnAttente)
-        {
+    pub fn update_order(
+        &self,
+        id: i64,
+        quantity: u32,
+        unit_price: u32,
+        owner: Option<&str>,
+    ) -> Result<(), String> {
+        self.modify(|state| {
+            let order = state
+                .orders
+                .iter_mut()
+                .find(|o| o.id == id && o.status == OrderStatus::EnAttente && is_owned_by(o, owner))
+                .ok_or_else(|| ORDER_NOT_FOUND.to_string())?;
             order.quantity = quantity;
             order.unit_price = unit_price;
-            changed = true;
-        }
-        if !changed {
-            return Err("Commande introuvable ou déjà traitée.".to_string());
-        }
-        self.commit(&mut guard, snapshot)
+            Ok(())
+        })
     }
 
-    pub fn delete_order(&self, id: i64) -> Result<(), String> {
+    pub fn delete_order(&self, id: i64, owner: Option<&str>) -> Result<(), String> {
+        self.remove_pending(ORDER_NOT_FOUND, |o| o.id == id && is_owned_by(o, owner))
+    }
+
+    pub fn delete_order_group(&self, group_id: i64, owner: Option<&str>) -> Result<(), String> {
+        self.remove_pending(GROUP_NOT_FOUND, |o| {
+            o.group_id == group_id && is_owned_by(o, owner)
+        })
+    }
+
+    fn orders_with_status(&self, status: OrderStatus) -> Vec<Order> {
+        self.state
+            .lock()
+            .unwrap()
+            .orders
+            .iter()
+            .filter(|o| o.status == status)
+            .cloned()
+            .collect()
+    }
+
+    fn update_pending_group(
+        &self,
+        group_id: i64,
+        mut apply: impl FnMut(&mut Order),
+    ) -> Result<(), String> {
+        self.modify(|state| {
+            let mut changed = false;
+            for order in state
+                .orders
+                .iter_mut()
+                .filter(|o| o.group_id == group_id && o.status == OrderStatus::EnAttente)
+            {
+                apply(order);
+                changed = true;
+            }
+            if changed {
+                Ok(())
+            } else {
+                Err(GROUP_NOT_FOUND.to_string())
+            }
+        })
+    }
+
+    fn remove_pending(&self, not_found: &str, is_target: impl Fn(&Order) -> bool) -> Result<(), String> {
+        self.modify(|state| {
+            let before = state.orders.len();
+            state
+                .orders
+                .retain(|o| !(o.status == OrderStatus::EnAttente && is_target(o)));
+            if state.orders.len() == before {
+                Err(not_found.to_string())
+            } else {
+                Ok(())
+            }
+        })
+    }
+
+    fn modify(&self, change: impl FnOnce(&mut OrderState) -> Result<(), String>) -> Result<(), String> {
         let mut guard = self.state.lock().unwrap();
         let snapshot = guard.clone();
-        let before = guard.orders.len();
-        guard
-            .orders
-            .retain(|o| !(o.id == id && o.status == OrderStatus::EnAttente));
-        if guard.orders.len() == before {
-            return Err("Commande introuvable ou déjà traitée.".to_string());
+        if let Err(err) = change(&mut *guard) {
+            *guard = snapshot;
+            return Err(err);
         }
         self.commit(&mut guard, snapshot)
     }
 
-    pub fn delete_order_group(&self, group_id: i64) -> Result<(), String> {
-        let mut guard = self.state.lock().unwrap();
-        let snapshot = guard.clone();
-        let before = guard.orders.len();
-        guard
-            .orders
-            .retain(|o| !(o.group_id == group_id && o.status == OrderStatus::EnAttente));
-        if guard.orders.len() == before {
-            return Err("Aucune commande en attente trouvée pour ce groupe.".to_string());
-        }
-        self.commit(&mut guard, snapshot)
-    }
-
-    fn commit(&self, guard: &mut OrderState, snapshot: OrderState) -> Result<(), String> {
+    fn commit(&self, state: &mut OrderState, snapshot: OrderState) -> Result<(), String> {
         let app_handle = self.app_handle.lock().unwrap().clone();
         let Some(app_handle) = app_handle else {
-            *guard = snapshot;
+            *state = snapshot;
             return Err("Serveur non prêt. Réessayez.".to_string());
         };
-        if let Err(err) = OrderApi::persist(&app_handle, &guard.orders, guard.next_id, guard.next_group_id) {
-            *guard = snapshot;
+        if let Err(err) = OrderApi::persist(&app_handle, &state.orders, state.next_id, state.next_group_id) {
+            *state = snapshot;
             return Err(format!(
                 "Échec de l'enregistrement des commandes sur le disque : {err}"
             ));
         }
         Ok(())
     }
+}
+
+fn is_owned_by(order: &Order, owner: Option<&str>) -> bool {
+    owner.map_or(true, |name| order.counter_username == name)
 }

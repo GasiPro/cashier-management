@@ -49,17 +49,21 @@ pub fn verify_active_credentials(
     username: &str,
     password: &str,
     user_type: UserType,
-) -> bool {
-    let format_ok = account::validate_username(username).is_ok() && account::validate_password(password).is_ok();
-    format_ok && {
-        let guard = accounts_store.lock().unwrap();
-        guard.iter().any(|a| {
-            a.username.eq_ignore_ascii_case(username.trim())
+) -> Option<String> {
+    if account::validate_username(username).is_err() || account::validate_password(password).is_err() {
+        return None;
+    }
+    let username = username.trim();
+    let guard = accounts_store.lock().unwrap();
+    guard
+        .iter()
+        .find(|a| {
+            a.username.eq_ignore_ascii_case(username)
                 && a.user_type == user_type
                 && a.status == AccountStatus::Active
                 && account::verify_password(password, &a.password_hash)
         })
-    }
+        .map(|a| a.username.clone())
 }
 pub async fn create_account(
     app: &AppHandle,
