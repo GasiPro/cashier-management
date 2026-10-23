@@ -32,6 +32,7 @@
         [(wsUrl)]="counterWsUrl"
         [(showPassword)]="showCounterPassword"
         [error]="counterError()"
+        [connecting]="counterConnecting()"
         [addressCheck]="addressCheck()"
         (back)="goBack()"
         (submitted)="connectAsCounter()"

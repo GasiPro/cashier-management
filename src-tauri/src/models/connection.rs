@@ -163,6 +163,8 @@ pub enum ServerMessage {
     ConnectionRequests { data: Vec<ConnectionRequest> },
     #[serde(rename = "connection_devices")]
     ConnectedDevices { data: Vec<ConnectedDevice> },
+    #[serde(rename = "connection_pending")]
+    ConnectionPending,
     #[serde(rename = "connection_approved")]
     ConnectionApproved,
     #[serde(rename = "connection_rejected")]

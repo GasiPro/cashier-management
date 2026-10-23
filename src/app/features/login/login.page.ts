@@ -67,11 +67,14 @@ export class LoginPage implements OnInit, OnDestroy {
   // State flags
   loadingWsAddress = signal(false);
   counterError = signal('');
+  /** True from the moment the counter submits until the server answers (pending, rejected or unreachable). */
+  counterConnecting = signal(false);
   /** Result of probing counterWsUrl for a running server, shown as a hint/warning. */
   addressCheck = signal<'idle' | 'checking' | 'reachable' | 'unreachable'>('idle');
   private clockInterval: ReturnType<typeof setInterval> | null = null;
   private wsSubscription?: Subscription;
   private openSubscription?: Subscription;
+  private closeSubscription?: Subscription;
   private navigatingToCounter = false;
   constructor(
     private router: Router,
@@ -89,6 +92,7 @@ export class LoginPage implements OnInit, OnDestroy {
     if (this.clockInterval) clearInterval(this.clockInterval);
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
+    this.closeSubscription?.unsubscribe();
     // Only disconnect WS if we're NOT handing it off to the counter view.
     if (!this.navigatingToCounter) {
       this.ws.disconnect();
@@ -253,6 +257,7 @@ export class LoginPage implements OnInit, OnDestroy {
     this.addressCheck.set(reachable ? 'reachable' : 'unreachable');
   }
   connectAsCounter(): void {
+    if (this.counterConnecting()) return;
     if (!this.counterUsername().trim() || !this.counterWsUrl().trim() || !this.counterPassword()) return;
     const username = this.counterUsername().trim();
     const password = this.counterPassword();
@@ -262,41 +267,46 @@ export class LoginPage implements OnInit, OnDestroy {
       return;
     }
     this.counterError.set('');
-    this.step.set('counter-waiting');
+    this.counterConnecting.set(true);
     const wsUrl = this.counterWsUrl().trim();
     const fullUrl = wsUrl.startsWith('ws://') ? wsUrl : `ws://${wsUrl}`;
+    this.wsSubscription?.unsubscribe();
+    this.openSubscription?.unsubscribe();
+    this.closeSubscription?.unsubscribe();
     this.session.setCounterCredentials(username, password);
     this.ws.connect(fullUrl);
     this.wsSubscription = this.ws.getMessages().subscribe((msg) => {
-      if (msg.type === 'connection_approved') {
+      if (msg.type === 'connection_pending') {
+        this.counterConnecting.set(false);
+        this.step.set('counter-waiting');
+      } else if (msg.type === 'connection_approved') {
         setStoredUsername(username);
         setStoredCashierWsUrl(wsUrl);
         this.navigatingToCounter = true;
         this.wsSubscription?.unsubscribe();
         this.openSubscription?.unsubscribe();
+        this.closeSubscription?.unsubscribe();
         this.router.navigate(['/comptoir']);
       } else if (msg.type === 'connection_rejected') {
-        this.wsSubscription?.unsubscribe();
-        this.ws.disconnect();
-        this.session.clearCounterCredentials();
-        this.counterError.set("Nom d'utilisateur ou mot de passe incorrect, ou connexion refusée par la caisse.");
-        this.counterPassword.set('');
-        this.step.set('counter-rejected');
+        this.failCounterConnection(
+          this.counterConnecting()
+            ? "Nom d'utilisateur ou mot de passe incorrect, ou nombre maximal d'appareils atteint."
+            : "Connexion refusée par la caisse.",
+        );
       } else if (msg.type === 'connection_blocked') {
-        this.wsSubscription?.unsubscribe();
-        this.ws.disconnect();
-        this.session.clearCounterCredentials();
-        this.counterError.set('Cet appareil ou ce nom d\'utilisateur est bloqué par la caisse.');
-        this.counterPassword.set('');
-        this.step.set('counter-rejected');
+        this.failCounterConnection("Cet appareil ou ce nom d'utilisateur est bloqué par la caisse.");
       } else if (msg.type === 'error_protocol') {
-        this.wsSubscription?.unsubscribe();
-        this.ws.disconnect();
-        this.session.clearCounterCredentials();
-        this.counterError.set(typeof msg.data === 'string' && msg.data.trim() ? msg.data : 'Erreur de protocole. Réessayez.');
-        this.counterPassword.set('');
-        this.step.set('counter-rejected');
+        this.failCounterConnection(
+          typeof msg.data === 'string' && msg.data.trim() ? msg.data : 'Erreur de protocole. Réessayez.',
+        );
       }
+    });
+    this.closeSubscription = this.ws.onClosed().subscribe(() => {
+      if (!this.counterConnecting()) return;
+      this.failCounterConnection(
+        `Impossible de joindre le serveur à l'adresse ${wsUrl} : ` +
+          "il est peut-être éteint ou l'adresse est incorrecte.",
+      );
     });
     const sendRequest = () => {
       this.ws.send({ type: 'request_connection', username, password });
@@ -309,6 +319,18 @@ export class LoginPage implements OnInit, OnDestroy {
       });
     }
   }
+  /** Stops the attempt. Before the server accepted the request the error stays on the form; afterwards the "refused" screen is shown. */
+  private failCounterConnection(message: string): void {
+    this.wsSubscription?.unsubscribe();
+    this.openSubscription?.unsubscribe();
+    this.closeSubscription?.unsubscribe();
+    this.ws.disconnect();
+    this.session.clearCounterCredentials();
+    this.counterError.set(message);
+    this.counterPassword.set('');
+    this.step.set(this.counterConnecting() ? 'counter-setup' : 'counter-rejected');
+    this.counterConnecting.set(false);
+  }
   retryConnection(): void {
     this.step.set('counter-setup');
     this.counterError.set('');
@@ -317,6 +339,8 @@ export class LoginPage implements OnInit, OnDestroy {
   goBack(): void {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
+    this.closeSubscription?.unsubscribe();
+    this.counterConnecting.set(false);
     this.ws.disconnect();
     this.cashierPassword.set('');
     this.cashierError.set('');

@@ -3,14 +3,12 @@ use std::net::{SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex as SyncMutex};
 use std::time::Duration;
-
 use futures_util::future::{select, Either};
 use futures_util::{SinkExt, StreamExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
-
 use crate::config::connection_config::{
     WS_BIND_ADDRESS, WS_FALLBACK_ADDRESS, WS_PORT, WS_PROBE_ADDRESS,
 };
@@ -27,16 +25,12 @@ use crate::services::connection_service::{self, Blacklist, ConnectionHistory};
 use crate::services::order_service::OrderService;
 use crate::services::pricing_service::PricingStore;
 use crate::services::setting_service::MaxConnectedDevices;
-
 const INVALID_TOKEN: &str = "Jeton de session invalide ou expiré.";
 const SERVER_NOT_READY: &str = "Serveur non prêt. Réessayez.";
-
 pub(crate) type Tx = mpsc::UnboundedSender<Message>;
 pub(crate) type PeerMap = Arc<Mutex<HashMap<SocketAddr, PeerState>>>;
 pub(crate) type AppHandleSlot = Arc<SyncMutex<Option<tauri::AppHandle>>>;
-
 static NEXT_PEER_ID: AtomicI64 = AtomicI64::new(1);
-
 pub struct PeerState {
     pub(crate) id: i64,
     pub(crate) tx: Tx,
@@ -47,7 +41,6 @@ pub struct PeerState {
     pub(crate) requested_at: Option<String>,
     pub(crate) connected_at: Option<String>,
 }
-
 impl PeerState {
     fn new(tx: Tx) -> Self {
         Self {
@@ -61,22 +54,18 @@ impl PeerState {
             connected_at: None,
         }
     }
-
     pub(crate) fn send_text(&self, json: String) {
         let _ = self.tx.send(Message::Text(json.into()));
     }
-
     pub(crate) fn send(&self, msg: &ServerMessage) {
         if let Ok(json) = serde_json::to_string(msg) {
             self.send_text(json);
         }
     }
-
     fn is_staff(&self) -> bool {
         self.is_cashier || self.is_admin
     }
 }
-
 #[derive(Clone)]
 pub(crate) struct WsContext {
     pub order_service: Arc<OrderService>,
@@ -90,7 +79,6 @@ pub(crate) struct WsContext {
     pub sessions: Sessions,
     pub connection_attempts: AttemptTracker,
 }
-
 pub(crate) fn start_server(ctx: WsContext) {
     tauri::async_runtime::spawn(async move {
         let listener = match TcpListener::bind(WS_BIND_ADDRESS).await {
@@ -113,7 +101,6 @@ pub(crate) fn start_server(ctx: WsContext) {
         }
     });
 }
-
 pub(crate) fn start_clock(peers: PeerMap) {
     tauri::async_runtime::spawn(async move {
         loop {
@@ -123,7 +110,6 @@ pub(crate) fn start_clock(peers: PeerMap) {
         }
     });
 }
-
 async fn handle_connection(ctx: WsContext, stream: TcpStream, addr: SocketAddr) {
     let blacklisted = {
         let guard = ctx.blacklist.lock().unwrap();
@@ -138,9 +124,6 @@ async fn handle_connection(ctx: WsContext, stream: TcpStream, addr: SocketAddr) 
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
     let (tx, mut rx) = mpsc::unbounded_channel();
     ctx.peers.lock().await.insert(addr, PeerState::new(tx));
-
-    // The writer ends once the peer is removed from the map (kick, block, reject),
-    // which closes the socket and stops the read loop below.
     let mut ws_writer = tauri::async_runtime::spawn(async move {
         while let Some(message) = rx.recv().await {
             if ws_sender.send(message).await.is_err() {
@@ -149,7 +132,6 @@ async fn handle_connection(ctx: WsContext, stream: TcpStream, addr: SocketAddr) 
         }
         let _ = ws_sender.close().await;
     });
-
     loop {
         match select(ws_receiver.next(), &mut ws_writer).await {
             Either::Left((Some(Ok(Message::Text(text))), _)) => {
@@ -159,7 +141,6 @@ async fn handle_connection(ctx: WsContext, stream: TcpStream, addr: SocketAddr) 
             _ => break,
         }
     }
-
     let departed = ctx.peers.lock().await.remove(&addr);
     ws_writer.abort();
     if let Some(peer) = departed.filter(|p| !p.is_staff() && !p.username.is_empty()) {
@@ -168,7 +149,6 @@ async fn handle_connection(ctx: WsContext, stream: TcpStream, addr: SocketAddr) 
         notify_connected_devices(&ctx.peers).await;
     }
 }
-
 async fn handle_text(ctx: &WsContext, addr: SocketAddr, text: &str) {
     let message = match serde_json::from_str::<ClientMessage>(text) {
         Ok(message) => message,
@@ -181,7 +161,6 @@ async fn handle_text(ctx: &WsContext, addr: SocketAddr, text: &str) {
             return;
         }
     };
-
     match message {
         ClientMessage::CashierRegister { token, .. } => {
             register_staff(ctx, addr, &token, SessionRole::Cashier).await
@@ -251,7 +230,6 @@ async fn handle_text(ctx: &WsContext, addr: SocketAddr, text: &str) {
         }
     }
 }
-
 async fn register_staff(ctx: &WsContext, addr: SocketAddr, token: &str, role: SessionRole) {
     let Some(username) = consume_token(ctx, addr, token, role).await else {
         return;
@@ -281,7 +259,6 @@ async fn register_staff(ctx: &WsContext, addr: SocketAddr, token: &str, role: Se
         send_to_addr(&ctx.peers, addr, &connected).await;
     }
 }
-
 async fn register_counter(ctx: &WsContext, addr: SocketAddr, token: &str) {
     let Some(username) = consume_token(ctx, addr, token, SessionRole::Counter).await else {
         return;
@@ -304,7 +281,6 @@ async fn register_counter(ctx: &WsContext, addr: SocketAddr, token: &str) {
     send_to_addr(&ctx.peers, addr, &ServerMessage::Orders { data: scoped }).await;
     notify_connected_devices(&ctx.peers).await;
 }
-
 async fn request_connection(ctx: &WsContext, addr: SocketAddr, username: &str, password: &str) {
     let can_request = ctx
         .peers
@@ -356,9 +332,9 @@ async fn request_connection(ctx: &WsContext, addr: SocketAddr, username: &str, p
         }
     }
     record_history(ctx, addr, &account_username, ConnectionEvent::Requested);
+    send_to_addr(&ctx.peers, addr, &ServerMessage::ConnectionPending).await;
     notify_pending_requests(&ctx.peers).await;
 }
-
 async fn update_own_account(
     ctx: &WsContext,
     addr: SocketAddr,
@@ -390,7 +366,6 @@ async fn update_own_account(
     };
     send_to_addr(&ctx.peers, addr, &reply).await;
 }
-
 async fn consume_token(
     ctx: &WsContext,
     addr: SocketAddr,
@@ -406,7 +381,6 @@ async fn consume_token(
     }
     username
 }
-
 async fn finish_order_change(
     ctx: &WsContext,
     addr: SocketAddr,
@@ -423,18 +397,15 @@ async fn finish_order_change(
         }
     }
 }
-
 struct Caller {
     username: String,
     is_staff: bool,
 }
-
 impl Caller {
     fn owner(&self) -> Option<&str> {
         (!self.is_staff).then_some(self.username.as_str())
     }
 }
-
 async fn approved_caller(peers: &PeerMap, addr: SocketAddr) -> Option<Caller> {
     let guard = peers.lock().await;
     guard.get(&addr).filter(|p| p.approved).map(|p| Caller {
@@ -442,7 +413,6 @@ async fn approved_caller(peers: &PeerMap, addr: SocketAddr) -> Option<Caller> {
         is_staff: p.is_staff(),
     })
 }
-
 async fn account_username(peers: &PeerMap, addr: SocketAddr) -> Option<String> {
     let guard = peers.lock().await;
     guard
@@ -450,11 +420,9 @@ async fn account_username(peers: &PeerMap, addr: SocketAddr) -> Option<String> {
         .filter(|p| p.approved && !p.is_cashier)
         .map(|p| p.username.clone())
 }
-
 fn app_handle(ctx: &WsContext) -> Option<tauri::AppHandle> {
     ctx.app_handle.lock().unwrap().clone()
 }
-
 fn record_history(ctx: &WsContext, addr: SocketAddr, username: &str, event: ConnectionEvent) {
     let app = app_handle(ctx);
     connection_service::record_connection_history(
@@ -465,13 +433,11 @@ fn record_history(ctx: &WsContext, addr: SocketAddr, username: &str, event: Conn
         event,
     );
 }
-
 pub(crate) async fn send_to_addr(peers: &PeerMap, addr: SocketAddr, msg: &ServerMessage) {
     if let Some(peer) = peers.lock().await.get(&addr) {
         peer.send(msg);
     }
 }
-
 pub(crate) async fn broadcast_to_approved(peers: &PeerMap, msg: &ServerMessage) {
     let Ok(json) = serde_json::to_string(msg) else {
         return;
@@ -481,7 +447,6 @@ pub(crate) async fn broadcast_to_approved(peers: &PeerMap, msg: &ServerMessage) 
         peer.send_text(json.clone());
     }
 }
-
 pub(crate) async fn broadcast_orders_to_approved(peers: &PeerMap, orders: &[Order]) {
     let guard = peers.lock().await;
     for peer in guard.values().filter(|p| p.approved) {
@@ -490,7 +455,6 @@ pub(crate) async fn broadcast_orders_to_approved(peers: &PeerMap, orders: &[Orde
         });
     }
 }
-
 pub(crate) fn scope_orders_for_peer(orders: &[Order], peer: &PeerState) -> Vec<Order> {
     if peer.is_staff() {
         orders.to_vec()
@@ -502,7 +466,6 @@ pub(crate) fn scope_orders_for_peer(orders: &[Order], peer: &PeerState) -> Vec<O
             .collect()
     }
 }
-
 pub(crate) async fn notify_cashier(peers: &PeerMap, msg: &ServerMessage) {
     let Ok(json) = serde_json::to_string(msg) else {
         return;
@@ -512,17 +475,14 @@ pub(crate) async fn notify_cashier(peers: &PeerMap, msg: &ServerMessage) {
         peer.send_text(json.clone());
     }
 }
-
 pub(crate) async fn notify_pending_requests(peers: &PeerMap) {
     let pending = get_pending_requests_list(peers).await;
     notify_cashier(peers, &ServerMessage::ConnectionRequests { data: pending }).await;
 }
-
 pub(crate) async fn notify_connected_devices(peers: &PeerMap) {
     let connected = get_connected_devices_list(peers).await;
     notify_cashier(peers, &ServerMessage::ConnectedDevices { data: connected }).await;
 }
-
 pub(crate) async fn remove_peer(peers: &PeerMap, addr: SocketAddr, farewell: &ServerMessage) -> String {
     match peers.lock().await.remove(&addr) {
         Some(peer) => {
@@ -532,7 +492,6 @@ pub(crate) async fn remove_peer(peers: &PeerMap, addr: SocketAddr, farewell: &Se
         None => String::new(),
     }
 }
-
 pub(crate) async fn get_pending_requests_list(peers: &PeerMap) -> Vec<PendingConnection> {
     let guard = peers.lock().await;
     let mut list: Vec<PendingConnection> = guard
@@ -553,7 +512,6 @@ pub(crate) async fn get_pending_requests_list(peers: &PeerMap) -> Vec<PendingCon
     list.sort_by_key(|entry| entry.id);
     list
 }
-
 pub(crate) async fn get_connected_devices_list(peers: &PeerMap) -> Vec<ConnectedDevice> {
     let guard = peers.lock().await;
     let mut list: Vec<ConnectedDevice> = guard
@@ -574,7 +532,6 @@ pub(crate) async fn get_connected_devices_list(peers: &PeerMap) -> Vec<Connected
     list.sort_by_key(|entry| entry.id);
     list
 }
-
 pub(crate) async fn resolve_peer_addr(
     peers: &PeerMap,
     id: Option<i64>,
@@ -591,7 +548,6 @@ pub(crate) async fn resolve_peer_addr(
     };
     found.ok_or_else(|| "Appareil introuvable ou déjà déconnecté.".to_string())
 }
-
 pub(crate) async fn is_at_connected_devices_capacity(
     peers: &PeerMap,
     max_connected_devices: &MaxConnectedDevices,
@@ -599,7 +555,6 @@ pub(crate) async fn is_at_connected_devices_capacity(
     let max = *max_connected_devices.lock().unwrap();
     max > 0 && get_connected_devices_list(peers).await.len() >= max as usize
 }
-
 pub(crate) fn get_server_address() -> String {
     let local_addr = UdpSocket::bind("0.0.0.0:0").ok().and_then(|socket| {
         socket.connect(WS_PROBE_ADDRESS).ok()?;

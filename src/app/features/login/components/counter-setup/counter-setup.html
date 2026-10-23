@@ -126,11 +126,11 @@
     </div>
     <button
       (click)="submitted.emit()"
-      [disabled]="!username().trim() || !password() || !wsUrl().trim()"
+      [disabled]="connecting() || !username().trim() || !password() || !wsUrl().trim()"
       class="w-full bg-[#1E3A5F] text-white text-sm font-semibold py-3 rounded-lg
              hover:bg-[#16304f] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
              focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
-      Se connecter et demander l'accès
+      @if (connecting()) { Vérification… } @else { Se connecter et demander l'accès }
     </button>
   </div>
 </div>
