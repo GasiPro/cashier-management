@@ -2,7 +2,7 @@ import { Component, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, Subscription } from 'rxjs';
-import { LOCAL_WS_URL } from '../../core/config/app.constants';
+import { getLocalWsUrl } from '../../data/device/device.api';
 import { getStoredUsername } from '../../core/storage/local-storage';
 import { WsRegistration } from '../../core/auth/ws-registration';
 import { WsClient } from '../../core/realtime/ws-client';
@@ -41,6 +41,7 @@ export class AdminLayout implements OnInit, OnDestroy {
   private openSubscription?: Subscription;
   /** Set once the server has sent anything other than a registration failure. */
   private approved = false;
+  private destroyed = false;
   constructor(
     private router: Router,
     private ws: WsClient,
@@ -62,7 +63,12 @@ export class AdminLayout implements OnInit, OnDestroy {
       this.approved = true;
     });
     this.openSubscription = this.ws.onOpened().subscribe(() => this.registerOnOpen());
-    this.ws.connect(LOCAL_WS_URL);
+    void this.connectToLocalServer();
+  }
+  private async connectToLocalServer(): Promise<void> {
+    const url = await getLocalWsUrl();
+    if (this.destroyed) return;
+    this.ws.connect(url);
     if (this.ws.isOpen()) {
       this.registerOnOpen();
     }
@@ -83,6 +89,7 @@ export class AdminLayout implements OnInit, OnDestroy {
     this.router.navigate(['/login']);
   }
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     this.ws.disconnect();

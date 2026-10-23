@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::net::{SocketAddr, UdpSocket};
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU16, Ordering};
 use std::sync::{Arc, Mutex as SyncMutex};
 use std::time::Duration;
 use futures_util::future::{select, Either};
@@ -10,7 +10,7 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 use crate::config::connection_config::{
-    WS_BIND_ADDRESS, WS_FALLBACK_ADDRESS, WS_PORT, WS_PROBE_ADDRESS,
+    WS_BIND_HOST, WS_FALLBACK_HOST, WS_PORT, WS_PORT_ATTEMPTS, WS_PROBE_ADDRESS,
 };
 use crate::config::rate_limit::{self, AttemptTracker};
 use crate::domain::account;
@@ -31,6 +31,7 @@ pub(crate) type Tx = mpsc::UnboundedSender<Message>;
 pub(crate) type PeerMap = Arc<Mutex<HashMap<SocketAddr, PeerState>>>;
 pub(crate) type AppHandleSlot = Arc<SyncMutex<Option<tauri::AppHandle>>>;
 static NEXT_PEER_ID: AtomicI64 = AtomicI64::new(1);
+static ACTIVE_PORT: AtomicU16 = AtomicU16::new(WS_PORT);
 pub struct PeerState {
     pub(crate) id: i64,
     pub(crate) tx: Tx,
@@ -79,12 +80,34 @@ pub(crate) struct WsContext {
     pub sessions: Sessions,
     pub connection_attempts: AttemptTracker,
 }
+fn bind_listener() -> Option<std::net::TcpListener> {
+    for port in WS_PORT..WS_PORT.saturating_add(WS_PORT_ATTEMPTS) {
+        match std::net::TcpListener::bind((WS_BIND_HOST, port)) {
+            Ok(listener) => {
+                if listener.set_nonblocking(true).is_err() {
+                    continue;
+                }
+                ACTIVE_PORT.store(port, Ordering::Relaxed);
+                if port != WS_PORT {
+                    log::warn!("Port {WS_PORT} occupé, serveur WebSocket démarré sur le port {port}.");
+                }
+                return Some(listener);
+            }
+            Err(err) => log::warn!("Port {port} indisponible pour le serveur WebSocket : {err}"),
+        }
+    }
+    None
+}
 pub(crate) fn start_server(ctx: WsContext) {
+    let Some(std_listener) = bind_listener() else {
+        log::error!("Impossible d'ouvrir le serveur WebSocket : aucun port libre à partir de {WS_PORT}.");
+        return;
+    };
     tauri::async_runtime::spawn(async move {
-        let listener = match TcpListener::bind(WS_BIND_ADDRESS).await {
+        let listener = match TcpListener::from_std(std_listener) {
             Ok(listener) => listener,
             Err(err) => {
-                log::error!("Impossible d'ouvrir le serveur WebSocket sur {WS_BIND_ADDRESS} : {err}");
+                log::error!("Impossible de démarrer le serveur WebSocket : {err}");
                 return;
             }
         };
@@ -561,7 +584,7 @@ pub(crate) fn get_server_address() -> String {
         socket.local_addr().ok()
     });
     match local_addr {
-        Some(addr) => format!("{}:{}", addr.ip(), WS_PORT),
-        None => WS_FALLBACK_ADDRESS.to_string(),
+        Some(addr) => format!("{}:{}", addr.ip(), ACTIVE_PORT.load(Ordering::Relaxed)),
+        None => format!("{}:{}", WS_FALLBACK_HOST, ACTIVE_PORT.load(Ordering::Relaxed)),
     }
 }

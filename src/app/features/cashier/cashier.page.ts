@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
-import { DEFAULT_WS, LOCAL_WS_URL } from '../../core/config/app.constants';
+import { DEFAULT_WS } from '../../core/config/app.constants';
 import { WsRegistration } from '../../core/auth/ws-registration';
 import { errorMessage } from '../../core/error/error-messages';
 import { WsClient } from '../../core/realtime/ws-client';
@@ -12,6 +12,7 @@ import {
   approveConnection,
   blockDevice,
   disconnectDevice,
+  getLocalWsUrl,
   getServerAddress,
   rejectConnection,
 } from '../../data/device/device.api';
@@ -66,6 +67,7 @@ export class CashierPage implements OnInit, OnDestroy {
   private openSubscription?: Subscription;
   private closeSubscription?: Subscription;
   private approved = false;
+  private destroyed = false;
   constructor(
     private router: Router,
     private ws: WsClient,
@@ -98,7 +100,12 @@ export class CashierPage implements OnInit, OnDestroy {
     });
     this.openSubscription = this.ws.onOpened().subscribe(() => this.registerOnOpen());
     this.closeSubscription = this.ws.onClosed().subscribe(() => this.wsConnected.set(false));
-    this.ws.connect(LOCAL_WS_URL);
+    void this.connectToLocalServer();
+  }
+  private async connectToLocalServer(): Promise<void> {
+    const url = await getLocalWsUrl();
+    if (this.destroyed) return;
+    this.ws.connect(url);
     if (this.ws.isOpen()) {
       this.registerOnOpen();
     }
@@ -120,6 +127,7 @@ export class CashierPage implements OnInit, OnDestroy {
     this.router.navigate(['/login']);
   }
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.orders.stop();
     this.devices.stopLive();
     this.wsSubscription?.unsubscribe();
