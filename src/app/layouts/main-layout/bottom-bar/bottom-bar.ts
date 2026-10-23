@@ -22,24 +22,25 @@ export class BottomBar implements OnInit, OnChanges, OnDestroy {
   currentTime = signal('');
   notificationsPanelOpen = signal(false);
   notificationsExpanded = signal(false);
-  hasNewNotifications = signal(false);
+  /** Notifications that arrived since the person last clicked the bell. */
+  unreadCount = signal(0);
   private clockInterval?: ReturnType<typeof setInterval>;
   private autoHideTimeout?: ReturnType<typeof setTimeout>;
-  private previousNotificationsLength = 0;
+  private lastSeenId = 0;
   private static readonly AUTO_HIDE_DELAY_MS = 5000;
   ngOnInit(): void {
     this.tick();
     this.clockInterval = setInterval(() => this.tick(), 1000);
-    this.previousNotificationsLength = this.notifications.length;
   }
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['notifications'] && !changes['notifications'].firstChange) {
-      if (this.notifications.length > this.previousNotificationsLength) {
-        this.hasNewNotifications.set(true);
-        this.showLatestNotification();
+    if (changes['notifications']) {
+      // Ids only grow, so this still works once the parent trims the list to its last entries.
+      const added = this.notifications.filter((n) => n.id > this.lastSeenId).length;
+      if (added > 0 && !changes['notifications'].firstChange) {
+        this.onNewNotifications(added);
       }
+      this.lastSeenId = this.notifications[this.notifications.length - 1]?.id ?? 0;
     }
-    this.previousNotificationsLength = this.notifications.length;
   }
   ngOnDestroy(): void {
     if (this.clockInterval) {
@@ -62,7 +63,7 @@ export class BottomBar implements OnInit, OnChanges, OnDestroy {
     return 'Notifications';
   }
   get displayNotificationCount(): string {
-    const count = this.notifications.length;
+    const count = this.unreadCount();
     return count > 99 ? '99+' : String(count);
   }
   get latestNotification(): BottomBarNotification | undefined {
@@ -73,28 +74,30 @@ export class BottomBar implements OnInit, OnChanges, OnDestroy {
   }
   onNotificationsClick(): void {
     this.clearAutoHide();
-    this.hasNewNotifications.set(false);
-    this.notificationsPanelOpen.update((open) => !open);
-    if (!this.notificationsPanelOpen()) {
-      this.notificationsExpanded.set(false);
-    }
+    this.unreadCount.set(0);
+    this.notificationsExpanded.set(true);
+    this.notificationsPanelOpen.set(true);
     this.notificationsClick.emit();
   }
   closeNotificationsPanel(): void {
     this.clearAutoHide();
-    this.hasNewNotifications.set(false);
     this.notificationsPanelOpen.set(false);
     this.notificationsExpanded.set(false);
   }
   toggleNotificationsExpanded(): void {
-    this.clearAutoHide();
     this.notificationsExpanded.update((expanded) => !expanded);
-  }
-  private showLatestNotification(): void {
-    this.notificationsPanelOpen.set(true);
-    if (!this.notificationsExpanded()) {
+    if (this.notificationsExpanded()) {
+      this.clearAutoHide();
+    } else {
       this.scheduleAutoHide();
     }
+  }
+  private onNewNotifications(added: number): void {
+    // The full list is already on screen: new entries are read as they arrive.
+    if (this.notificationsExpanded()) return;
+    this.unreadCount.update((count) => count + added);
+    this.notificationsPanelOpen.set(true);
+    this.scheduleAutoHide();
   }
   private scheduleAutoHide(): void {
     this.clearAutoHide();
