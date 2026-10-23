@@ -82,6 +82,7 @@ export class LoginPage implements OnInit, OnDestroy {
     private session: SessionStore,
   ) {}
   ngOnInit(): void {
+    this.session.setRole(null);
     this.updateClock();
     this.clockInterval = setInterval(() => this.updateClock(), 60_000);
     this.cashierUsername.set(getStoredUsername() ?? '');
@@ -156,6 +157,7 @@ export class LoginPage implements OnInit, OnDestroy {
         this.session.setSessionToken(result.session_token);
       }
       this.showAdminModal.set(false);
+      this.session.setRole('admin');
       this.router.navigate(['/admin']);
     } catch (e) {
       console.error('auth failed', e);
@@ -229,6 +231,7 @@ export class LoginPage implements OnInit, OnDestroy {
       if (result.session_token) {
         this.session.setSessionToken(result.session_token);
       }
+      this.session.setRole('caissier');
       this.router.navigate(['/caissier']);
     } catch (e) {
       console.error('auth failed', e);
@@ -286,6 +289,7 @@ export class LoginPage implements OnInit, OnDestroy {
         this.wsSubscription?.unsubscribe();
         this.openSubscription?.unsubscribe();
         this.closeSubscription?.unsubscribe();
+        this.session.setRole('comptoir');
         this.router.navigate(['/comptoir']);
       } else if (msg.type === 'connection_rejected') {
         this.failCounterConnection(
@@ -319,7 +323,6 @@ export class LoginPage implements OnInit, OnDestroy {
       });
     }
   }
-  /** Stops the attempt. Before the server accepted the request the error stays on the form; afterwards the "refused" screen is shown. */
   private failCounterConnection(message: string): void {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
