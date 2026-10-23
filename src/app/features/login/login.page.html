@@ -37,7 +37,8 @@
         (back)="goBack()"
         (submitted)="connectAsCounter()"
         (urlChanged)="onCounterWsUrlChanged()"
-        (urlBlurred)="checkCounterWsUrl()" />
+        (urlBlurred)="checkCounterWsUrl()"
+        (pingRequested)="checkCounterWsUrl()" />
       }
       @if (step() === 'counter-waiting' || step() === 'counter-rejected') {
       <app-counter-waiting

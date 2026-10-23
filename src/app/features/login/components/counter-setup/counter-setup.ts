@@ -22,6 +22,7 @@ export class CounterSetup {
   readonly submitted = output<void>();
   readonly urlChanged = output<void>();
   readonly urlBlurred = output<void>();
+  readonly pingRequested = output<void>();
   togglePasswordVisibility(): void {
     this.showPassword.update((v) => !v);
   }

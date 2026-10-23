@@ -83,19 +83,33 @@
       <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5" id="counter-ws-url-label">
         Adresse de la caisse
       </label>
-      <input
-        type="text"
-        [(ngModel)]="wsUrl"
-        (input)="urlChanged.emit()"
-        (blur)="urlBlurred.emit()"
-        (keydown.enter)="submitted.emit()"
-        placeholder="ex : 192.168.1.5:8080"
-        autocomplete="off"
-        spellcheck="false"
-        aria-labelledby="counter-ws-url-label"
-        aria-describedby="counter-ws-url-hint"
-        class="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm font-mono text-[#1A1A1A]
-               focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+      <div class="flex items-center gap-2">
+        <input
+          type="text"
+          [(ngModel)]="wsUrl"
+          (input)="urlChanged.emit()"
+          (blur)="urlBlurred.emit()"
+          (keydown.enter)="submitted.emit()"
+          placeholder="ex : 192.168.1.5:8080"
+          autocomplete="off"
+          spellcheck="false"
+          aria-labelledby="counter-ws-url-label"
+          aria-describedby="counter-ws-url-hint"
+          class="flex-1 min-w-0 border border-gray-200 rounded-lg px-4 py-3 text-sm font-mono text-[#1A1A1A]
+                 focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+        <button type="button" (click)="pingRequested.emit()"
+          [disabled]="connecting() || addressCheck() === 'checking' || !wsUrl().trim()"
+          aria-label="Tester l'adresse de la caisse" title="Tester l'adresse"
+          class="flex-shrink-0 flex items-center gap-1.5 border border-gray-200 bg-white rounded-lg px-4 py-3
+                 text-sm text-gray-600 hover:bg-gray-50 transition-colors
+                 disabled:opacity-40 disabled:cursor-not-allowed
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+          @if (addressCheck() === 'checking') {
+          <span class="w-3 h-3 rounded-full border-2 border-gray-300 border-t-transparent animate-spin inline-block"></span>
+          }
+          Tester
+        </button>
+      </div>
       <div id="counter-ws-url-hint" aria-live="polite">
         @if (addressCheck() === 'checking') {
         <p class="text-xs text-gray-400 mt-1.5 flex items-center gap-1.5">
