@@ -1,4 +1,4 @@
-@if (store.showAccountPanel) {
+@if (store.showAccountPanel()) {
 <div class="absolute inset-0 z-30 flex items-start justify-end" (click)="store.closeAccountPanel()"
      (keydown.escape)="store.closeAccountPanel()">
   <div class="absolute inset-0 bg-black/20"></div>

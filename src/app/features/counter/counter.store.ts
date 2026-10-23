@@ -107,7 +107,7 @@ export class CounterStore {
   closeAllPanels(): void {
     this.showServerPanel = false;
     this.showHistoriquePanel = false;
-    this.showAccountPanel = false;
+    this.showAccountPanel.set(false);
   }
   newCashierHost = '';
   /** Result of probing newCashierHost for a running server, shown as a hint/warning.
@@ -123,7 +123,7 @@ export class CounterStore {
   // ── Account settings ────────────────────────────────────────────────────────
   readonly maxDisplayNameLen = MAX_DISPLAY_NAME_LEN;
   readonly minPasswordLen = MIN_PASSWORD_LEN;
-  showAccountPanel = false;
+  showAccountPanel = signal(false);
   /** Display name as last confirmed by the server; used to prefill the edit form. */
   private accountDisplayName = signal('');
   /** Name shown in the navbar — the account display name when one exists, otherwise the username. */
@@ -195,10 +195,7 @@ export class CounterStore {
     this.ws.disconnect();
   }
   private setupWsListeners(): void {
-    // Handle reconnect: re-send request_connection, show waiting overlay.
     this.openSubscription = this.ws.onOpened().subscribe(() => {
-      // The socket reached the server, so any pending "server down / not found"
-      // error no longer applies.
       this.awaitingConnectResult = false;
       this.serverConnectError.set('');
       // Credentials are checked locally before request_connection is ever sent,
@@ -267,7 +264,7 @@ export class CounterStore {
         this.editPassword.set('');
         this.editPasswordConfirm.set('');
         this.editAccountError.set('');
-        this.showAccountPanel = false;
+        this.showAccountPanel.set(false);
         this.showToast('Compte mis à jour.');
       } else if (msg.type === 'account_update_error') {
         this.pendingPassword = null;
@@ -293,14 +290,14 @@ export class CounterStore {
     this.editPasswordConfirm.set('');
     this.showEditPassword.set(false);
     this.editAccountError.set('');
-    this.showAccountPanel = true;
+    this.showAccountPanel.set(true);
     if (this.wsConnected()) {
       this.ws.send({ type: 'account_get' });
     }
   }
   closeAccountPanel(): void {
     if (this.savingAccount()) return;
-    this.showAccountPanel = false;
+    this.showAccountPanel.set(false);
   }
   toggleEditPasswordVisibility(): void {
     this.showEditPassword.update((v) => !v);
