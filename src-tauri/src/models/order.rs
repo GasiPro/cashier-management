@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
-
 use crate::models::pricing::ServiceItem;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum OrderStatus {
@@ -9,7 +7,6 @@ pub enum OrderStatus {
     Paye,
     Rejetee,
 }
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Order {
     pub id: i64,
@@ -30,7 +27,6 @@ pub struct Order {
     #[serde(default)]
     pub raison: Option<String>,
 }
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CartItem {
     pub service: ServiceItem,
@@ -40,4 +36,17 @@ pub struct CartItem {
     pub label: String,
     #[serde(default)]
     pub observation: String,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OrderChangeKind {
+    Created,
+    Updated,
+    Deleted,
+}
+#[derive(Debug, Clone, Serialize)]
+pub struct OrderChange {
+    pub kind: OrderChangeKind,
+    pub group_id: i64,
+    pub counter_username: String,
 }

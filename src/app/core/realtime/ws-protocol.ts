@@ -4,6 +4,12 @@ import type { ConnectedDevice, PendingConnection } from '../../data/device/devic
 export interface AccountSummary {
   display_name: string;
 }
+export type OrderChangeKind = 'created' | 'updated' | 'deleted';
+export interface OrderChange {
+  kind: OrderChangeKind;
+  group_id: number;
+  counter_username: string;
+}
 export type WsMessage =
   | { type: 'orders'; data: OrderLine[] }
   | { type: 'time'; data: string }
@@ -18,6 +24,7 @@ export type WsMessage =
   | { type: 'account_updated'; data: AccountSummary }
   | { type: 'account_update_error'; data: string }
   | { type: 'error_order'; data: string }
+  | { type: 'order_notification'; data: OrderChange }
   | { type: 'error_protocol'; data: string };
 export type WsMessageType = WsMessage['type'];
 export type WsMessageOf<T extends WsMessageType> = Extract<WsMessage, { type: T }>;

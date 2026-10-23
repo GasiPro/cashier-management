@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicI64, Ordering};
 use serde::{Deserialize, Deserializer, Serialize};
 use crate::models::account::Account;
-use crate::models::order::{CartItem, Order};
+use crate::models::order::{CartItem, Order, OrderChange};
 use crate::models::pricing::ServiceItem;
 static NEXT_BLACKLIST_ID: AtomicI64 = AtomicI64::new(1);
 static NEXT_HISTORY_ID: AtomicI64 = AtomicI64::new(1);
@@ -179,6 +179,8 @@ pub enum ServerMessage {
     AccountUpdateError { data: String },
     #[serde(rename = "error_order")]
     OrderError { data: String },
+    #[serde(rename = "order_notification")]
+    OrderNotification { data: OrderChange },
     #[serde(rename = "pricing")]
     Pricing { data: Vec<ServiceItem> },
     #[serde(rename = "error_protocol")]

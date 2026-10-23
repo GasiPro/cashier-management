@@ -19,7 +19,7 @@ use crate::models::account::{SessionRole, Sessions, UserType};
 use crate::models::connection::{
     ClientMessage, ConnectedDevice, ConnectionEvent, PendingConnection, ServerMessage,
 };
-use crate::models::order::Order;
+use crate::models::order::{Order, OrderChange, OrderChangeKind};
 use crate::services::account_service::{self, Accounts};
 use crate::services::connection_service::{self, Blacklist, ConnectionHistory};
 use crate::services::order_service::OrderService;
@@ -134,21 +134,17 @@ pub(crate) fn start_clock(peers: PeerMap) {
     });
 }
 async fn handle_connection(ctx: WsContext, stream: TcpStream, addr: SocketAddr) {
-    let Ok(ws_stream) = accept_async(stream).await else {
-        return;
-    };
-    let (mut ws_sender, mut ws_receiver) = ws_stream.split();
     let blacklisted = {
         let guard = ctx.blacklist.lock().unwrap();
         connection::is_blacklisted(&guard, &addr.to_string())
     };
     if blacklisted {
-        if let Ok(json) = serde_json::to_string(&ServerMessage::ConnectionBlocked) {
-            let _ = ws_sender.send(Message::Text(json.into())).await;
-        }
-        let _ = ws_sender.close().await;
         return;
     }
+    let Ok(ws_stream) = accept_async(stream).await else {
+        return;
+    };
+    let (mut ws_sender, mut ws_receiver) = ws_stream.split();
     let (tx, mut rx) = mpsc::unbounded_channel();
     ctx.peers.lock().await.insert(addr, PeerState::new(tx));
     let mut ws_writer = tauri::async_runtime::spawn(async move {
@@ -204,7 +200,7 @@ async fn handle_text(ctx: &WsContext, addr: SocketAddr, text: &str) {
                 return;
             };
             let result = ctx.order_service.create_order(&cart, &caller.username);
-            finish_order_change(ctx, addr, "create_order", result).await;
+            finish_order_change(ctx, addr, "create_order", &caller, OrderChangeKind::Created, result).await;
         }
         ClientMessage::UpdateOrder { id, quantity, unit_price } => {
             let Some(caller) = approved_caller(&ctx.peers, addr).await else {
@@ -213,21 +209,21 @@ async fn handle_text(ctx: &WsContext, addr: SocketAddr, text: &str) {
             let result = ctx
                 .order_service
                 .update_order(id, quantity, unit_price, caller.owner());
-            finish_order_change(ctx, addr, "update_order", result).await;
+            finish_order_change(ctx, addr, "update_order", &caller, OrderChangeKind::Updated, result).await;
         }
         ClientMessage::DeleteOrder { id } => {
             let Some(caller) = approved_caller(&ctx.peers, addr).await else {
                 return;
             };
             let result = ctx.order_service.delete_order(id, caller.owner());
-            finish_order_change(ctx, addr, "delete_order", result).await;
+            finish_order_change(ctx, addr, "delete_order", &caller, OrderChangeKind::Deleted, result).await;
         }
         ClientMessage::DeleteOrderGroup { group_id } => {
             let Some(caller) = approved_caller(&ctx.peers, addr).await else {
                 return;
             };
             let result = ctx.order_service.delete_order_group(group_id, caller.owner());
-            finish_order_change(ctx, addr, "delete_order_group", result).await;
+            finish_order_change(ctx, addr, "delete_order_group", &caller, OrderChangeKind::Deleted, result).await;
         }
         ClientMessage::RequestOrders => {
             let orders = ctx.order_service.get_orders();
@@ -412,11 +408,21 @@ async fn finish_order_change(
     ctx: &WsContext,
     addr: SocketAddr,
     action: &str,
-    result: Result<(), String>,
+    caller: &Caller,
+    kind: OrderChangeKind,
+    result: Result<i64, String>,
 ) {
     match result {
-        Ok(()) => {
+        Ok(group_id) => {
             broadcast_orders_to_approved(&ctx.peers, &ctx.order_service.get_orders()).await;
+            if !caller.is_staff {
+                let change = OrderChange {
+                    kind,
+                    group_id,
+                    counter_username: caller.username.clone(),
+                };
+                notify_cashier(&ctx.peers, &ServerMessage::OrderNotification { data: change }).await;
+            }
         }
         Err(err) => {
             log::error!("{action} failed ({addr}): {err}");

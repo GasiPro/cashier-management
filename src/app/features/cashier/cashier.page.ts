@@ -6,7 +6,7 @@ import { DEFAULT_WS } from '../../core/config/app.constants';
 import { WsRegistration } from '../../core/auth/ws-registration';
 import { errorMessage } from '../../core/error/error-messages';
 import { WsClient } from '../../core/realtime/ws-client';
-import { WsMessage } from '../../core/realtime/ws-protocol';
+import { OrderChange, WsMessage } from '../../core/realtime/ws-protocol';
 import { getStoredDisplayName, getStoredUsername } from '../../core/storage/local-storage';
 import {
   approveConnection,
@@ -96,6 +96,8 @@ export class CashierPage implements OnInit, OnDestroy {
       this.wsConnected.set(true);
       if (msg.type === 'time') {
         this.currentTime.set(msg.data as string);
+      } else if (msg.type === 'order_notification') {
+        this.notifyOrderChange(msg.data);
       }
     });
     this.openSubscription = this.ws.onOpened().subscribe(() => this.registerOnOpen());
@@ -118,6 +120,16 @@ export class CashierPage implements OnInit, OnDestroy {
     if (!this.registration.registerCashier(this.username)) {
       this.returnToLogin();
     }
+  }
+  private notifyOrderChange(change: OrderChange): void {
+    const label = formatGroupId(change.group_id);
+    const from = change.counter_username ? ` (${change.counter_username})` : '';
+    const messages: Record<OrderChange['kind'], string> = {
+      created: `Nouvelle commande ${label}${from}.`,
+      updated: `Commande ${label} modifiée${from}.`,
+      deleted: `Commande ${label} supprimée${from}.`,
+    };
+    this.store.notify(messages[change.kind]);
   }
   private returnToLogin(): void {
     this.wsSubscription?.unsubscribe();
