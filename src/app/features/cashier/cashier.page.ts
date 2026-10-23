@@ -64,6 +64,7 @@ export class CashierPage implements OnInit, OnDestroy {
   wsAddress = signal('');
   private wsSubscription?: Subscription;
   private openSubscription?: Subscription;
+  private closeSubscription?: Subscription;
   private approved = false;
   constructor(
     private router: Router,
@@ -96,6 +97,7 @@ export class CashierPage implements OnInit, OnDestroy {
       }
     });
     this.openSubscription = this.ws.onOpened().subscribe(() => this.registerOnOpen());
+    this.closeSubscription = this.ws.onClosed().subscribe(() => this.wsConnected.set(false));
     this.ws.connect(LOCAL_WS_URL);
     if (this.ws.isOpen()) {
       this.registerOnOpen();
@@ -113,6 +115,7 @@ export class CashierPage implements OnInit, OnDestroy {
   private returnToLogin(): void {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
+    this.closeSubscription?.unsubscribe();
     this.ws.disconnect();
     this.router.navigate(['/login']);
   }
@@ -121,6 +124,7 @@ export class CashierPage implements OnInit, OnDestroy {
     this.devices.stopLive();
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
+    this.closeSubscription?.unsubscribe();
     this.ws.disconnect();
   }
   get totalPendingRequests(): number {
