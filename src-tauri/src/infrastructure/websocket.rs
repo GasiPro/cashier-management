@@ -134,17 +134,21 @@ pub(crate) fn start_clock(peers: PeerMap) {
     });
 }
 async fn handle_connection(ctx: WsContext, stream: TcpStream, addr: SocketAddr) {
+    let Ok(ws_stream) = accept_async(stream).await else {
+        return;
+    };
+    let (mut ws_sender, mut ws_receiver) = ws_stream.split();
     let blacklisted = {
         let guard = ctx.blacklist.lock().unwrap();
         connection::is_blacklisted(&guard, &addr.to_string())
     };
     if blacklisted {
+        if let Ok(json) = serde_json::to_string(&ServerMessage::ConnectionBlocked) {
+            let _ = ws_sender.send(Message::Text(json.into())).await;
+        }
+        let _ = ws_sender.close().await;
         return;
     }
-    let Ok(ws_stream) = accept_async(stream).await else {
-        return;
-    };
-    let (mut ws_sender, mut ws_receiver) = ws_stream.split();
     let (tx, mut rx) = mpsc::unbounded_channel();
     ctx.peers.lock().await.insert(addr, PeerState::new(tx));
     let mut ws_writer = tauri::async_runtime::spawn(async move {
