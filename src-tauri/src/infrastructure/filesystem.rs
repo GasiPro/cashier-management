@@ -33,7 +33,9 @@ fn load_or_create_key() -> Result<Key<Aes256Gcm>, String> {
         Ok(_) => Err("Clé de chiffrement invalide dans le trousseau du système.".to_string()),
         Err(keyring::Error::NoEntry) => {
             let key = Aes256Gcm::generate_key(OsRng);
-            entry.set_secret(key.as_slice()).map_err(|e| e.to_string())?;
+            entry
+                .set_secret(key.as_slice())
+                .map_err(|e| e.to_string())?;
             Ok(key)
         }
         Err(err) => Err(err.to_string()),
@@ -111,7 +113,10 @@ fn quarantine(path: &Path, reason: &str) {
 fn migrate_to_encrypted(path: &Path, plain: &[u8]) {
     let result = encrypt(plain).and_then(|sealed| write_bytes_atomic(path, &sealed));
     if let Err(err) = result {
-        log::warn!("Chiffrement du fichier {} impossible : {err}", path.display());
+        log::warn!(
+            "Chiffrement du fichier {} impossible : {err}",
+            path.display()
+        );
     }
 }
 pub(crate) fn read_json<T: DeserializeOwned>(path: &Path) -> Option<T> {
@@ -121,7 +126,10 @@ pub(crate) fn read_json<T: DeserializeOwned>(path: &Path) -> Option<T> {
         let cipher = match cipher() {
             Ok(cipher) => cipher,
             Err(err) => {
-                log::error!("Clé de chiffrement indisponible pour {} : {err}", path.display());
+                log::error!(
+                    "Clé de chiffrement indisponible pour {} : {err}",
+                    path.display()
+                );
                 return None;
             }
         };

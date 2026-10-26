@@ -28,13 +28,19 @@ async fn broadcast_orders(state: &AppState) {
 }
 
 #[tauri::command]
-pub async fn order(state: State<'_, AppState>, command: OrderCommand) -> Result<serde_json::Value, String> {
+pub async fn order(
+    state: State<'_, AppState>,
+    command: OrderCommand,
+) -> Result<serde_json::Value, String> {
     let orders = &state.order_service;
     match command {
         OrderCommand::List => Ok(serde_json::json!(orders.get_orders())),
         OrderCommand::Pending => Ok(serde_json::json!(orders.get_pending())),
         OrderCommand::Paid => Ok(serde_json::json!(orders.get_paid())),
-        OrderCommand::Create { cart, counter_username } => {
+        OrderCommand::Create {
+            cart,
+            counter_username,
+        } => {
             orders.create_order(&cart, &counter_username)?;
             broadcast_orders(&state).await;
             Ok(serde_json::Value::Null)

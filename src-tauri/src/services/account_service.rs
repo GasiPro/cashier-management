@@ -66,7 +66,9 @@ pub fn verify_active_credentials(
     password: &str,
     user_type: UserType,
 ) -> Option<String> {
-    if account::validate_username(username).is_err() || account::validate_password(password).is_err() {
+    if account::validate_username(username).is_err()
+        || account::validate_password(password).is_err()
+    {
         return None;
     }
     let username = username.trim();
@@ -119,11 +121,18 @@ pub async fn create_account(
         guard.pop();
         return Err(format!("Échec de l'enregistrement du compte : {err}"));
     }
-    Ok(Account::from(guard.last().expect("account was just pushed")))
+    Ok(Account::from(
+        guard.last().expect("account was just pushed"),
+    ))
 }
 
 pub fn list_accounts(accounts_store: &Accounts) -> Vec<Account> {
-    accounts_store.lock().unwrap().iter().map(Account::from).collect()
+    accounts_store
+        .lock()
+        .unwrap()
+        .iter()
+        .map(Account::from)
+        .collect()
 }
 
 pub async fn update_account(
@@ -184,8 +193,8 @@ pub async fn suspend_account(
     if is_last_active_admin(&guard, &username) {
         return Err(LAST_ADMIN_ERROR.to_string());
     }
-    let account =
-        account::find_account_mut(&mut guard, &username).ok_or_else(|| "Compte introuvable.".to_string())?;
+    let account = account::find_account_mut(&mut guard, &username)
+        .ok_or_else(|| "Compte introuvable.".to_string())?;
     let previous = account.clone();
     account::suspend(account, reason);
     let updated = Account::from(&*account);
@@ -193,7 +202,9 @@ pub async fn suspend_account(
         if let Some(account) = account::find_account_mut(&mut guard, &username) {
             *account = previous;
         }
-        return Err(format!("Échec de l'enregistrement de la suspension : {err}"));
+        return Err(format!(
+            "Échec de l'enregistrement de la suspension : {err}"
+        ));
     }
     Ok(updated)
 }
@@ -204,8 +215,8 @@ pub async fn reactivate_account(
     username: String,
 ) -> Result<Account, String> {
     let mut guard = accounts_store.lock().unwrap();
-    let account =
-        account::find_account_mut(&mut guard, &username).ok_or_else(|| "Compte introuvable.".to_string())?;
+    let account = account::find_account_mut(&mut guard, &username)
+        .ok_or_else(|| "Compte introuvable.".to_string())?;
     let previous = account.clone();
     account::reactivate(account);
     let updated = Account::from(&*account);
@@ -213,12 +224,18 @@ pub async fn reactivate_account(
         if let Some(account) = account::find_account_mut(&mut guard, &username) {
             *account = previous;
         }
-        return Err(format!("Échec de l'enregistrement de la réactivation : {err}"));
+        return Err(format!(
+            "Échec de l'enregistrement de la réactivation : {err}"
+        ));
     }
     Ok(updated)
 }
 
-pub async fn delete_account(app: &AppHandle, accounts_store: &Accounts, username: String) -> Result<(), String> {
+pub async fn delete_account(
+    app: &AppHandle,
+    accounts_store: &Accounts,
+    username: String,
+) -> Result<(), String> {
     let mut guard = accounts_store.lock().unwrap();
     let index = guard
         .iter()
@@ -230,7 +247,9 @@ pub async fn delete_account(app: &AppHandle, accounts_store: &Accounts, username
     let removed = guard.remove(index);
     if let Err(err) = account_repository::save(app, &guard) {
         guard.insert(index, removed);
-        return Err(format!("Échec de l'enregistrement de la suppression : {err}"));
+        return Err(format!(
+            "Échec de l'enregistrement de la suppression : {err}"
+        ));
     }
     Ok(())
 }

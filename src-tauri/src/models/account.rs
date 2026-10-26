@@ -125,7 +125,11 @@ impl From<&StoredAccount> for Account {
             status: account.status,
             created_at: account.created_at.clone(),
             last_sign_in_at: account.last_sign_in_at.clone(),
-            history: account.history.iter().map(AccountHistoryView::from).collect(),
+            history: account
+                .history
+                .iter()
+                .map(AccountHistoryView::from)
+                .collect(),
         }
     }
 }

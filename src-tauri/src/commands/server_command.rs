@@ -69,15 +69,31 @@ pub async fn server(
             Ok(serde_json::Value::Null)
         }
         ServerCommand::ConnectionReject { id, addr } => {
-            connection_service::reject_connection(&app, &state.peers, &state.connection_history, id, addr).await?;
+            connection_service::reject_connection(
+                &app,
+                &state.peers,
+                &state.connection_history,
+                id,
+                addr,
+            )
+            .await?;
             Ok(serde_json::Value::Null)
         }
-        ServerCommand::ConnectionListPending => Ok(serde_json::json!(get_pending_requests_list(&state.peers).await)),
-        ServerCommand::ConnectionListConnected => {
-            Ok(serde_json::json!(get_connected_devices_list(&state.peers).await))
-        }
+        ServerCommand::ConnectionListPending => Ok(serde_json::json!(
+            get_pending_requests_list(&state.peers).await
+        )),
+        ServerCommand::ConnectionListConnected => Ok(serde_json::json!(
+            get_connected_devices_list(&state.peers).await
+        )),
         ServerCommand::ConnectionDisconnect { id, addr } => {
-            connection_service::disconnect_device(&app, &state.peers, &state.connection_history, id, addr).await?;
+            connection_service::disconnect_device(
+                &app,
+                &state.peers,
+                &state.connection_history,
+                id,
+                addr,
+            )
+            .await?;
             Ok(serde_json::Value::Null)
         }
         ServerCommand::ConnectionBlock { id, addr, reason } => Ok(serde_json::json!(
@@ -92,9 +108,11 @@ pub async fn server(
             )
             .await?
         )),
-        ServerCommand::ConnectionHistory | ServerCommand::DevicesGetHistory => Ok(serde_json::json!(
-            connection_service::list_connection_history(&state.connection_history)
-        )),
+        ServerCommand::ConnectionHistory | ServerCommand::DevicesGetHistory => {
+            Ok(serde_json::json!(
+                connection_service::list_connection_history(&state.connection_history)
+            ))
+        }
         ServerCommand::ConnectionBlacklistList => Ok(serde_json::json!(
             connection_service::list_blacklist_entries(&state.blacklist)
         )),
@@ -104,18 +122,31 @@ pub async fn server(
             addr,
             reason,
         } => Ok(serde_json::json!(
-            connection_service::add_blacklist_entry(&app, &state.blacklist, entry_type, value, addr, reason).await?
+            connection_service::add_blacklist_entry(
+                &app,
+                &state.blacklist,
+                entry_type,
+                value,
+                addr,
+                reason
+            )
+            .await?
         )),
         ServerCommand::ConnectionBlacklistRemove { id, addr } => {
             connection_service::remove_blacklist_entry(&app, &state.blacklist, id, addr).await?;
             Ok(serde_json::Value::Null)
         }
-        ServerCommand::DevicesMaxGet => Ok(serde_json::json!(setting_service::get_max_connected_devices(
-            &state.max_connected_devices
-        ))),
-        ServerCommand::DevicesMaxSet { value } => Ok(serde_json::json!(
-            setting_service::set_max_connected_devices(&app, &state.max_connected_devices, value).await?
+        ServerCommand::DevicesMaxGet => Ok(serde_json::json!(
+            setting_service::get_max_connected_devices(&state.max_connected_devices)
         )),
-        ServerCommand::DevicesCount => Ok(serde_json::json!(get_connected_devices_list(&state.peers).await.len())),
+        ServerCommand::DevicesMaxSet { value } => Ok(serde_json::json!(
+            setting_service::set_max_connected_devices(&app, &state.max_connected_devices, value)
+                .await?
+        )),
+        ServerCommand::DevicesCount => {
+            Ok(serde_json::json!(get_connected_devices_list(&state.peers)
+                .await
+                .len()))
+        }
     }
 }

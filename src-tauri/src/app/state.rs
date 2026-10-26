@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use crate::config::rate_limit::AttemptTracker;
 use crate::infrastructure::websocket::PeerMap;
 use crate::models::account::Sessions;
@@ -7,6 +6,7 @@ use crate::services::connection_service::{Blacklist, ConnectionHistory};
 use crate::services::order_service::OrderService;
 use crate::services::pricing_service::PricingStore;
 use crate::services::setting_service::MaxConnectedDevices;
+use std::sync::Arc;
 pub struct AppState {
     pub order_service: Arc<OrderService>,
     pub peers: PeerMap,

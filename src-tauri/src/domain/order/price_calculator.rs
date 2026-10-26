@@ -11,9 +11,9 @@ impl PriceCalculator {
     }
 
     pub fn calculate_revenue(paid_orders: &[MinimalOrderRow]) -> u32 {
-        paid_orders
-            .iter()
-            .fold(0, |sum, o| sum + Self::calculate_line_total(o.quantity, o.unit_price))
+        paid_orders.iter().fold(0, |sum, o| {
+            sum + Self::calculate_line_total(o.quantity, o.unit_price)
+        })
     }
 
     pub fn aggregate_volume_by_service(paid_orders: &[MinimalServiceRow]) -> HashMap<String, u32> {

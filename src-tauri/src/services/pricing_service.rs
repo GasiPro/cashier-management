@@ -101,7 +101,9 @@ pub async fn delete_pricing_item(
     let removed = guard.remove(index);
     if let Err(err) = pricing_repository::save(app, &guard) {
         guard.insert(index, removed);
-        return Err(format!("Échec de l'enregistrement de la suppression : {err}"));
+        return Err(format!(
+            "Échec de l'enregistrement de la suppression : {err}"
+        ));
     }
     Ok(guard.clone())
 }

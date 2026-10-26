@@ -1,8 +1,6 @@
 use crate::config::rate_limit;
 use crate::domain::account;
-use crate::models::account::{
-    Account, AccountStatus, AuthResult, SessionRole, Sessions, UserType,
-};
+use crate::models::account::{Account, AccountStatus, AuthResult, SessionRole, Sessions, UserType};
 use crate::repositories::account_repository;
 use crate::services::account_service::Accounts;
 use tauri::AppHandle;

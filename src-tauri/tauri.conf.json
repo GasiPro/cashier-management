@@ -35,6 +35,15 @@
     ],
     "android": {
       "debugApplicationIdSuffix": ".debug"
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUxRjgxNjQ1ODVCMzhCNzYKUldSMmk3T0ZSUmI0VVJha3RBV1o4cEJvNWVUdHFERy9yRlVHSVUrclB0UHNlaG1mdm9CKzV5NlkK",
+      "endpoints": [
+        "https://github.com/GasiPro/cashier-management/releases/latest/download/latest.json"
+      ]
     }
   }
 }

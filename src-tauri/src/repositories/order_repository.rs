@@ -19,7 +19,12 @@ impl OrderApi {
     pub fn load_next_group_id(app: &AppHandle) -> i64 {
         Self::load_counter(app, Self::GID_FILE_NAME, DEFAULT_NEXT_GROUP_ID)
     }
-    pub fn persist(app: &AppHandle, orders: &[Order], next_id: i64, next_group_id: i64) -> Result<(), String> {
+    pub fn persist(
+        app: &AppHandle,
+        orders: &[Order],
+        next_id: i64,
+        next_group_id: i64,
+    ) -> Result<(), String> {
         write_json(&config_file_path(app, Self::ORDERS_FILE_NAME)?, orders)?;
         write_json(&config_file_path(app, Self::ID_FILE_NAME)?, &next_id)?;
         write_json(&config_file_path(app, Self::GID_FILE_NAME)?, &next_group_id)

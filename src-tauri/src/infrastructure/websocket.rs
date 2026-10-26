@@ -104,7 +104,9 @@ fn bind_listener() -> Option<std::net::TcpListener> {
                 }
                 ACTIVE_PORT.store(port, Ordering::Relaxed);
                 if port != WS_PORT {
-                    log::warn!("Port {WS_PORT} occupé, serveur WebSocket démarré sur le port {port}.");
+                    log::warn!(
+                        "Port {WS_PORT} occupé, serveur WebSocket démarré sur le port {port}."
+                    );
                 }
                 return Some(listener);
             }
@@ -116,7 +118,9 @@ fn bind_listener() -> Option<std::net::TcpListener> {
 
 pub(crate) fn start_server(ctx: WsContext) {
     let Some(std_listener) = bind_listener() else {
-        log::error!("Impossible d'ouvrir le serveur WebSocket : aucun port libre à partir de {WS_PORT}.");
+        log::error!(
+            "Impossible d'ouvrir le serveur WebSocket : aucun port libre à partir de {WS_PORT}."
+        );
         return;
     };
     tauri::async_runtime::spawn(async move {
@@ -261,30 +265,68 @@ async fn handle_text(ctx: &WsContext, addr: SocketAddr, text: &str) {
                 return;
             };
             let result = ctx.order_service.create_order(&cart, &caller.username);
-            finish_order_change(ctx, addr, "create_order", &caller, OrderChangeKind::Created, result).await;
+            finish_order_change(
+                ctx,
+                addr,
+                "create_order",
+                &caller,
+                OrderChangeKind::Created,
+                result,
+            )
+            .await;
         }
-        ClientMessage::UpdateOrder { id, quantity, unit_price } => {
+        ClientMessage::UpdateOrder {
+            id,
+            quantity,
+            unit_price,
+        } => {
             let Some(caller) = approved_caller(&ctx.peers, addr).await else {
                 return;
             };
             let result = ctx
                 .order_service
                 .update_order(id, quantity, unit_price, caller.owner());
-            finish_order_change(ctx, addr, "update_order", &caller, OrderChangeKind::Updated, result).await;
+            finish_order_change(
+                ctx,
+                addr,
+                "update_order",
+                &caller,
+                OrderChangeKind::Updated,
+                result,
+            )
+            .await;
         }
         ClientMessage::DeleteOrder { id } => {
             let Some(caller) = approved_caller(&ctx.peers, addr).await else {
                 return;
             };
             let result = ctx.order_service.delete_order(id, caller.owner());
-            finish_order_change(ctx, addr, "delete_order", &caller, OrderChangeKind::Deleted, result).await;
+            finish_order_change(
+                ctx,
+                addr,
+                "delete_order",
+                &caller,
+                OrderChangeKind::Deleted,
+                result,
+            )
+            .await;
         }
         ClientMessage::DeleteOrderGroup { group_id } => {
             let Some(caller) = approved_caller(&ctx.peers, addr).await else {
                 return;
             };
-            let result = ctx.order_service.delete_order_group(group_id, caller.owner());
-            finish_order_change(ctx, addr, "delete_order_group", &caller, OrderChangeKind::Deleted, result).await;
+            let result = ctx
+                .order_service
+                .delete_order_group(group_id, caller.owner());
+            finish_order_change(
+                ctx,
+                addr,
+                "delete_order_group",
+                &caller,
+                OrderChangeKind::Deleted,
+                result,
+            )
+            .await;
         }
         ClientMessage::RequestOrders => {
             let orders = ctx.order_service.get_orders();
@@ -309,9 +351,10 @@ async fn handle_text(ctx: &WsContext, addr: SocketAddr, text: &str) {
                 send_to_addr(&ctx.peers, addr, &ServerMessage::Account { data: view }).await;
             }
         }
-        ClientMessage::UpdateAccount { display_name, password } => {
-            update_own_account(ctx, addr, display_name, password).await
-        }
+        ClientMessage::UpdateAccount {
+            display_name,
+            password,
+        } => update_own_account(ctx, addr, display_name, password).await,
     }
 }
 
@@ -512,7 +555,11 @@ async fn finish_order_change(
                     group_id,
                     counter_username: caller.username.clone(),
                 };
-                notify_cashier(&ctx.peers, &ServerMessage::OrderNotification { data: change }).await;
+                notify_cashier(
+                    &ctx.peers,
+                    &ServerMessage::OrderNotification { data: change },
+                )
+                .await;
             }
         }
         Err(err) => {
@@ -621,7 +668,11 @@ pub(crate) async fn notify_connected_devices(peers: &PeerMap) {
     notify_cashier(peers, &ServerMessage::ConnectedDevices { data: connected }).await;
 }
 
-pub(crate) async fn remove_peer(peers: &PeerMap, addr: SocketAddr, farewell: &ServerMessage) -> String {
+pub(crate) async fn remove_peer(
+    peers: &PeerMap,
+    addr: SocketAddr,
+    farewell: &ServerMessage,
+) -> String {
     match peers.lock().await.remove(&addr) {
         Some(peer) => {
             peer.send(farewell);
@@ -680,7 +731,10 @@ pub(crate) async fn resolve_peer_addr(
 ) -> Result<SocketAddr, String> {
     let guard = peers.lock().await;
     let found = match (id, addr) {
-        (Some(id), _) => guard.iter().find(|(_, s)| s.id == id).map(|(addr, _)| *addr),
+        (Some(id), _) => guard
+            .iter()
+            .find(|(_, s)| s.id == id)
+            .map(|(addr, _)| *addr),
         (None, Some(addr)) => {
             let parsed = addr.parse::<SocketAddr>().map_err(|e| e.to_string())?;
             guard.contains_key(&parsed).then_some(parsed)
@@ -691,7 +745,10 @@ pub(crate) async fn resolve_peer_addr(
 }
 
 fn connected_device_count(peers: &HashMap<SocketAddr, PeerState>) -> usize {
-    peers.values().filter(|s| s.approved && !s.is_staff()).count()
+    peers
+        .values()
+        .filter(|s| s.approved && !s.is_staff())
+        .count()
 }
 
 fn at_capacity(max: u32, connected: usize) -> bool {
@@ -714,6 +771,10 @@ pub(crate) fn get_server_address() -> String {
     });
     match local_addr {
         Some(addr) => format!("{}:{}", addr.ip(), ACTIVE_PORT.load(Ordering::Relaxed)),
-        None => format!("{}:{}", WS_FALLBACK_HOST, ACTIVE_PORT.load(Ordering::Relaxed)),
+        None => format!(
+            "{}:{}",
+            WS_FALLBACK_HOST,
+            ACTIVE_PORT.load(Ordering::Relaxed)
+        ),
     }
 }

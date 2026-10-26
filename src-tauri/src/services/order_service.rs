@@ -46,8 +46,8 @@ impl OrderService {
 
     pub fn load(&self, app: &AppHandle) {
         let orders = OrderApi::load_orders(app);
-        let next_id = OrderApi::load_next_id(app)
-            .max(orders.iter().map(|o| o.id + 1).max().unwrap_or(0));
+        let next_id =
+            OrderApi::load_next_id(app).max(orders.iter().map(|o| o.id + 1).max().unwrap_or(0));
         let next_group_id = OrderApi::load_next_group_id(app)
             .max(orders.iter().map(|o| o.group_id + 1).max().unwrap_or(0));
         *self.state.lock().unwrap() = OrderState {
@@ -184,7 +184,11 @@ impl OrderService {
         })
     }
 
-    fn remove_pending(&self, not_found: &str, is_target: impl Fn(&Order) -> bool) -> Result<i64, String> {
+    fn remove_pending(
+        &self,
+        not_found: &str,
+        is_target: impl Fn(&Order) -> bool,
+    ) -> Result<i64, String> {
         let mut removed_group_id = 0;
         self.modify(|state| {
             let Some(found) = state
@@ -203,7 +207,10 @@ impl OrderService {
         Ok(removed_group_id)
     }
 
-    fn modify(&self, change: impl FnOnce(&mut OrderState) -> Result<(), String>) -> Result<(), String> {
+    fn modify(
+        &self,
+        change: impl FnOnce(&mut OrderState) -> Result<(), String>,
+    ) -> Result<(), String> {
         let mut guard = self.state.lock().unwrap();
         let snapshot = guard.clone();
         if let Err(err) = change(&mut *guard) {
@@ -219,7 +226,12 @@ impl OrderService {
             *state = snapshot;
             return Err("Serveur non prêt. Réessayez.".to_string());
         };
-        if let Err(err) = OrderApi::persist(&app_handle, &state.orders, state.next_id, state.next_group_id) {
+        if let Err(err) = OrderApi::persist(
+            &app_handle,
+            &state.orders,
+            state.next_id,
+            state.next_group_id,
+        ) {
             *state = snapshot;
             return Err(format!(
                 "Échec de l'enregistrement des commandes sur le disque : {err}"

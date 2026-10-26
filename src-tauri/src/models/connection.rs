@@ -1,8 +1,8 @@
-use std::sync::atomic::{AtomicI64, Ordering};
-use serde::{Deserialize, Deserializer, Serialize};
 use crate::models::account::Account;
 use crate::models::order::{CartItem, Order, OrderChange};
 use crate::models::pricing::ServiceItem;
+use serde::{Deserialize, Deserializer, Serialize};
+use std::sync::atomic::{AtomicI64, Ordering};
 static NEXT_BLACKLIST_ID: AtomicI64 = AtomicI64::new(1);
 static NEXT_HISTORY_ID: AtomicI64 = AtomicI64::new(1);
 pub fn next_blacklist_id() -> i64 {
@@ -102,15 +102,27 @@ pub enum ClientMessage {
     #[serde(rename = "register_cashier")]
     CashierRegister { username: String, token: String },
     #[serde(rename = "register_admin")]
-    AdminRegister { #[serde(default)] username: Option<String>, token: String },
+    AdminRegister {
+        #[serde(default)]
+        username: Option<String>,
+        token: String,
+    },
     #[serde(rename = "register_counter")]
-    CounterRegister { #[serde(default)] username: Option<String>, token: String },
+    CounterRegister {
+        #[serde(default)]
+        username: Option<String>,
+        token: String,
+    },
     #[serde(rename = "request_connection")]
     RequestConnection { username: String, password: String },
     #[serde(rename = "order_create")]
     CreateOrder { cart: Vec<CartItem> },
     #[serde(rename = "order_update")]
-    UpdateOrder { id: i64, quantity: u32, unit_price: u32 },
+    UpdateOrder {
+        id: i64,
+        quantity: u32,
+        unit_price: u32,
+    },
     #[serde(rename = "order_delete")]
     DeleteOrder { id: i64 },
     #[serde(rename = "order_delete_group")]
@@ -122,7 +134,10 @@ pub enum ClientMessage {
     #[serde(rename = "account_get")]
     GetAccount,
     #[serde(rename = "account_update")]
-    UpdateAccount { display_name: String, password: Option<String> },
+    UpdateAccount {
+        display_name: String,
+        password: Option<String>,
+    },
 }
 #[derive(Debug, Serialize, Clone)]
 pub struct PendingConnection {

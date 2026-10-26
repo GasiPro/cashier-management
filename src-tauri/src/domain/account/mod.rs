@@ -76,11 +76,18 @@ pub fn validate_display_name(display_name: &str) -> Result<String, String> {
 }
 
 pub fn username_exists(accounts: &[StoredAccount], username: &str) -> bool {
-    accounts.iter().any(|a| a.username.eq_ignore_ascii_case(username))
+    accounts
+        .iter()
+        .any(|a| a.username.eq_ignore_ascii_case(username))
 }
 
-pub fn find_account_mut<'a>(accounts: &'a mut [StoredAccount], username: &str) -> Option<&'a mut StoredAccount> {
-    accounts.iter_mut().find(|a| a.username.eq_ignore_ascii_case(username))
+pub fn find_account_mut<'a>(
+    accounts: &'a mut [StoredAccount],
+    username: &str,
+) -> Option<&'a mut StoredAccount> {
+    accounts
+        .iter_mut()
+        .find(|a| a.username.eq_ignore_ascii_case(username))
 }
 
 /// Appends an activity entry to an account's history.
@@ -112,13 +119,17 @@ pub fn list_activities(accounts: &[StoredAccount]) -> Vec<AccountActivity> {
     let mut activities: Vec<AccountActivity> = accounts
         .iter()
         .flat_map(|account| {
-            account.history.iter().enumerate().map(move |(index, entry)| AccountActivity {
-                id: numeric_id(&format!("{}#{index}", account.id)),
-                account_username: account.username.clone(),
-                action: entry.kind.label().to_string(),
-                detail: entry.reason.clone().unwrap_or_default(),
-                at: entry.timestamp.clone(),
-            })
+            account
+                .history
+                .iter()
+                .enumerate()
+                .map(move |(index, entry)| AccountActivity {
+                    id: numeric_id(&format!("{}#{index}", account.id)),
+                    account_username: account.username.clone(),
+                    action: entry.kind.label().to_string(),
+                    detail: entry.reason.clone().unwrap_or_default(),
+                    at: entry.timestamp.clone(),
+                })
         })
         .collect();
     activities.sort_by(|a, b| b.at.cmp(&a.at));
@@ -147,7 +158,11 @@ pub fn mint_session(sessions: &Sessions, username: &str, role: SessionRole) -> S
     token
 }
 
-pub fn consume_session(sessions: &Sessions, token: &str, expected_role: SessionRole) -> Option<String> {
+pub fn consume_session(
+    sessions: &Sessions,
+    token: &str,
+    expected_role: SessionRole,
+) -> Option<String> {
     let now = chrono::Local::now().timestamp();
     let mut guard = sessions.lock().unwrap();
     match guard.get(token) {

@@ -44,18 +44,34 @@ pub async fn account(
             display_name,
             user_type,
         } => Ok(serde_json::json!(
-            account_service::create_account(&app, &state.accounts, username, password, display_name, user_type)
-                .await?
+            account_service::create_account(
+                &app,
+                &state.accounts,
+                username,
+                password,
+                display_name,
+                user_type
+            )
+            .await?
         )),
-        AccountCommand::List => Ok(serde_json::json!(account_service::list_accounts(&state.accounts))),
+        AccountCommand::List => Ok(serde_json::json!(account_service::list_accounts(
+            &state.accounts
+        ))),
         AccountCommand::Update {
             username,
             display_name,
             user_type,
             password,
         } => Ok(serde_json::json!(
-            account_service::update_account(&app, &state.accounts, username, display_name, user_type, password)
-                .await?
+            account_service::update_account(
+                &app,
+                &state.accounts,
+                username,
+                display_name,
+                user_type,
+                password
+            )
+            .await?
         )),
         AccountCommand::Suspend { username, reason } => Ok(serde_json::json!(
             account_service::suspend_account(&app, &state.accounts, username, reason).await?
@@ -67,8 +83,8 @@ pub async fn account(
             account_service::delete_account(&app, &state.accounts, username).await?;
             Ok(serde_json::Value::Null)
         }
-        AccountCommand::Activities => Ok(serde_json::json!(account_service::list_account_activities(
-            &state.accounts
-        ))),
+        AccountCommand::Activities => Ok(serde_json::json!(
+            account_service::list_account_activities(&state.accounts)
+        )),
     }
 }

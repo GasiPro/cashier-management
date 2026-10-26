@@ -33,15 +33,24 @@ pub async fn pricing(
     command: PricingCommand,
 ) -> Result<serde_json::Value, String> {
     match command {
-        PricingCommand::GetMatrix => Ok(serde_json::json!(pricing_service::get_pricing_matrix(&state.pricing))),
+        PricingCommand::GetMatrix => Ok(serde_json::json!(pricing_service::get_pricing_matrix(
+            &state.pricing
+        ))),
         PricingCommand::ItemCreate {
             category,
             label,
             price,
             item_type,
         } => {
-            let (item, snapshot) =
-                pricing_service::create_pricing_item(&app, &state.pricing, category, label, price, item_type).await?;
+            let (item, snapshot) = pricing_service::create_pricing_item(
+                &app,
+                &state.pricing,
+                category,
+                label,
+                price,
+                item_type,
+            )
+            .await?;
             broadcast_to_approved(&state.peers, &ServerMessage::Pricing { data: snapshot }).await;
             Ok(serde_json::json!(item))
         }
@@ -52,9 +61,16 @@ pub async fn pricing(
             price,
             item_type,
         } => {
-            let (updated, snapshot) =
-                pricing_service::update_pricing_item(&app, &state.pricing, id, category, label, price, item_type)
-                    .await?;
+            let (updated, snapshot) = pricing_service::update_pricing_item(
+                &app,
+                &state.pricing,
+                id,
+                category,
+                label,
+                price,
+                item_type,
+            )
+            .await?;
             broadcast_to_approved(&state.peers, &ServerMessage::Pricing { data: snapshot }).await;
             Ok(serde_json::json!(updated))
         }

@@ -1,5 +1,7 @@
 use crate::config::connection_config::MAX_HISTORY_ENTRIES;
-use crate::models::connection::{ip_from_addr, BlacklistEntry, BlacklistType, ConnectionHistoryEntry};
+use crate::models::connection::{
+    ip_from_addr, BlacklistEntry, BlacklistType, ConnectionHistoryEntry,
+};
 
 pub fn port_from_addr(addr: &str) -> u16 {
     addr.rsplit_once(':')
@@ -16,9 +18,9 @@ pub fn is_blacklisted(entries: &[BlacklistEntry], addr: &str) -> bool {
 
 pub fn is_username_blacklisted(entries: &[BlacklistEntry], username: &str) -> bool {
     let username = username.trim();
-    entries.iter().any(|e| {
-        e.entry_type == BlacklistType::Username && e.value.eq_ignore_ascii_case(username)
-    })
+    entries
+        .iter()
+        .any(|e| e.entry_type == BlacklistType::Username && e.value.eq_ignore_ascii_case(username))
 }
 
 pub fn value_exists(entries: &[BlacklistEntry], entry_type: BlacklistType, value: &str) -> bool {
@@ -41,7 +43,10 @@ pub fn remove_blacklist_entry_by_id(entries: &mut Vec<BlacklistEntry>, id: i64) 
     entries.len() != len_before
 }
 
-pub fn push_history_entry(entries: &mut Vec<ConnectionHistoryEntry>, entry: ConnectionHistoryEntry) {
+pub fn push_history_entry(
+    entries: &mut Vec<ConnectionHistoryEntry>,
+    entry: ConnectionHistoryEntry,
+) {
     entries.push(entry);
     if entries.len() > MAX_HISTORY_ENTRIES {
         let overflow = entries.len() - MAX_HISTORY_ENTRIES;

@@ -174,7 +174,13 @@ pub async fn block_device(
     let addr = socket_addr.to_string();
     let username = remove_peer(peers, socket_addr, &ServerMessage::ConnectionBlocked).await;
     let entry = block_ip(app, blacklist, &addr, reason)?;
-    record_connection_history(history, Some(app), &addr, &username, ConnectionEvent::Blocked);
+    record_connection_history(
+        history,
+        Some(app),
+        &addr,
+        &username,
+        ConnectionEvent::Blocked,
+    );
     notify_pending_requests(peers).await;
     notify_connected_devices(peers).await;
     Ok(entry)
@@ -247,7 +253,9 @@ pub async fn remove_blacklist_entry(
     }
     if let Err(err) = connection_repository::save_blacklist(app, &guard) {
         *guard = snapshot;
-        return Err(format!("Échec de l'enregistrement de la liste noire : {err}"));
+        return Err(format!(
+            "Échec de l'enregistrement de la liste noire : {err}"
+        ));
     }
     Ok(())
 }
@@ -269,7 +277,9 @@ fn insert_blacklist_entry(
     entries.push(entry.clone());
     if let Err(err) = connection_repository::save_blacklist(app, entries) {
         entries.pop();
-        return Err(format!("Échec de l'enregistrement de la liste noire : {err}"));
+        return Err(format!(
+            "Échec de l'enregistrement de la liste noire : {err}"
+        ));
     }
     Ok(entry)
 }
