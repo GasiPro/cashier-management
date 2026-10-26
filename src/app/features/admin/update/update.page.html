@@ -10,7 +10,7 @@
     </div>
     <div class="flex items-center justify-between gap-3 border border-gray-100 bg-gray-50 rounded-lg px-4 py-3">
       <span class="text-xs text-gray-400 font-medium uppercase tracking-wide">Version actuelle</span>
-      <span class="text-sm font-semibold text-[#1A1A1A] tabular-nums">{{ currentVersion }}</span>
+      <span class="text-sm font-semibold text-[#1A1A1A] tabular-nums">{{ currentVersion() }}</span>
     </div>
     <div class="mt-4">
       <button type="button" (click)="checkForUpdates()" [disabled]="busy()"
