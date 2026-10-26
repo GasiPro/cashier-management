@@ -1,0 +1,78 @@
+<div class="max-w-3xl mx-auto">
+  <section aria-labelledby="update-heading" class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
+    <div class="mb-4">
+      <h2 id="update-heading" class="text-base font-semibold text-[#1A1A1A]">
+        Mise à jour
+      </h2>
+      <p class="text-xs text-gray-400 mt-0.5">
+        Vérifiez si une nouvelle version de l'application est disponible.
+      </p>
+    </div>
+    <div class="flex items-center justify-between gap-3 border border-gray-100 bg-gray-50 rounded-lg px-4 py-3">
+      <span class="text-xs text-gray-400 font-medium uppercase tracking-wide">Version actuelle</span>
+      <span class="text-sm font-semibold text-[#1A1A1A] tabular-nums">{{ currentVersion }}</span>
+    </div>
+    <div class="mt-4">
+      <button type="button" (click)="checkForUpdates()" [disabled]="busy()"
+        [attr.aria-busy]="phase() === 'checking'"
+        class="flex items-center gap-1.5 bg-[#1E3A5F] text-white text-sm font-semibold px-4 py-2 rounded-md
+               hover:bg-[#16304f] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
+               disabled:opacity-40 disabled:hover:bg-[#1E3A5F] disabled:active:scale-100
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+        @if (phase() === 'checking') {
+        <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        Vérification…
+        } @else {
+        Vérifier les mises à jour
+        }
+      </button>
+      <p class="text-xs text-gray-400 mt-2">Vos données sont conservées.</p>
+      <p role="status" aria-live="polite" class="text-xs mt-2"
+        [class.text-red-600]="errorMessage()"
+        [class.text-emerald-600]="!errorMessage() && phase() === 'up-to-date'">
+        @if (errorMessage()) {
+        {{ errorMessage() }}
+        } @else if (phase() === 'up-to-date') {
+        Votre application est à jour.
+        }
+      </p>
+    </div>
+    @if (update(); as info) {
+    <div class="mt-5 border border-gray-200 rounded-lg p-4">
+      <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Nouvelle version disponible</p>
+      <p class="text-lg font-bold text-[#1A1A1A] tabular-nums mt-1">{{ info.version }}</p>
+      <p class="text-sm text-gray-600 mt-2">{{ info.note }}</p>
+      @if (phase() === 'available') {
+      <button type="button" (click)="installUpdate()"
+        class="mt-4 bg-[#1E3A5F] text-white text-sm font-semibold px-4 py-2 rounded-md
+               hover:bg-[#16304f] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+        Mettre à jour
+      </button>
+      }
+      @if (phase() === 'installing' || phase() === 'completed') {
+      <div class="mt-4">
+        <div class="flex items-center justify-between text-xs text-gray-500 mb-1.5">
+          <span>{{ phase() === 'completed' ? 'Terminé' : 'Mise à jour en cours…' }}</span>
+          <span class="tabular-nums font-semibold">{{ progress() }}%</span>
+        </div>
+        <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden" role="progressbar"
+          aria-label="Progression de la mise à jour" aria-valuemin="0" aria-valuemax="100"
+          [attr.aria-valuenow]="progress()">
+          <div class="h-full bg-[#1E3A5F] rounded-full transition-[width] duration-150 motion-reduce:transition-none"
+            [style.width.%]="progress()"></div>
+        </div>
+      </div>
+      }
+      @if (phase() === 'completed') {
+      <p role="status" aria-live="polite" class="text-sm text-emerald-600 font-medium mt-4">
+        L'app va redémarrer.
+      </p>
+      }
+    </div>
+    }
+  </section>
+</div>

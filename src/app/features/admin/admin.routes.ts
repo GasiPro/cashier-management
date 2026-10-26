@@ -1,5 +1,4 @@
 import { Routes } from '@angular/router';
-
 export const ADMIN_ROUTES: Routes = [
   {
     path: '',
@@ -29,6 +28,10 @@ export const ADMIN_ROUTES: Routes = [
       {
         path: 'rapport',
         loadComponent: () => import('./reports/reports.page').then((m) => m.ReportsPage),
+      },
+      {
+        path: 'mise-a-jour',
+        loadComponent: () => import('./update/update.page').then((m) => m.UpdatePage),
       },
     ],
   },

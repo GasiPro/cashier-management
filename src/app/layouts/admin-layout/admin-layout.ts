@@ -18,6 +18,7 @@ const NAV_ITEMS: AdminNavItem[] = [
   { id: 'grille-tarifaire', label: 'Grille tarifaire', route: 'grille-tarifaire' },
   { id: 'commandes', label: 'Commandes', route: 'commandes' },
   { id: 'rapport', label: 'Rapport', route: 'rapport' },
+  { id: 'mise-a-jour', label: 'Mise à jour', route: 'mise-a-jour' },
 ];
 const HOME_ROUTE = 'dashboard';
 @Component({
