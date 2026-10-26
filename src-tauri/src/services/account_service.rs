@@ -7,7 +7,11 @@ use crate::models::account::{
 use crate::repositories::account_repository;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
+
 pub type Accounts = Arc<SyncMutex<Vec<StoredAccount>>>;
+
+const LAST_ADMIN_ERROR: &str = "Impossible : il doit rester au moins un administrateur actif.";
+
 pub fn load_or_bootstrap(app: &AppHandle) -> Vec<StoredAccount> {
     let accounts = account_repository::load(app);
     if !accounts.is_empty() {
@@ -36,6 +40,17 @@ pub fn load_or_bootstrap(app: &AppHandle) -> Vec<StoredAccount> {
     let _ = account_repository::save(app, &accounts);
     accounts
 }
+
+fn is_last_active_admin(accounts: &[StoredAccount], username: &str) -> bool {
+    let mut admins = accounts
+        .iter()
+        .filter(|a| a.user_type == UserType::Admin && a.status == AccountStatus::Active);
+    match (admins.next(), admins.next()) {
+        (Some(only), None) => only.username.eq_ignore_ascii_case(username),
+        _ => false,
+    }
+}
+
 pub fn find_account_view(accounts_store: &Accounts, username: &str) -> Option<Account> {
     accounts_store
         .lock()
@@ -44,6 +59,7 @@ pub fn find_account_view(accounts_store: &Accounts, username: &str) -> Option<Ac
         .find(|a| a.username.eq_ignore_ascii_case(username))
         .map(Account::from)
 }
+
 pub fn verify_active_credentials(
     accounts_store: &Accounts,
     username: &str,
@@ -65,6 +81,7 @@ pub fn verify_active_credentials(
         })
         .map(|a| a.username.clone())
 }
+
 pub async fn create_account(
     app: &AppHandle,
     accounts_store: &Accounts,
@@ -76,11 +93,11 @@ pub async fn create_account(
     let username = account::validate_username(&username)?;
     account::validate_password(&password)?;
     let display_name = account::validate_display_name(&display_name)?;
+    let password_hash = account::hash_password(&password)?;
     let mut guard = accounts_store.lock().unwrap();
     if account::username_exists(&guard, &username) {
         return Err("Ce nom d'utilisateur est déjà utilisé.".to_string());
     }
-    let password_hash = account::hash_password(&password)?;
     let now = chrono::Local::now().to_rfc3339();
     let account = StoredAccount {
         id: account::generate_id(),
@@ -104,9 +121,11 @@ pub async fn create_account(
     }
     Ok(Account::from(guard.last().expect("account was just pushed")))
 }
+
 pub fn list_accounts(accounts_store: &Accounts) -> Vec<Account> {
     accounts_store.lock().unwrap().iter().map(Account::from).collect()
 }
+
 pub async fn update_account(
     app: &AppHandle,
     accounts_store: &Accounts,
@@ -127,6 +146,11 @@ pub async fn update_account(
         None => None,
     };
     let mut guard = accounts_store.lock().unwrap();
+    if user_type.is_some_and(|new_type| new_type != UserType::Admin)
+        && is_last_active_admin(&guard, &username)
+    {
+        return Err(LAST_ADMIN_ERROR.to_string());
+    }
     let account = account::find_account_mut(&mut guard, &username)
         .ok_or_else(|| "Compte introuvable.".to_string())?;
     let previous = account.clone();
@@ -149,6 +173,7 @@ pub async fn update_account(
     }
     Ok(updated)
 }
+
 pub async fn suspend_account(
     app: &AppHandle,
     accounts_store: &Accounts,
@@ -156,6 +181,9 @@ pub async fn suspend_account(
     reason: Option<String>,
 ) -> Result<Account, String> {
     let mut guard = accounts_store.lock().unwrap();
+    if is_last_active_admin(&guard, &username) {
+        return Err(LAST_ADMIN_ERROR.to_string());
+    }
     let account =
         account::find_account_mut(&mut guard, &username).ok_or_else(|| "Compte introuvable.".to_string())?;
     let previous = account.clone();
@@ -169,6 +197,7 @@ pub async fn suspend_account(
     }
     Ok(updated)
 }
+
 pub async fn reactivate_account(
     app: &AppHandle,
     accounts_store: &Accounts,
@@ -188,12 +217,16 @@ pub async fn reactivate_account(
     }
     Ok(updated)
 }
+
 pub async fn delete_account(app: &AppHandle, accounts_store: &Accounts, username: String) -> Result<(), String> {
     let mut guard = accounts_store.lock().unwrap();
     let index = guard
         .iter()
         .position(|a| a.username.eq_ignore_ascii_case(&username))
         .ok_or_else(|| "Compte introuvable.".to_string())?;
+    if is_last_active_admin(&guard, &username) {
+        return Err(LAST_ADMIN_ERROR.to_string());
+    }
     let removed = guard.remove(index);
     if let Err(err) = account_repository::save(app, &guard) {
         guard.insert(index, removed);
@@ -201,6 +234,7 @@ pub async fn delete_account(app: &AppHandle, accounts_store: &Accounts, username
     }
     Ok(())
 }
+
 pub fn list_account_activities(accounts_store: &Accounts) -> Vec<AccountActivity> {
     account::list_activities(&accounts_store.lock().unwrap())
 }
