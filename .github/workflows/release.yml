@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, ubuntu-22.04, windows-latest]
+        platform: [ubuntu-22.04, windows-latest]
     runs-on: ${{ matrix.platform }}
 
     steps:
@@ -64,5 +64,5 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'App ${{ github.ref_name }}'
           releaseBody: 'Automatically built with GitHub Actions.'
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
