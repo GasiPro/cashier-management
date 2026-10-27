@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-22.04, windows-latest] # macos-latest
+        platform: [macos-latest, ubuntu-22.04, windows-latest]
     runs-on: ${{ matrix.platform }}
 
     steps:
@@ -24,6 +24,15 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
+
+      - name: Verify tag matches package.json version
+        shell: bash
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "v$PKG_VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version v$PKG_VERSION"
+            exit 1
+          fi
 
       - name: Install Frontend Dependencies
         run: npm ci
@@ -55,5 +64,5 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'App ${{ github.ref_name }}'
           releaseBody: 'Automatically built with GitHub Actions.'
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
