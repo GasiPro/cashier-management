@@ -60,6 +60,13 @@ export class CounterStore {
   cart: CartItem[] = [];
   orderGroups = signal<OrderGroup[]>([]);
   recentOrderGroups = computed(() => this.orderGroups().slice(0, 5));
+  pendingOrderGroups = computed(() => this.orderGroups().filter((g) => g.status === 'EN_ATTENTE'));
+  private appendToGroupId = signal<number | null>(null);
+  /** Pending order the cart will be appended to; null (new order) once that order is no longer pending. */
+  appendTargetGroupId = computed<number | null>(() => {
+    const id = this.appendToGroupId();
+    return this.pendingOrderGroups().some((g) => g.groupId === id) ? id : null;
+  });
   editingGroupId = signal<number | null>(null);
   private selectedGroupId = signal<number | null>(null);
   selectedGroup = computed<OrderGroup | null>(() => {
@@ -98,7 +105,6 @@ export class CounterStore {
   });
   wsConnected = signal(false);
   waitingApproval = signal(false);
-  /** Why the counter screen is locked: blocked by the cashier, or the cashier side closed the session. */
   lockReason = signal<'blocked' | 'cashier_disconnected' | null>(null);
   credentialsError = signal('');
   // ── Menu / panels ────────────────────────────────────────────────────────────
@@ -220,8 +226,6 @@ export class CounterStore {
       this.wsConnected.set(false);
       this.waitingApproval.set(false);
       if (wasConnected) {
-        // An approved session ended on the cashier side (device disconnected, cashier closed):
-        // lock the screen right away, like a block, and stop auto-reconnecting.
         this.closeAllPanels();
         this.closeGroupDetail();
         this.lockReason.set('cashier_disconnected');
@@ -417,7 +421,8 @@ export class CounterStore {
       this.showToast('Non connecté à la caisse — vérifiez la connexion réseau');
       return;
     }
-    const sent = this.ws.send({ type: 'order_create', cart: this.cart });
+    const groupId = this.appendTargetGroupId();
+    const sent = this.ws.send({ type: 'order_create', cart: this.cart, group_id: groupId });
     if (!sent) {
       this.showToast("Échec de l'envoi de la commande — vérifiez la connexion réseau.");
       return;
@@ -425,7 +430,11 @@ export class CounterStore {
     this.cart = [];
     this.noteOpenIds.clear();
     this.confirmingCancel = false;
-    this.showToast('Commande envoyée à la caisse !');
+    this.appendToGroupId.set(null);
+    this.showToast(groupId === null ? 'Commande envoyée à la caisse !' : 'Articles ajoutés à la commande en attente !');
+  }
+  setAppendTarget(groupId: number | null): void {
+    this.appendToGroupId.set(groupId);
   }
   toggleCancelConfirm(): void {
     this.confirmingCancel = !this.confirmingCancel;
@@ -438,6 +447,7 @@ export class CounterStore {
     this.cart = [];
     this.noteOpenIds.clear();
     this.confirmingCancel = false;
+    this.appendToGroupId.set(null);
     this.showToast('Commande annulée.');
   }
   toggleEditGroup(groupId: number): void {

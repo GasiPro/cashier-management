@@ -116,7 +116,11 @@ pub enum ClientMessage {
     #[serde(rename = "request_connection")]
     RequestConnection { username: String, password: String },
     #[serde(rename = "order_create")]
-    CreateOrder { cart: Vec<CartItem> },
+    CreateOrder {
+        cart: Vec<CartItem>,
+        #[serde(default)]
+        group_id: Option<i64>,
+    },
     #[serde(rename = "order_update")]
     UpdateOrder {
         id: i64,

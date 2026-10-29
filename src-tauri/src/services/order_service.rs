@@ -4,34 +4,28 @@ use crate::repositories::order_repository::OrderApi;
 use chrono::{Local, Utc};
 use std::sync::Mutex;
 use tauri::AppHandle;
-
 const ORDER_NOT_FOUND: &str = "Commande introuvable ou déjà traitée.";
 const GROUP_NOT_FOUND: &str = "Aucune commande en attente trouvée pour ce groupe.";
-
 const MAX_CART_LINES: usize = 200;
 const MAX_QUANTITY: u32 = 100_000;
 const MAX_UNIT_PRICE: u32 = 1_000_000_000;
 const MAX_LABEL_LEN: usize = 200;
 const MAX_OBSERVATION_LEN: usize = 1_000;
-
 pub struct OrderService {
     state: Mutex<OrderState>,
     app_handle: Mutex<Option<AppHandle>>,
 }
-
 #[derive(Clone)]
 struct OrderState {
     orders: Vec<Order>,
     next_id: i64,
     next_group_id: i64,
 }
-
 impl Default for OrderService {
     fn default() -> Self {
         Self::new()
     }
 }
-
 impl OrderService {
     pub fn new() -> Self {
         Self {
@@ -43,7 +37,6 @@ impl OrderService {
             app_handle: Mutex::new(None),
         }
     }
-
     pub fn load(&self, app: &AppHandle) {
         let orders = OrderApi::load_orders(app);
         let next_id =
@@ -57,33 +50,65 @@ impl OrderService {
         };
         *self.app_handle.lock().unwrap() = Some(app.clone());
     }
-
     pub fn get_orders(&self) -> Vec<Order> {
         self.state.lock().unwrap().orders.clone()
     }
-
     pub fn get_pending(&self) -> Vec<Order> {
         self.orders_with_status(OrderStatus::EnAttente)
     }
-
     pub fn get_paid(&self) -> Vec<Order> {
         self.orders_with_status(OrderStatus::Paye)
     }
-
-    pub fn create_order(&self, cart: &[CartItem], counter_username: &str) -> Result<i64, String> {
+    pub fn create_order(
+        &self,
+        cart: &[CartItem],
+        counter_username: &str,
+        target_group_id: Option<i64>,
+    ) -> Result<i64, String> {
         validate_cart(cart)?;
         let time = Local::now().format("%H:%M").to_string();
         let created_at = Utc::now().to_rfc3339();
         let mut created_group_id = 0;
         self.modify(|state| {
-            let group_id = state.next_group_id;
+            let group_id = match target_group_id {
+                Some(id) => {
+                    let is_pending_own_group = state.orders.iter().any(|o| {
+                        o.group_id == id
+                            && o.status == OrderStatus::EnAttente
+                            && o.counter_username == counter_username
+                    });
+                    if !is_pending_own_group {
+                        return Err(GROUP_NOT_FOUND.to_string());
+                    }
+                    id
+                }
+                None => {
+                    let id = state.next_group_id;
+                    state.next_group_id += 1;
+                    id
+                }
+            };
             created_group_id = group_id;
-            state.next_group_id += 1;
             for item in cart {
+                let service_type = format!("{} — {}", item.service.category, item.label);
+                if target_group_id.is_some() {
+                    let same_line = state.orders.iter_mut().find(|o| {
+                        o.group_id == group_id
+                            && o.status == OrderStatus::EnAttente
+                            && o.service_type == service_type
+                            && o.unit_price == item.unit_price
+                            && o.observation == item.observation
+                    });
+                    if let Some(line) = same_line {
+                        line.quantity += item.qty;
+                        validate_amounts(line.quantity, line.unit_price)?;
+                        continue;
+                    }
+                }
                 state.orders.push(Order {
                     id: state.next_id,
                     group_id,
-                    service_type: format!("{} — {}", item.service.category, item.label),
+                    service_type,
                     unit_price: item.unit_price,
                     original_unit_price: item.service.price,
                     quantity: item.qty,
@@ -101,7 +126,6 @@ impl OrderService {
         })?;
         Ok(created_group_id)
     }
-
     pub fn mark_group_as_paid(&self, group_id: i64) -> Result<(), String> {
         let paid_at = Utc::now().to_rfc3339();
         self.update_pending_group(group_id, |order| {
@@ -109,14 +133,12 @@ impl OrderService {
             order.paid_at = Some(paid_at.clone());
         })
     }
-
     pub fn reject_group(&self, group_id: i64, raison: Option<String>) -> Result<(), String> {
         self.update_pending_group(group_id, |order| {
             order.status = OrderStatus::Rejetee;
             order.raison = raison.clone();
         })
     }
-
     pub fn update_order(
         &self,
         id: i64,
@@ -139,17 +161,14 @@ impl OrderService {
         })?;
         Ok(group_id)
     }
-
     pub fn delete_order(&self, id: i64, owner: Option<&str>) -> Result<i64, String> {
         self.remove_pending(ORDER_NOT_FOUND, |o| o.id == id && is_owned_by(o, owner))
     }
-
     pub fn delete_order_group(&self, group_id: i64, owner: Option<&str>) -> Result<i64, String> {
         self.remove_pending(GROUP_NOT_FOUND, |o| {
             o.group_id == group_id && is_owned_by(o, owner)
         })
     }
-
     fn orders_with_status(&self, status: OrderStatus) -> Vec<Order> {
         self.state
             .lock()
@@ -160,7 +179,6 @@ impl OrderService {
             .cloned()
             .collect()
     }
-
     fn update_pending_group(
         &self,
         group_id: i64,
@@ -183,7 +201,6 @@ impl OrderService {
             }
         })
     }
-
     fn remove_pending(
         &self,
         not_found: &str,
@@ -206,7 +223,6 @@ impl OrderService {
         })?;
         Ok(removed_group_id)
     }
-
     fn modify(
         &self,
         change: impl FnOnce(&mut OrderState) -> Result<(), String>,
@@ -219,7 +235,6 @@ impl OrderService {
         }
         self.commit(&mut guard, snapshot)
     }
-
     fn commit(&self, state: &mut OrderState, snapshot: OrderState) -> Result<(), String> {
         let app_handle = self.app_handle.lock().unwrap().clone();
         let Some(app_handle) = app_handle else {
@@ -240,11 +255,9 @@ impl OrderService {
         Ok(())
     }
 }
-
 fn is_owned_by(order: &Order, owner: Option<&str>) -> bool {
     owner.map_or(true, |name| order.counter_username == name)
 }
-
 fn validate_amounts(quantity: u32, unit_price: u32) -> Result<(), String> {
     if quantity == 0 || quantity > MAX_QUANTITY {
         return Err("Quantité invalide.".to_string());
@@ -254,7 +267,6 @@ fn validate_amounts(quantity: u32, unit_price: u32) -> Result<(), String> {
     }
     Ok(())
 }
-
 fn validate_cart(cart: &[CartItem]) -> Result<(), String> {
     if cart.is_empty() {
         return Err("Le panier est vide.".to_string());

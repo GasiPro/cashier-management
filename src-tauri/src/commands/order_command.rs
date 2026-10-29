@@ -3,7 +3,6 @@ use crate::infrastructure::websocket::broadcast_orders_to_approved;
 use crate::models::order::CartItem;
 use serde::Deserialize;
 use tauri::State;
-
 #[derive(Debug, Deserialize)]
 #[serde(tag = "method", rename_all = "snake_case")]
 pub enum OrderCommand {
@@ -22,11 +21,9 @@ pub enum OrderCommand {
         raison: Option<String>,
     },
 }
-
 async fn broadcast_orders(state: &AppState) {
     broadcast_orders_to_approved(&state.peers, &state.order_service.get_orders()).await;
 }
-
 #[tauri::command]
 pub async fn order(
     state: State<'_, AppState>,
@@ -41,7 +38,7 @@ pub async fn order(
             cart,
             counter_username,
         } => {
-            orders.create_order(&cart, &counter_username)?;
+            orders.create_order(&cart, &counter_username, None)?;
             broadcast_orders(&state).await;
             Ok(serde_json::Value::Null)
         }

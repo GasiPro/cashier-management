@@ -112,6 +112,22 @@
     <span class="text-sm text-gray-500">Total</span>
     <span class="text-xl font-bold text-[#1A1A1A] tabular-nums selectable">{{ store.grandTotal | number:'1.0-0' }} Ar</span>
   </div>
+  @if (store.pendingOrderGroups().length > 0) {
+  <div class="mb-4">
+    <label for="append-target" class="block text-xs text-gray-500 mb-1">Destination</label>
+    <select id="append-target" [ngModel]="store.appendTargetGroupId()"
+      (ngModelChange)="store.setAppendTarget($event)"
+      class="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm text-[#1A1A1A] bg-white
+             focus:outline-none focus:border-[#1E3A5F] transition-colors">
+      <option [ngValue]="null">Nouvelle commande</option>
+      @for (g of store.pendingOrderGroups(); track g.groupId) {
+      <option [ngValue]="g.groupId">
+        Ajouter à la commande de {{ g.time }} — {{ g.totalAmount | number:'1.0-0' }} Ar
+      </option>
+      }
+    </select>
+  </div>
+  }
   <div class="flex items-center gap-2">
     @if (!store.confirmingCancel) {
     <button (click)="store.toggleCancelConfirm()" type="button" title="Annuler la commande"
