@@ -1,5 +1,5 @@
 <div class="bg-[#FAFAFA] h-screen overflow-hidden flex">
-  <app-left-sidebar role="cashier"></app-left-sidebar>
+  <app-left-sidebar></app-left-sidebar>
   <div class="flex-1 min-w-0 h-screen overflow-hidden flex flex-col">
   <app-navbar role="cashier" [displayLabel]="displayLabel" [currentTime]="currentTime()" [menuBadgeCount]="totalPendingRequests">
     <app-day-summary navbarActions [revenue]="store.todaysRevenue()" [transactions]="store.todaysPaidGroups().length"></app-day-summary>

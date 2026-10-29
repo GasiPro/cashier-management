@@ -1,7 +1,7 @@
 <div class="bg-[#FAFAFA] h-screen overflow-hidden flex">
-  <app-left-sidebar role="cashier"></app-left-sidebar>
+  <app-left-sidebar></app-left-sidebar>
   <div class="flex-1 min-w-0 h-screen overflow-hidden flex flex-col">
-  <app-navbar role="cashier" [displayLabel]="displayLabel" [currentTime]="currentTime()" [backRoute]="'/reglages'" [showMenuButton]="false"></app-navbar>
+  <app-navbar role="cashier" [displayLabel]="displayLabel" [currentTime]="currentTime()" [showMenuButton]="false"></app-navbar>
   <main class="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-6">
     <div class="max-w-3xl mx-auto space-y-6">
       @if (loading()) {
