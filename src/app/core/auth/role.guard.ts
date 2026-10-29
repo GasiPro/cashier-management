@@ -6,5 +6,8 @@ export const roleGuard = (...allowedRoles: UserRole[]): CanActivateFn => () => {
   const session = inject(SessionStore);
   const router = inject(Router);
   const role = session.role();
-  return role !== null && allowedRoles.includes(role) ? true : router.createUrlTree(['/login']);
+  if (role === null) return router.createUrlTree(['/login']);
+  // An authenticated user reaching another role's route (e.g. a stale history
+  // entry) stays where they are instead of being sent to the login page.
+  return allowedRoles.includes(role);
 };
