@@ -4,19 +4,19 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { getStoredDisplayName, getStoredUsername } from '../../../core/storage/local-storage';
 import { errorMessage } from '../../../core/error/error-messages';
+import { applyDisplaySettings } from '../../../core/display/display-settings';
 import * as settingsApi from '../../../data/settings/settings.api';
-import { ThemeOption } from '../../../data/settings/settings.model';
+import {
+  BACKGROUND_PRESETS,
+  FONT_SIZE_STEP,
+  MAX_FONT_SIZE,
+  MIN_FONT_SIZE,
+  THEME_CHOICES,
+  ThemeOption,
+} from '../../../data/settings/settings.model';
 import { BottomBar } from '../../../layouts/main-layout/bottom-bar/bottom-bar';
 import { LeftSidebar } from '../../../layouts/main-layout/sidebar/sidebar';
 import { Navbar } from '../../../layouts/main-layout/navbar/navbar';
-const MIN_FONT_SIZE = 8;
-const MAX_FONT_SIZE = 32;
-const FONT_SIZE_STEP = 1;
-interface ThemeChoice {
-  value: ThemeOption;
-  label: string;
-}
-const BACKGROUND_PRESETS: string[] = ['#FAFAFA', '#FFFFFF', '#F1F5F9', '#1E293B', '#0F172A'];
 @Component({
   selector: 'app-display-settings',
   standalone: true,
@@ -27,11 +27,7 @@ export class DisplayPage implements OnInit, OnDestroy {
   readonly minFontSize = MIN_FONT_SIZE;
   readonly maxFontSize = MAX_FONT_SIZE;
   readonly backgroundPresets = BACKGROUND_PRESETS;
-  readonly themeChoices: ThemeChoice[] = [
-    { value: 'clair', label: 'Clair' },
-    { value: 'sombre', label: 'Sombre' },
-    { value: 'systeme', label: 'Système' },
-  ];
+  readonly themeChoices = THEME_CHOICES;
   username = getStoredUsername() ?? 'Caisse';
   private displayName = getStoredDisplayName() ?? '';
   /** Name shown in the navbar — the account display name when one exists, otherwise the username. */
@@ -135,6 +131,7 @@ export class DisplayPage implements OnInit, OnDestroy {
       this.backgroundColorDraft.set(backgroundColor);
       this.fontSize.set(fontSize);
       this.fontSizeDraft.set(fontSize);
+      applyDisplaySettings({ theme, backgroundColor, fontSize });
       this.setStatus('Réglages d\'affichage enregistrés.', false);
     } catch (e) {
       console.error('failed to save display settings', e);

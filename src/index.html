@@ -19,8 +19,54 @@
     }
     /* Page background used by the screens (bg-[#FAFAFA]) */
     .bg-\[\#FAFAFA\] {
-      background-color: #EBE8E1;
+      background-color: var(--app-bg, #EBE8E1);
     }
+    /* Dark theme (set on <html data-theme="dark"> by the display settings) */
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --color-white: #1E293B;
+      --color-gray-50: #263449;
+      --color-gray-100: #2F3D52;
+      --color-gray-200: #3B4A60;
+      --color-gray-300: #4A5A72;
+      --color-gray-400: #8392A8;
+      --color-gray-500: #97A5B9;
+      --color-gray-600: #B0BCCD;
+      --color-gray-700: #C5CFDD;
+      --color-gray-800: #DBE2EC;
+      --color-gray-900: #EEF2F7;
+      --color-red-50: #3A1F25;
+      --color-red-100: #4A262E;
+      --color-red-200: #6B3039;
+      --color-amber-50: #36291A;
+      --color-amber-100: #473519;
+      --color-amber-200: #69501F;
+      --color-emerald-50: #16332B;
+      --color-emerald-100: #1B4136;
+      --color-emerald-200: #245A49;
+      --color-sky-50: #172E42;
+      --color-sky-200: #255070;
+    }
+    :root[data-theme="dark"] .bg-\[\#FAFAFA\] { background-color: #0F172A; }
+    :root[data-theme="dark"] .bg-\[\#EFF4FA\] { background-color: #263A57; }
+    :root[data-theme="dark"] .bg-\[\#F7F9FC\] { background-color: #212D40; }
+    :root[data-theme="dark"] .bg-\[\#E1EAF4\] { background-color: #2B4263; }
+    :root[data-theme="dark"] .text-white { color: #F7F5F0; }
+    :root[data-theme="dark"] .text-\[\#1A1A1A\] { color: #EEF2F7; }
+    :root[data-theme="dark"] .text-\[\#1E3A5F\] { color: #8DB4E2; }
+    :root[data-theme="dark"] .border-\[\#1E3A5F\] { border-color: #8DB4E2; }
+    :root[data-theme="dark"] .text-red-600,
+    :root[data-theme="dark"] .text-red-700,
+    :root[data-theme="dark"] .text-red-800 { color: #FCA5A5; }
+    :root[data-theme="dark"] .text-amber-600,
+    :root[data-theme="dark"] .text-amber-700,
+    :root[data-theme="dark"] .text-amber-800 { color: #FCD34D; }
+    :root[data-theme="dark"] .text-emerald-600,
+    :root[data-theme="dark"] .text-emerald-700 { color: #6EE7B7; }
+    :root[data-theme="dark"] .text-sky-600,
+    :root[data-theme="dark"] .text-sky-700 { color: #7DD3FC; }
+    :root[data-theme="dark"] ::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.25); }
+    :root[data-theme="dark"] * { scrollbar-color: rgba(255, 255, 255, 0.25) transparent; }
     html, body {
       height: 100%;
       overscroll-behavior: none;
