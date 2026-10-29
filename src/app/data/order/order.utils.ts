@@ -40,6 +40,17 @@ export function getGroupItemsSummary(group: OrderGroup): string {
     .map((category) => `${category}: ${byCategory.get(category)!.join(', ')}`)
     .join(' • ');
 }
+export function getGroupObservations(group: OrderGroup): string[] {
+  const notes: string[] = [];
+  for (const l of group.lines) {
+    const text = l.observation?.trim();
+    if (!text) continue;
+    const parts = l.service_type.split(' — ');
+    const label = parts.length > 1 ? parts[1] : l.service_type;
+    notes.push(`${label} : ${text}`);
+  }
+  return notes;
+}
 export function formatGroupId(groupId: number): string {
   return '#' + String(groupId).padStart(4, '0');
 }

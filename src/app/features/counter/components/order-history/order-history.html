@@ -17,10 +17,8 @@
           <div class="min-w-0">
             <p class="text-gray-600 text-xs leading-snug line-clamp-2">{{ store.groupSummary(g) }}</p>
             <p class="text-gray-400 text-[11px] leading-snug mt-0.5">{{ store.groupTimeLabel(g) }}</p>
-            @if (g.status === 'REJETEE') {
-            <p class="text-red-600 text-[11px] leading-snug mt-0.5 italic">
-              {{ store.groupRejectReason(g) || 'Aucune raison fournie par la caisse.' }}
-            </p>
+            @if (g.status === 'REJETEE' && store.groupRejectReason(g); as reason) {
+            <p class="text-red-600 text-[11px] leading-snug mt-0.5 italic">Motif : {{ reason }}</p>
             }
             @if (store.groupHasDiscount(g)) {
             <span class="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-amber-700

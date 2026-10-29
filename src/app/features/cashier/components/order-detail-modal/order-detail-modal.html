@@ -29,7 +29,7 @@
     </div>
     <div class="flex-1 overflow-y-auto px-6 py-3">
       @for (line of group.lines; track line.id) {
-      <div class="flex justify-between items-baseline gap-2 py-2 border-b border-gray-50 last:border-0">
+      <div class="flex flex-wrap justify-between items-baseline gap-x-2 py-2 border-b border-gray-50 last:border-0">
         <span class="text-sm text-gray-700 flex items-center gap-1.5 min-w-0">
           <span class="truncate">{{ line.service_type }}</span>
           @if (isLineDiscounted(line)) {
@@ -54,7 +54,13 @@
           {{ line.unit_price | number:'1.0-0' }} Ar × {{ line.quantity }}
         </span>
         @if (line.observation) {
-        <p class="w-full mt-0.5 text-[11px] text-gray-500 italic">{{ line.observation }}</p>
+        <div class="w-full mt-1.5 flex items-start gap-1.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5"
+             role="note">
+          <svg class="w-3.5 h-3.5 flex-shrink-0 mt-px" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.008v.008H12v-.008z" />
+          </svg>
+          <span class="min-w-0 break-words"><span class="sr-only">Observation : </span>{{ line.observation }}</span>
+        </div>
         }
       </div>
       }

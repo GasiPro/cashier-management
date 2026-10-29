@@ -83,10 +83,8 @@
                         {{ store.historiqueItemCount(g) }} article{{ store.historiqueItemCount(g) > 1 ? 's' : '' }}
                       </p>
                     </div>
-                    @if (g.status === 'REJETEE') {
-                    <p class="text-red-600 text-[11px] leading-snug mt-0.5 italic">
-                      {{ store.groupRejectReason(g) || 'Aucune raison fournie par la caisse.' }}
-                    </p>
+                    @if (g.status === 'REJETEE' && store.groupRejectReason(g); as reason) {
+                    <p class="text-red-600 text-[11px] leading-snug mt-0.5 italic">Motif : {{ reason }}</p>
                     }
                     @if (store.groupHasDiscount(g)) {
                     <span class="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-amber-700

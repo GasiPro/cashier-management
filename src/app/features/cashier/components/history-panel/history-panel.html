@@ -91,6 +91,15 @@
                 <span class="font-semibold text-[#1A1A1A] tabular-nums text-sm whitespace-nowrap">{{ group.totalAmount | number:'1.0-0' }} Ar</span>
               </div>
               <p class="text-xs text-gray-500 line-clamp-2 mb-1">{{ getGroupItemsSummary(group) }}</p>
+              @for (note of getGroupObservations(group); track $index) {
+              <div class="flex items-start gap-1.5 mb-1 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1"
+                   role="note">
+                <svg class="w-3.5 h-3.5 flex-shrink-0 mt-px" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.008v.008H12v-.008z" />
+                </svg>
+                <span class="min-w-0 break-words"><span class="sr-only">Observation : </span>{{ note }}</span>
+              </div>
+              }
               @if (groupHasDiscount(group)) {
               <span class="inline-flex items-center gap-1 mb-1 text-[10px] font-semibold text-amber-700
                            bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full"

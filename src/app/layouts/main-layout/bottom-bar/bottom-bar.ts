@@ -34,7 +34,6 @@ export class BottomBar implements OnInit, OnChanges, OnDestroy {
   }
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['notifications']) {
-      // Ids only grow, so this still works once the parent trims the list to its last entries.
       const added = this.notifications.filter((n) => n.id > this.lastSeenId).length;
       if (added > 0 && !changes['notifications'].firstChange) {
         this.onNewNotifications(added);
@@ -73,6 +72,10 @@ export class BottomBar implements OnInit, OnChanges, OnDestroy {
     return [...this.notifications].reverse();
   }
   onNotificationsClick(): void {
+    if (this.notificationsPanelOpen() && this.notificationsExpanded()) {
+      this.closeNotificationsPanel();
+      return;
+    }
     this.clearAutoHide();
     this.unreadCount.set(0);
     this.notificationsExpanded.set(true);
@@ -93,7 +96,6 @@ export class BottomBar implements OnInit, OnChanges, OnDestroy {
     }
   }
   private onNewNotifications(added: number): void {
-    // The full list is already on screen: new entries are read as they arrive.
     if (this.notificationsExpanded()) return;
     this.unreadCount.update((count) => count + added);
     this.notificationsPanelOpen.set(true);

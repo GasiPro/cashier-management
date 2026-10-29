@@ -5,10 +5,10 @@ import {
   formatCreatedLabel,
   formatGroupId,
   getGroupItemsSummary,
+  getGroupObservations,
   groupHasDiscount,
   groupHasIncrease,
 } from '../../../../data/order/order.utils';
-
 @Component({
   selector: 'app-pending-list',
   standalone: true,
@@ -19,14 +19,13 @@ import {
 export class PendingList {
   groups = input.required<OrderGroup[]>();
   busyGroupId = input<number | null>(null);
-
   @Output() opened = new EventEmitter<OrderGroup>();
   @Output() rejectRequested = new EventEmitter<OrderGroup>();
   @Output() payRequested = new EventEmitter<number>();
-
   readonly formatGroupId = formatGroupId;
   readonly formatCreatedLabel = formatCreatedLabel;
   readonly getGroupItemsSummary = getGroupItemsSummary;
+  readonly getGroupObservations = getGroupObservations;
   readonly groupHasDiscount = groupHasDiscount;
   readonly groupHasIncrease = groupHasIncrease;
 }
