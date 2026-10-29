@@ -51,8 +51,13 @@
             class="w-10 h-10 rounded-md border border-gray-200 cursor-pointer p-0 bg-transparent" />
           <span class="text-sm font-mono text-gray-600">{{ backgroundColorDraft() }}</span>
         </div>
+        @if (backgroundMismatch()) {
+        <p class="text-xs text-amber-600 mb-4">
+          Cette couleur ne convient pas au thème choisi : la couleur par défaut du thème sera utilisée.
+        </p>
+        }
         <div class="flex flex-wrap gap-2">
-          @for (preset of backgroundPresets; track preset) {
+          @for (preset of backgroundPresets(); track preset) {
           <button type="button" [attr.aria-label]="'Couleur ' + preset"
             [attr.aria-pressed]="backgroundColorDraft() === preset"
             (click)="selectBackgroundPreset(preset)"

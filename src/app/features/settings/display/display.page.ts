@@ -4,7 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { getStoredDisplayName, getStoredUsername } from '../../../core/storage/local-storage';
 import { errorMessage } from '../../../core/error/error-messages';
-import { applyDisplaySettings } from '../../../core/display/display-settings';
+import {
+  applyDisplaySettings,
+  backgroundSuitsTheme,
+  isDarkTheme,
+  themeBackground,
+} from '../../../core/display/display-settings';
 import * as settingsApi from '../../../data/settings/settings.api';
 import {
   BACKGROUND_PRESETS,
@@ -26,7 +31,6 @@ import { Navbar } from '../../../layouts/main-layout/navbar/navbar';
 export class DisplayPage implements OnInit, OnDestroy {
   readonly minFontSize = MIN_FONT_SIZE;
   readonly maxFontSize = MAX_FONT_SIZE;
-  readonly backgroundPresets = BACKGROUND_PRESETS;
   readonly themeChoices = THEME_CHOICES;
   username = getStoredUsername() ?? 'Caisse';
   private displayName = getStoredDisplayName() ?? '';
@@ -51,6 +55,11 @@ export class DisplayPage implements OnInit, OnDestroy {
       this.themeDraft() !== this.theme() ||
       this.backgroundColorDraft() !== this.backgroundColor() ||
       this.fontSizeDraft() !== this.fontSize(),
+  );
+  private darkDraft = computed(() => isDarkTheme(this.themeDraft()));
+  backgroundPresets = computed(() => BACKGROUND_PRESETS[this.darkDraft() ? 'dark' : 'light']);
+  backgroundMismatch = computed(
+    () => !backgroundSuitsTheme(this.backgroundColorDraft(), this.darkDraft()),
   );
   constructor(private router: Router) {}
   ngOnInit(): void {
@@ -92,6 +101,7 @@ export class DisplayPage implements OnInit, OnDestroy {
   }
   selectTheme(value: ThemeOption): void {
     this.themeDraft.set(value);
+    this.backgroundColorDraft.update((color) => themeBackground(color, isDarkTheme(value)));
   }
   selectBackgroundPreset(value: string): void {
     this.backgroundColorDraft.set(value);
