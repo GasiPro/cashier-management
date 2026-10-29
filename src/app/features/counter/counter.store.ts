@@ -98,7 +98,8 @@ export class CounterStore {
   });
   wsConnected = signal(false);
   waitingApproval = signal(false);
-  blocked = signal(false);
+  /** Why the counter screen is locked: blocked by the cashier, or the cashier side closed the session. */
+  lockReason = signal<'blocked' | 'cashier_disconnected' | null>(null);
   credentialsError = signal('');
   // ── Menu / panels ────────────────────────────────────────────────────────────
   showServerPanel = false;
@@ -215,8 +216,18 @@ export class CounterStore {
       this.ws.send({ type: 'request_connection', username: this.username, password: this.password });
     });
     this.closeSubscription = this.ws.onClosed().subscribe(() => {
+      const wasConnected = this.wsConnected();
       this.wsConnected.set(false);
       this.waitingApproval.set(false);
+      if (wasConnected) {
+        // An approved session ended on the cashier side (device disconnected, cashier closed):
+        // lock the screen right away, like a block, and stop auto-reconnecting.
+        this.closeAllPanels();
+        this.closeGroupDetail();
+        this.lockReason.set('cashier_disconnected');
+        this.ws.disconnect();
+        return;
+      }
       if (this.awaitingConnectResult) {
         this.awaitingConnectResult = false;
         const message = `Impossible de joindre le serveur à l'adresse ${this.cashierHost} : ` +
@@ -240,7 +251,7 @@ export class CounterStore {
       } else if (msg.type === 'connection_blocked') {
         this.wsConnected.set(false);
         this.waitingApproval.set(false);
-        this.blocked.set(true);
+        this.lockReason.set('blocked');
         this.ws.disconnect();
       } else if (msg.type === 'orders') {
         const newGroups = buildGroups(msg.data as OrderLine[]);
@@ -375,9 +386,11 @@ export class CounterStore {
     this.showServerPanel = false;
     this.newCashierAddressCheck.set('idle');
     this.serverConnectError.set('');
+    this.lockReason.set(null);
     this.cashierHost = host;
     setStoredCashierWsUrl(host);
     // Tear down current connection and set up fresh.
+    this.wsConnected.set(false);
     this.ws.disconnect();
     // Give the socket a tick to close before reconnecting.
     setTimeout(() => {

@@ -10,7 +10,7 @@
   </div>
 </div>
 }
-@if (store.blocked()) {
+@if (store.lockReason(); as reason) {
 <div class="absolute inset-0 z-30 bg-white/90 backdrop-blur-sm flex items-center justify-center px-4">
   <div class="text-center max-w-sm">
     <div class="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-5">
@@ -18,11 +18,19 @@
         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
       </svg>
     </div>
+    @if (reason === 'blocked') {
     <h2 class="text-lg font-semibold text-[#1A1A1A] mb-1">Connexion bloquée</h2>
     <p class="text-sm text-gray-500 mb-6">
       Le caissier a bloqué ce poste.<br>
       Contactez le caissier si vous pensez qu'il s'agit d'une erreur.
     </p>
+    } @else {
+    <h2 class="text-lg font-semibold text-[#1A1A1A] mb-1">Caisse déconnectée</h2>
+    <p class="text-sm text-gray-500 mb-6">
+      La connexion avec la caisse a été fermée.<br>
+      Le caissier a déconnecté ce poste ou la caisse n'est plus disponible.
+    </p>
+    }
     <button (click)="store.disconnectFromCashier()"
       class="text-sm text-[#1E3A5F] font-medium border border-[#1E3A5F]/30 px-4 py-2 rounded-lg
              hover:bg-[#EFF4FA] transition-colors">
@@ -31,7 +39,7 @@
   </div>
 </div>
 }
-@if (!store.wsConnected() && !store.waitingApproval() && !store.blocked()) {
+@if (!store.wsConnected() && !store.waitingApproval() && !store.lockReason()) {
 <div class="absolute inset-0 z-30 bg-white/90 backdrop-blur-sm flex items-center justify-center px-4">
   <div class="text-center max-w-sm">
     <div class="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-5">
