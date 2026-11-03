@@ -18,7 +18,6 @@
         "resizable": true,
         "fullscreen": true,
         "maximized": true,
-        "alwaysOnTop": true,
         "minWidth": 960,
         "minHeight": 720,
         "focus": true,

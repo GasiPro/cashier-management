@@ -1,12 +1,19 @@
 import { Routes } from '@angular/router';
+import { activationGuard, activationPageGuard } from './core/auth/activation.guard';
 import { authGuard } from './core/auth/auth.guard';
 import { loginGuard } from './core/auth/login.guard';
 import { roleGuard } from './core/auth/role.guard';
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
   {
+    path: 'activation',
+    canActivate: [activationPageGuard],
+    loadChildren: () =>
+      import('./features/activation/activation.routes').then((m) => m.ACTIVATION_ROUTES),
+  },
+  {
     path: 'login',
-    canActivate: [loginGuard],
+    canActivate: [activationGuard, loginGuard],
     loadChildren: () => import('./features/login/login.routes').then((m) => m.LOGIN_ROUTES),
   },
   {

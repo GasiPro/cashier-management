@@ -9,6 +9,8 @@ pub struct AppSettings {
     pub background_color: String,
     pub font_size: u32,
     pub theme: Theme,
+    pub product_key: String,
+    pub activated: bool,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
 pub enum Theme {
@@ -41,6 +43,8 @@ impl Default for AppSettings {
             background_color: DEFAULT_BACKGROUND_COLOR.to_string(),
             font_size: DEFAULT_FONT_SIZE,
             theme: Theme::default(),
+            product_key: String::new(),
+            activated: false,
         }
     }
 }

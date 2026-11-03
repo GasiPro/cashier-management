@@ -1,0 +1,77 @@
+<div class="bg-[#FAFAFA] min-h-screen flex flex-col">
+  @if (launching()) {
+  <main class="flex-1 flex items-center justify-center px-6 py-16">
+    <div class="text-center max-w-2xl" role="status" aria-live="polite">
+      <span
+        class="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-[5px] border-gray-200 border-t-[#1E3A5F]
+               animate-spin [animation-duration:2.2s] motion-reduce:animate-none inline-block mb-12"></span>
+      <p class="text-2xl sm:text-3xl lg:text-4xl font-light leading-relaxed text-[#1A1A1A]">
+        <span class="block">Ravi de vous compter parmi nous.</span>
+        <span class="block text-gray-500">Lancement imminent...</span>
+      </p>
+    </div>
+  </main>
+  } @else {
+  <header class="px-6 py-5 border-b border-gray-200">
+    <div class="max-w-lg mx-auto flex items-center gap-3">
+      <div class="w-7 h-7 bg-[#1E3A5F] rounded-sm flex items-center justify-center">
+        <span class="text-white text-xs font-bold">G</span>
+      </div>
+      <span class="text-sm font-semibold tracking-wide text-gray-800">GasiPro</span>
+    </div>
+  </header>
+  <main class="flex-1 flex items-center justify-center px-6 py-16">
+    <form class="w-full max-w-lg" (submit)="submit($event)">
+      <div class="mb-10">
+        <h1 class="text-3xl font-semibold leading-snug text-[#1A1A1A] mb-3">Nous vous souhaitons la bienvenue,</h1>
+        <p class="text-base text-gray-500">veuillez insérer votre clé de produit</p>
+      </div>
+      <input
+        type="text"
+        name="productKey"
+        autocomplete="off"
+        spellcheck="false"
+        maxlength="19"
+        placeholder="XXXX-XXXX-XXXX-XXXX"
+        [value]="productKey()"
+        (input)="onInput($event)"
+        [attr.aria-invalid]="error() ? true : null"
+        class="w-full border border-gray-200 rounded-lg px-5 py-4 text-base font-mono tracking-widest text-center text-[#1A1A1A]
+               focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+      <p role="alert" aria-live="assertive" class="text-sm text-red-600 mt-3 min-h-6 text-center">{{ error() }}</p>
+      <button
+        type="submit"
+        [disabled]="checking() || !productKey().trim()"
+        class="w-full mt-6 bg-[#1E3A5F] text-white text-base font-semibold py-4 rounded-lg
+               hover:bg-[#16304f] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
+        Entrer
+      </button>
+      <div class="relative mt-4">
+        <button
+          type="button"
+          (click)="requestKey()"
+          class="w-full text-sm text-gray-500 border border-gray-200 bg-white py-3.5 rounded-lg
+                 hover:bg-gray-50 transition-colors
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+          Demander une clé
+        </button>
+        @if (showContact()) {
+        <div class="absolute top-full inset-x-0 z-10 mt-2 border border-gray-200 bg-white rounded-lg shadow-lg px-5 py-5 text-center">
+          <p class="text-sm text-gray-500 mb-3">veuillez contacter</p>
+          <p class="text-base font-mono text-[#1E3A5F] selectable mb-4">{{ contactEmail }}</p>
+          <button
+            type="button"
+            (click)="copyEmail()"
+            class="text-sm font-medium text-gray-600 border border-gray-200 rounded-lg px-4 py-2
+                   hover:bg-gray-50 transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            {{ copied() ? 'Copié' : 'Copier' }}
+          </button>
+        </div>
+        }
+      </div>
+    </form>
+  </main>
+  }
+</div>

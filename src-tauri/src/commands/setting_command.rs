@@ -9,6 +9,8 @@ pub enum SettingsCommand {
     BackgroundColorSet { value: String },
     FontSizeGet,
     FontSizeSet { value: u32 },
+    ActivationGet,
+    ActivationSet { value: String },
 }
 #[tauri::command]
 pub async fn settings(
@@ -29,6 +31,10 @@ pub async fn settings(
         SettingsCommand::FontSizeGet => Ok(serde_json::json!(setting_service::get_font_size(&app))),
         SettingsCommand::FontSizeSet { value } => Ok(serde_json::json!(
             setting_service::set_font_size(&app, value).await?
+        )),
+        SettingsCommand::ActivationGet => Ok(serde_json::json!(setting_service::is_activated(&app))),
+        SettingsCommand::ActivationSet { value } => Ok(serde_json::json!(
+            setting_service::activate(&app, value).await?
         )),
     }
 }
