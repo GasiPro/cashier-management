@@ -62,7 +62,6 @@ export class CounterStore {
   recentOrderGroups = computed(() => this.orderGroups().slice(0, 5));
   pendingOrderGroups = computed(() => this.orderGroups().filter((g) => g.status === 'EN_ATTENTE'));
   private appendToGroupId = signal<number | null>(null);
-  /** Pending order the cart will be appended to; null (new order) once that order is no longer pending. */
   appendTargetGroupId = computed<number | null>(() => {
     const id = this.appendToGroupId();
     return this.pendingOrderGroups().some((g) => g.groupId === id) ? id : null;
@@ -105,7 +104,7 @@ export class CounterStore {
   });
   wsConnected = signal(false);
   waitingApproval = signal(false);
-  lockReason = signal<'blocked' | 'cashier_disconnected' | null>(null);
+  lockReason = signal<'blocked' | null>(null);
   credentialsError = signal('');
   // ── Menu / panels ────────────────────────────────────────────────────────────
   showServerPanel = false;
@@ -199,6 +198,11 @@ export class CounterStore {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     this.closeSubscription?.unsubscribe();
+    this.leaveCashier();
+  }
+  /** Tells the server this counter left on purpose, so it won't be re-approved automatically. */
+  private leaveCashier(): void {
+    this.ws.send({ type: 'counter_logout' });
     this.ws.disconnect();
   }
   private setupWsListeners(): void {
@@ -228,8 +232,6 @@ export class CounterStore {
       if (wasConnected) {
         this.closeAllPanels();
         this.closeGroupDetail();
-        this.lockReason.set('cashier_disconnected');
-        this.ws.disconnect();
         return;
       }
       if (this.awaitingConnectResult) {
@@ -295,7 +297,7 @@ export class CounterStore {
     });
   }
   disconnectFromCashier(): void {
-    this.ws.disconnect();
+    this.leaveCashier();
     this.session.clearCounterCredentials();
     this.router.navigate(['/login']);
   }
@@ -395,7 +397,7 @@ export class CounterStore {
     setStoredCashierWsUrl(host);
     // Tear down current connection and set up fresh.
     this.wsConnected.set(false);
-    this.ws.disconnect();
+    this.leaveCashier();
     // Give the socket a tick to close before reconnecting.
     setTimeout(() => {
       const fullUrl = `ws://${host}`;

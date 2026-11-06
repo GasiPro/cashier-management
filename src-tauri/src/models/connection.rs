@@ -115,6 +115,8 @@ pub enum ClientMessage {
     },
     #[serde(rename = "request_connection")]
     RequestConnection { username: String, password: String },
+    #[serde(rename = "counter_logout")]
+    CounterLogout,
     #[serde(rename = "order_create")]
     CreateOrder {
         cart: Vec<CartItem>,

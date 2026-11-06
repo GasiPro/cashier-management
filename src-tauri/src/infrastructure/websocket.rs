@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicI64, AtomicU16, Ordering};
 use std::sync::{Arc, Mutex as SyncMutex};
@@ -12,8 +12,8 @@ use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 use crate::config::connection_config::{
     WS_BIND_HOST, WS_FALLBACK_HOST, WS_HANDSHAKE_TIMEOUT_SECS, WS_IDLE_TIMEOUT_SECS,
-    WS_MAX_MESSAGE_BYTES, WS_MAX_PEERS, WS_PING_INTERVAL_SECS, WS_PORT, WS_PORT_ATTEMPTS,
-    WS_PROBE_ADDRESS, WS_WRITE_TIMEOUT_SECS,
+    TRUSTED_COUNTER_TTL_HOURS, WS_MAX_MESSAGE_BYTES, WS_MAX_PEERS, WS_PING_INTERVAL_SECS,
+    WS_PORT, WS_PORT_ATTEMPTS, WS_PROBE_ADDRESS, WS_WRITE_TIMEOUT_SECS,
 };
 use crate::config::rate_limit::{self, AttemptTracker};
 use crate::domain::account;
@@ -35,6 +35,11 @@ pub(crate) type PeerMap = Arc<Mutex<HashMap<SocketAddr, PeerState>>>;
 pub(crate) type AppHandleSlot = Arc<SyncMutex<Option<tauri::AppHandle>>>;
 static NEXT_PEER_ID: AtomicI64 = AtomicI64::new(1);
 static ACTIVE_PORT: AtomicU16 = AtomicU16::new(WS_PORT);
+pub(crate) struct TrustedCounter {
+    ip: IpAddr,
+    username: String,
+    expires_at: chrono::DateTime<chrono::Local>,
+}
 pub struct PeerState {
     pub(crate) id: i64,
     pub(crate) tx: Tx,
@@ -44,6 +49,7 @@ pub struct PeerState {
     pub(crate) is_admin: bool,
     pub(crate) requested_at: Option<String>,
     pub(crate) connected_at: Option<String>,
+    trusted: Vec<TrustedCounter>,
 }
 impl PeerState {
     fn new(tx: Tx) -> Self {
@@ -56,6 +62,7 @@ impl PeerState {
             is_admin: false,
             requested_at: None,
             connected_at: None,
+            trusted: Vec::new(),
         }
     }
     pub(crate) fn send_text(&self, json: String) {
@@ -240,6 +247,16 @@ async fn handle_text(ctx: &WsContext, addr: SocketAddr, text: &str) {
         ClientMessage::CounterRegister { token, .. } => register_counter(ctx, addr, &token).await,
         ClientMessage::RequestConnection { username, password } => {
             request_connection(ctx, addr, &username, &password).await
+        }
+        ClientMessage::CounterLogout => {
+            let mut guard = ctx.peers.lock().await;
+            let username = guard
+                .get(&addr)
+                .filter(|p| p.approved && !p.is_staff())
+                .map(|p| p.username.clone());
+            if let Some(username) = username {
+                revoke_trust(&mut guard, addr.ip(), &username);
+            }
         }
         ClientMessage::CreateOrder { cart, group_id } => {
             let Some(caller) = approved_caller(&ctx.peers, addr).await else {
@@ -457,11 +474,28 @@ async fn request_connection(ctx: &WsContext, addr: SocketAddr, username: &str, p
         send_to_addr(&ctx.peers, addr, &ServerMessage::ConnectionRejected).await;
         return;
     };
+    let trusted = {
+        let mut guard = ctx.peers.lock().await;
+        let trusted = is_trusted_counter(&guard, addr.ip(), &account_username);
+        if trusted {
+            guard.retain(|other, peer| {
+                *other == addr
+                    || peer.is_staff()
+                    || peer.username != account_username
+                    || other.ip() != addr.ip()
+            });
+        }
+        trusted
+    };
     if is_at_connected_devices_capacity(&ctx.peers, &ctx.max_connected_devices).await {
         send_to_addr(&ctx.peers, addr, &ServerMessage::ConnectionRejected).await;
         return;
     }
     rate_limit::record_success(&ctx.connection_attempts, &attempt_key);
+    if trusted {
+        approve_trusted_counter(ctx, addr, &account_username).await;
+        return;
+    }
     {
         let mut guard = ctx.peers.lock().await;
         if let Some(peer) = guard.get_mut(&addr) {
@@ -472,6 +506,58 @@ async fn request_connection(ctx: &WsContext, addr: SocketAddr, username: &str, p
     record_history(ctx, addr, &account_username, ConnectionEvent::Requested);
     send_to_addr(&ctx.peers, addr, &ServerMessage::ConnectionPending).await;
     notify_pending_requests(&ctx.peers).await;
+}
+async fn approve_trusted_counter(ctx: &WsContext, addr: SocketAddr, username: &str) {
+    let scoped = {
+        let mut guard = ctx.peers.lock().await;
+        let Some(peer) = guard.get_mut(&addr) else {
+            return;
+        };
+        peer.username = username.to_string();
+        peer.approved = true;
+        peer.connected_at = Some(chrono::Local::now().to_rfc3339());
+        scope_orders_for_peer(&ctx.order_service.get_orders(), peer)
+    };
+    record_history(ctx, addr, username, ConnectionEvent::Approved);
+    send_to_addr(&ctx.peers, addr, &ServerMessage::ConnectionApproved).await;
+    send_to_addr(&ctx.peers, addr, &ServerMessage::Orders { data: scoped }).await;
+    notify_pending_requests(&ctx.peers).await;
+    notify_connected_devices(&ctx.peers).await;
+}
+fn is_trusted_counter(
+    peers: &HashMap<SocketAddr, PeerState>,
+    ip: IpAddr,
+    username: &str,
+) -> bool {
+    let now = chrono::Local::now();
+    peers.values().filter(|p| p.is_cashier).any(|p| {
+        p.trusted
+            .iter()
+            .any(|t| t.ip == ip && t.username == username && t.expires_at > now)
+    })
+}
+pub(crate) fn trust_counter(
+    peers: &mut HashMap<SocketAddr, PeerState>,
+    ip: IpAddr,
+    username: &str,
+) {
+    let now = chrono::Local::now();
+    let expires_at = now + chrono::Duration::hours(TRUSTED_COUNTER_TTL_HOURS);
+    for peer in peers.values_mut().filter(|p| p.is_cashier) {
+        peer.trusted
+            .retain(|t| t.expires_at > now && !(t.ip == ip && t.username == username));
+        peer.trusted.push(TrustedCounter {
+            ip,
+            username: username.to_string(),
+            expires_at,
+        });
+    }
+}
+fn revoke_trust(peers: &mut HashMap<SocketAddr, PeerState>, ip: IpAddr, username: &str) {
+    for peer in peers.values_mut().filter(|p| p.is_cashier) {
+        peer.trusted
+            .retain(|t| !(t.ip == ip && t.username == username));
+    }
 }
 async fn update_own_account(
     ctx: &WsContext,
@@ -640,9 +726,11 @@ pub(crate) async fn remove_peer(
     addr: SocketAddr,
     farewell: &ServerMessage,
 ) -> String {
-    match peers.lock().await.remove(&addr) {
+    let mut guard = peers.lock().await;
+    match guard.remove(&addr) {
         Some(peer) => {
             peer.send(farewell);
+            revoke_trust(&mut guard, addr.ip(), &peer.username);
             peer.username
         }
         None => String::new(),

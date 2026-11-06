@@ -10,3 +10,4 @@ pub const WS_PING_INTERVAL_SECS: u64 = 20;
 pub const WS_IDLE_TIMEOUT_SECS: u64 = 75;
 pub const WS_MAX_MESSAGE_BYTES: usize = 1_048_576;
 pub const WS_MAX_PEERS: usize = 200;
+pub const TRUSTED_COUNTER_TTL_HOURS: i64 = 12;

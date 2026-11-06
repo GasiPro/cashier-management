@@ -1,7 +1,7 @@
 use crate::domain::connection::{self, optional_username, peer_label};
 use crate::infrastructure::websocket::{
     is_at_connected_devices_capacity, notify_connected_devices, notify_pending_requests,
-    remove_peer, resolve_peer_addr, scope_orders_for_peer, PeerMap,
+    remove_peer, resolve_peer_addr, scope_orders_for_peer, trust_counter, PeerMap,
 };
 use crate::models::connection::{
     ip_from_addr, next_blacklist_id, next_history_id, BlacklistEntry, BlacklistType,
@@ -12,18 +12,14 @@ use crate::repositories::connection_repository;
 use crate::services::setting_service::MaxConnectedDevices;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
-
 pub type Blacklist = Arc<SyncMutex<Vec<BlacklistEntry>>>;
 pub type ConnectionHistory = Arc<SyncMutex<Vec<ConnectionHistoryEntry>>>;
-
 pub fn load_blacklist(app: &AppHandle) -> Vec<BlacklistEntry> {
     connection_repository::load_blacklist(app)
 }
-
 pub fn load_history(app: &AppHandle) -> Vec<ConnectionHistoryEntry> {
     connection_repository::load_history(app)
 }
-
 pub fn record_connection_history(
     history: &ConnectionHistory,
     app: Option<&AppHandle>,
@@ -48,7 +44,6 @@ pub fn record_connection_history(
         }
     }
 }
-
 fn history_event_label(event: ConnectionEvent) -> &'static str {
     match event {
         ConnectionEvent::Requested => "requested",
@@ -58,7 +53,6 @@ fn history_event_label(event: ConnectionEvent) -> &'static str {
         ConnectionEvent::Blocked => "blocked",
     }
 }
-
 pub fn list_connection_history(history: &ConnectionHistory) -> Vec<ConnectionHistoryView> {
     history
         .lock()
@@ -74,11 +68,9 @@ pub fn list_connection_history(history: &ConnectionHistory) -> Vec<ConnectionHis
         })
         .collect()
 }
-
 pub fn list_blacklist_entries(blacklist: &Blacklist) -> Vec<BlacklistEntry> {
     blacklist.lock().unwrap().clone()
 }
-
 pub async fn approve_connection(
     app: &AppHandle,
     peers: &PeerMap,
@@ -107,7 +99,9 @@ pub async fn approve_connection(
         peer.send(&ServerMessage::Orders {
             data: scope_orders_for_peer(&orders, peer),
         });
-        peer.username.clone()
+        let username = peer.username.clone();
+        trust_counter(&mut guard, socket_addr.ip(), &username);
+        username
     };
     record_connection_history(
         history,
@@ -120,7 +114,6 @@ pub async fn approve_connection(
     notify_connected_devices(peers).await;
     Ok(())
 }
-
 pub async fn reject_connection(
     app: &AppHandle,
     peers: &PeerMap,
@@ -140,7 +133,6 @@ pub async fn reject_connection(
     notify_pending_requests(peers).await;
     Ok(())
 }
-
 pub async fn disconnect_device(
     app: &AppHandle,
     peers: &PeerMap,
@@ -160,7 +152,6 @@ pub async fn disconnect_device(
     notify_connected_devices(peers).await;
     Ok(())
 }
-
 pub async fn block_device(
     app: &AppHandle,
     peers: &PeerMap,
@@ -185,7 +176,6 @@ pub async fn block_device(
     notify_connected_devices(peers).await;
     Ok(entry)
 }
-
 fn block_ip(
     app: &AppHandle,
     blacklist: &Blacklist,
@@ -202,7 +192,6 @@ fn block_ip(
     }
     insert_blacklist_entry(app, &mut guard, BlacklistType::Ip, ip, reason)
 }
-
 pub async fn add_blacklist_entry(
     app: &AppHandle,
     blacklist: &Blacklist,
@@ -234,7 +223,6 @@ pub async fn add_blacklist_entry(
     }
     insert_blacklist_entry(app, &mut guard, entry_type, value, reason)
 }
-
 pub async fn remove_blacklist_entry(
     app: &AppHandle,
     blacklist: &Blacklist,
@@ -259,7 +247,6 @@ pub async fn remove_blacklist_entry(
     }
     Ok(())
 }
-
 fn insert_blacklist_entry(
     app: &AppHandle,
     entries: &mut Vec<BlacklistEntry>,
