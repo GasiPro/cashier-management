@@ -1,27 +1,37 @@
 import { invoke } from '@tauri-apps/api/core';
+import { getStoredUsername } from '../../core/storage/local-storage';
 import { DisplaySettings, ThemeOption } from './settings.model';
+function username(): string {
+  return getStoredUsername() ?? '';
+}
 export function getTheme(): Promise<ThemeOption> {
-  return invoke<ThemeOption>('settings', { command: { method: 'theme_get' } });
+  return invoke<ThemeOption>('settings', {
+    command: { method: 'theme_get', username: username() },
+  });
 }
 export function getBackgroundColor(): Promise<string> {
-  return invoke<string>('settings', { command: { method: 'background_color_get' } });
+  return invoke<string>('settings', {
+    command: { method: 'background_color_get', username: username() },
+  });
 }
 export function getFontSize(): Promise<number> {
-  return invoke<number>('settings', { command: { method: 'font_size_get' } });
+  return invoke<number>('settings', {
+    command: { method: 'font_size_get', username: username() },
+  });
 }
 export function setTheme(value: ThemeOption): Promise<ThemeOption> {
   return invoke<ThemeOption>('settings', {
-    command: { method: 'theme_set', value },
+    command: { method: 'theme_set', username: username(), value },
   });
 }
 export function setBackgroundColor(value: string): Promise<string> {
   return invoke<string>('settings', {
-    command: { method: 'background_color_set', value },
+    command: { method: 'background_color_set', username: username(), value },
   });
 }
 export function setFontSize(value: number): Promise<number> {
   return invoke<number>('settings', {
-    command: { method: 'font_size_set', value },
+    command: { method: 'font_size_set', username: username(), value },
   });
 }
 export function getActivated(): Promise<boolean> {

@@ -68,8 +68,11 @@ fn board_uuid_and_mac() -> Result<(String, String), String> {
 }
 #[cfg(target_os = "linux")]
 fn board_uuid_and_mac() -> Result<(String, String), String> {
-    let uuid =
-        std::fs::read_to_string("/sys/class/dmi/id/product_uuid").map_err(|e| e.to_string())?;
+    let uuid = std::fs::read_to_string("/sys/class/dmi/id/product_uuid")
+        .map(|value| value.trim().to_string())
+        .ok()
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(board_identity);
     let mut macs: Vec<String> = std::fs::read_dir("/sys/class/net")
         .map_err(|e| e.to_string())?
         .flatten()
@@ -86,9 +89,18 @@ fn board_uuid_and_mac() -> Result<(String, String), String> {
         .collect();
     macs.sort();
     Ok((
-        uuid.trim().to_uppercase(),
+        uuid.to_uppercase(),
         macs.into_iter().next().unwrap_or_default(),
     ))
+}
+#[cfg(target_os = "linux")]
+fn board_identity() -> String {
+    ["sys_vendor", "board_vendor", "board_name", "product_name"]
+        .iter()
+        .filter_map(|name| std::fs::read_to_string(format!("/sys/class/dmi/id/{name}")).ok())
+        .map(|value| value.trim().to_string())
+        .collect::<Vec<_>>()
+        .join("|")
 }
 #[cfg(target_os = "macos")]
 fn board_uuid_and_mac() -> Result<(String, String), String> {
