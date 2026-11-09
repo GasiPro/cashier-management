@@ -77,6 +77,9 @@ export class CashierPage implements OnInit, OnDestroy {
     public store: CashierStore,
   ) {}
   ngOnInit(): void {
+    // Coming back from settings: the socket is still registered, the token is already spent.
+    this.approved = this.registration.isCashierRegistered();
+    this.wsConnected.set(this.approved);
     getServerAddress()
       .then((addr) => this.wsAddress.set(addr))
       .catch(() => this.wsAddress.set(DEFAULT_WS));
@@ -108,7 +111,7 @@ export class CashierPage implements OnInit, OnDestroy {
     const url = await getLocalWsUrl();
     if (this.destroyed) return;
     this.ws.connect(url);
-    if (this.ws.isOpen()) {
+    if (this.ws.isOpen() && !this.approved) {
       this.registerOnOpen();
     }
   }
@@ -145,7 +148,6 @@ export class CashierPage implements OnInit, OnDestroy {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     this.closeSubscription?.unsubscribe();
-    this.ws.disconnect();
   }
   get totalPendingRequests(): number {
     return this.devices.pendingConnections().length;

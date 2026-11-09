@@ -123,7 +123,7 @@ export class AdminLayout implements OnInit, OnDestroy {
   }
   menuClass(): string {
     const base =
-      'fixed z-50 bottom-4 left-4 right-4 sm:right-auto sm:left-[17rem] sm:w-72 overflow-y-auto bg-white border border-gray-200 ' +
+      'fixed z-50 bottom-16 left-3 w-[14.5rem] overflow-y-auto bg-white border border-gray-200 ' +
       'rounded-xl shadow-lg origin-bottom transition-all duration-200 ease-out motion-reduce:transition-none';
     return this.showMenu()
       ? `${base} max-h-[min(16rem,calc(100vh-2rem))] opacity-100`

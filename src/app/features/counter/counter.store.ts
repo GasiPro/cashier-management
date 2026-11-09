@@ -198,7 +198,9 @@ export class CounterStore {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     this.closeSubscription?.unsubscribe();
-    this.leaveCashier();
+    // Plain disconnect (no counter_logout): the cashier keeps trusting this counter,
+    // so coming back from settings reconnects without a new approval.
+    this.ws.disconnect();
   }
   private leaveCashier(): void {
     this.ws.send({ type: 'counter_logout' });
