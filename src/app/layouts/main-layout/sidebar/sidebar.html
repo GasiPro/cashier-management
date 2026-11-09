@@ -1,17 +1,6 @@
 <nav class="w-16 h-screen sticky top-0 left-0 bg-white border-r border-gray-200 flex flex-col items-center py-4 gap-2 flex-shrink-0 z-50"
      aria-label="Navigation principale">
-  <button (click)="goHome()" [attr.aria-current]="isHomeActive() ? 'page' : null" title="Accueil" aria-label="Accueil"
-    [class]="iconButtonClass(isHomeActive())"
-    class="group relative w-10 h-10 rounded-full flex items-center justify-center transition-colors
-           focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-    <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v10a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V10" />
-    </svg>
-    <span class="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md
-                 bg-[#1A1A1A] px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-40">
-      Accueil
-    </span>
-  </button>
+  <div class="flex-1"></div>
   <button (click)="openCalculatrice()" [attr.aria-current]="calculatriceSlot() !== null ? 'page' : null" title="Calculatrice" aria-label="Calculatrice"
     [class]="iconButtonClass(calculatriceSlot() !== null)"
     class="group relative w-10 h-10 rounded-full flex items-center justify-center transition-colors
@@ -37,7 +26,6 @@
       Mémo
     </span>
   </button>
-  <div class="flex-1"></div>
   <button (click)="goToSettings()" [attr.aria-current]="isSettingsActive() ? 'page' : null" title="Réglages" aria-label="Réglages"
     [class]="iconButtonClass(isSettingsActive())"
     class="group relative w-10 h-10 rounded-full flex items-center justify-center transition-colors

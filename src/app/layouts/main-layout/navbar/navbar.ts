@@ -13,6 +13,7 @@ export class Navbar {
   currentTime = input<string>('');
   menuBadgeCount = input<number>(0);
   showMenuButton = input<boolean>(true);
+  showBackButton = input<boolean>(false);
   showMenu = signal(false);
   readonly roleLabel = computed(() => (this.role() === 'cashier' ? 'Caisse' : 'Comptoir'));
   readonly containerMaxWidthClass = computed(() => (this.role() === 'cashier' ? 'max-w-5xl' : 'max-w-6xl'));

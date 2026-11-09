@@ -2,13 +2,7 @@ import { Component, EventEmitter, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter } from 'rxjs';
-import { SessionStore, UserRole } from '../../../core/auth/session.store';
 export type ToolSlot = 'A' | 'B';
-const HOME_ROUTE_BY_ROLE: Record<UserRole, string> = {
-  admin: '/admin',
-  caissier: '/caissier',
-  comptoir: '/comptoir',
-};
 const SETTINGS_ROUTE = '/reglages';
 const SLOT_POSITION_CLASS: Record<ToolSlot, string> = {
   A: 'fixed bottom-17 left-20',
@@ -31,14 +25,11 @@ export class LeftSidebar {
   private storedValue: number | null = null;
   private pendingOperator: string | null = null;
   private waitingForOperand = false;
-  constructor(private router: Router, private session: SessionStore) {
+  constructor(private router: Router) {
     this.currentUrl.set(this.router.url);
     this.router.events
       .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
       .subscribe((e) => this.currentUrl.set(e.urlAfterRedirects));
-  }
-  isHomeActive(): boolean {
-    return this.currentUrl().startsWith(this.homeRoute());
   }
   isSettingsActive(): boolean {
     return this.currentUrl().startsWith(SETTINGS_ROUTE);
@@ -47,13 +38,6 @@ export class LeftSidebar {
     return active
       ? 'bg-[#EFF4FA] text-[#1E3A5F]'
       : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600';
-  }
-  goHome(): void {
-    this.router.navigate([this.homeRoute()]);
-  }
-  private homeRoute(): string {
-    const role = this.session.role();
-    return role ? HOME_ROUTE_BY_ROLE[role] : '/login';
   }
   openCalculatrice(): void {
     if (this.calculatriceSlot() !== null) {
