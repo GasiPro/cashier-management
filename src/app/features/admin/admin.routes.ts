@@ -30,6 +30,10 @@ export const ADMIN_ROUTES: Routes = [
         loadComponent: () => import('./reports/reports.page').then((m) => m.ReportsPage),
       },
       {
+        path: 'profil',
+        loadComponent: () => import('./profile/profile.page').then((m) => m.AdminProfilePage),
+      },
+      {
         path: 'mise-a-jour',
         loadComponent: () => import('./update/update.page').then((m) => m.UpdatePage),
       },

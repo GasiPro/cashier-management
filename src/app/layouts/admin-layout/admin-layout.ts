@@ -1,9 +1,9 @@
-import { Component, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, Subscription } from 'rxjs';
 import { getLocalWsUrl } from '../../data/device/device.api';
-import { getStoredUsername } from '../../core/storage/local-storage';
+import { getStoredDisplayName, getStoredUsername } from '../../core/storage/local-storage';
 import { WsRegistration } from '../../core/auth/ws-registration';
 import { WsClient } from '../../core/realtime/ws-client';
 import { WsMessage } from '../../core/realtime/ws-protocol';
@@ -31,6 +31,8 @@ export class AdminLayout implements OnInit, OnDestroy {
   readonly navItems = NAV_ITEMS;
   readonly homeRoute = HOME_ROUTE;
   readonly username = getStoredUsername() ?? 'Admin';
+  readonly showMenu = signal(false);
+  readonly displayName = signal(this.storedLabel());
   private currentUrl = signal('');
   /**
    * Owns the single WS connection/registration for the whole admin section — child
@@ -87,13 +89,36 @@ export class AdminLayout implements OnInit, OnDestroy {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     this.ws.disconnect();
-    this.router.navigate(['/login']);
+    this.router.navigate(['/login'], { replaceUrl: true });
+  }
+  logout(): void {
+    this.closeMenu();
+    this.returnToLogin();
   }
   ngOnDestroy(): void {
     this.destroyed = true;
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     this.ws.disconnect();
+  }
+  private storedLabel(): string {
+    return getStoredDisplayName()?.trim() || this.username;
+  }
+  toggleMenu(): void {
+    this.displayName.set(this.storedLabel());
+    this.showMenu.update((v) => !v);
+  }
+  @HostListener('document:keydown.escape')
+  closeMenu(): void {
+    this.showMenu.set(false);
+  }
+  menuClass(): string {
+    const base =
+      'fixed z-50 bottom-4 left-4 right-4 sm:right-auto sm:left-[17rem] sm:w-72 overflow-y-auto bg-white border border-gray-200 ' +
+      'rounded-xl shadow-lg origin-bottom transition-all duration-200 ease-out motion-reduce:transition-none';
+    return this.showMenu()
+      ? `${base} max-h-[min(16rem,calc(100vh-2rem))] opacity-100`
+      : `${base} max-h-0 opacity-0 invisible pointer-events-none`;
   }
   isActive(route: string): boolean {
     const path = this.currentUrl().split('?')[0].split('#')[0];
