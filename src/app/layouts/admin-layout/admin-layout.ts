@@ -1,4 +1,4 @@
-import { Component, HostListener, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, OnInit, computed, signal, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, Subscription } from 'rxjs';
@@ -7,6 +7,7 @@ import { getStoredDisplayName, getStoredUsername } from '../../core/storage/loca
 import { WsRegistration } from '../../core/auth/ws-registration';
 import { WsClient } from '../../core/realtime/ws-client';
 import { WsMessage } from '../../core/realtime/ws-protocol';
+import { searchAdmin } from './admin-search/admin-search';
 interface AdminNavItem {
   id: string;
   label: string;
@@ -33,6 +34,11 @@ export class AdminLayout implements OnInit, OnDestroy {
   readonly username = getStoredUsername() ?? 'Admin';
   readonly showMenu = signal(false);
   readonly displayName = signal(this.storedLabel());
+  readonly searchOpen = signal(false);
+  readonly searchQuery = signal('');
+  readonly searchResults = computed(() => searchAdmin(this.searchQuery()));
+  readonly searching = computed(() => this.searchOpen() && this.searchQuery().trim() !== '');
+  private readonly searchInput = viewChild<ElementRef<HTMLInputElement>>('searchInput');
   private currentUrl = signal('');
   /**
    * Owns the single WS connection/registration for the whole admin section — child
@@ -53,7 +59,10 @@ export class AdminLayout implements OnInit, OnDestroy {
     this.currentUrl.set(this.router.url);
     this.router.events
       .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
-      .subscribe((e) => this.currentUrl.set(e.urlAfterRedirects));
+      .subscribe((e) => {
+        this.currentUrl.set(e.urlAfterRedirects);
+        this.closeSearch();
+      });
   }
   ngOnInit(): void {
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
@@ -119,6 +128,21 @@ export class AdminLayout implements OnInit, OnDestroy {
     return this.showMenu()
       ? `${base} max-h-[min(16rem,calc(100vh-2rem))] opacity-100`
       : `${base} max-h-0 opacity-0 invisible pointer-events-none`;
+  }
+  openSearch(): void {
+    this.searchOpen.set(true);
+    setTimeout(() => this.searchInput()?.nativeElement.focus());
+  }
+  closeSearch(): void {
+    this.searchOpen.set(false);
+    this.searchQuery.set('');
+  }
+  onSearchInput(event: Event): void {
+    this.searchQuery.set((event.target as HTMLInputElement).value);
+  }
+  openResult(route: string): void {
+    this.closeSearch();
+    this.router.navigate(['/admin', route]);
   }
   isActive(route: string): boolean {
     const path = this.currentUrl().split('?')[0].split('#')[0];

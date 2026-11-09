@@ -56,20 +56,63 @@
       </div>
     </div>
     <div class="flex-1 flex flex-col min-w-0 h-full">
-      <header class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-        <h1 class="text-base font-semibold text-gray-800">Espace Admin</h1>
-        <div class="flex items-center gap-3">
-          <button type="button" aria-label="Rechercher"
+      <header class="flex items-center justify-between gap-3 px-6 py-4 border-b border-gray-200">
+        <h1 class="text-base font-semibold text-gray-800 shrink-0">Espace Admin</h1>
+        <div class="flex items-center justify-end gap-3 min-w-0 flex-1">
+          @if (searchOpen()) {
+          <div class="relative w-full max-w-xs sm:max-w-sm">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.85-5.4a7.25 7.25 0 11-14.5 0 7.25 7.25 0 0114.5 0z" />
+            </svg>
+            <input #searchInput type="text" name="adminSearch" autocomplete="off"
+              [value]="searchQuery()" (input)="onSearchInput($event)" (keydown.escape)="closeSearch()"
+              aria-label="Rechercher dans l'espace admin" placeholder="Rechercher"
+              class="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm text-[#1A1A1A]
+                     focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+          </div>
+          <button type="button" (click)="closeSearch()" aria-label="Fermer la recherche"
+            class="text-gray-400 hover:text-gray-600 transition-colors shrink-0
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          } @else {
+          <button type="button" (click)="openSearch()" aria-label="Rechercher"
             class="text-gray-400 hover:text-gray-600 transition-colors
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.85-5.4a7.25 7.25 0 11-14.5 0 7.25 7.25 0 0114.5 0z" />
             </svg>
           </button>
+          }
         </div>
       </header>
       <main class="flex-1 p-6 overflow-y-auto">
-        <router-outlet />
+        @if (searching()) {
+        <section aria-label="Résultats de recherche" class="max-w-3xl mx-auto">
+          @if (searchResults().length > 0) {
+          <ul class="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
+            @for (result of searchResults(); track $index) {
+            <li>
+              <button type="button" (click)="openResult(result.route)"
+                class="w-full flex items-center justify-between gap-3 text-left text-sm text-gray-700 px-4 py-3
+                       hover:bg-gray-50 transition-colors
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
+                <span class="min-w-0 truncate">@for (segment of result.segments; track $index) {<span [class]="segment.match ? 'bg-[#EFF4FA] text-[#1E3A5F] font-semibold rounded-sm' : ''">{{ segment.text }}</span>}</span>
+                <span class="text-xs text-gray-400 shrink-0">{{ result.page }}</span>
+              </button>
+            </li>
+            }
+          </ul>
+          } @else {
+          <p role="status" class="text-sm text-gray-400 italic">Aucun résultat trouvé.</p>
+          }
+        </section>
+        }
+        <div [class.hidden]="searching()">
+          <router-outlet />
+        </div>
       </main>
     </div>
 </div>

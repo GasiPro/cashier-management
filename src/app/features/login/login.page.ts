@@ -272,7 +272,7 @@ export class LoginPage implements OnInit, OnDestroy {
     this.counterError.set('');
     this.counterConnecting.set(true);
     const wsUrl = this.counterWsUrl().trim();
-    const fullUrl = wsUrl.startsWith('ws:
+    const fullUrl = wsUrl.startsWith('ws://') ? wsUrl : `ws://${wsUrl}`;
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     this.closeSubscription?.unsubscribe();
