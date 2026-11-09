@@ -200,7 +200,6 @@ export class CounterStore {
     this.closeSubscription?.unsubscribe();
     this.leaveCashier();
   }
-  /** Tells the server this counter left on purpose, so it won't be re-approved automatically. */
   private leaveCashier(): void {
     this.ws.send({ type: 'counter_logout' });
     this.ws.disconnect();
@@ -299,7 +298,7 @@ export class CounterStore {
   disconnectFromCashier(): void {
     this.leaveCashier();
     this.session.clearCounterCredentials();
-    this.router.navigate(['/login']);
+    this.router.navigate(['/login'], { replaceUrl: true });
   }
   openAccountPanel(): void {
     this.editDisplayName.set(this.accountDisplayName());

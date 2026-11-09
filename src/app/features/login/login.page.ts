@@ -232,7 +232,7 @@ export class LoginPage implements OnInit, OnDestroy {
         this.session.setSessionToken(result.session_token);
       }
       this.session.setRole('caissier');
-      this.router.navigate(['/caissier']);
+      this.router.navigate(['/caissier'], { replaceUrl: true });
     } catch (e) {
       console.error('auth failed', e);
       const message = errorMessage(e, 'Échec de la connexion. Réessayez.');
@@ -272,7 +272,7 @@ export class LoginPage implements OnInit, OnDestroy {
     this.counterError.set('');
     this.counterConnecting.set(true);
     const wsUrl = this.counterWsUrl().trim();
-    const fullUrl = wsUrl.startsWith('ws://') ? wsUrl : `ws://${wsUrl}`;
+    const fullUrl = wsUrl.startsWith('ws:
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     this.closeSubscription?.unsubscribe();
@@ -290,7 +290,7 @@ export class LoginPage implements OnInit, OnDestroy {
         this.openSubscription?.unsubscribe();
         this.closeSubscription?.unsubscribe();
         this.session.setRole('comptoir');
-        this.router.navigate(['/comptoir']);
+        this.router.navigate(['/comptoir'], { replaceUrl: true });
       } else if (msg.type === 'connection_rejected') {
         this.failCounterConnection(
           this.counterConnecting()

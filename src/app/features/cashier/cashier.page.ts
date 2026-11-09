@@ -136,7 +136,7 @@ export class CashierPage implements OnInit, OnDestroy {
     this.openSubscription?.unsubscribe();
     this.closeSubscription?.unsubscribe();
     this.ws.disconnect();
-    this.router.navigate(['/login']);
+    this.router.navigate(['/login'], { replaceUrl: true });
   }
   ngOnDestroy(): void {
     this.destroyed = true;
