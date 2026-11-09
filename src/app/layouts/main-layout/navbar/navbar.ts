@@ -1,5 +1,7 @@
 import { Component, computed, input, signal } from '@angular/core';
-import { CommonModule, Location } from '@angular/common';
+import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
+import { SessionStore } from '../../../core/auth/session.store';
 export type NavbarRole = 'cashier' | 'counter';
 @Component({
   selector: 'app-navbar',
@@ -18,7 +20,7 @@ export class Navbar {
   readonly roleLabel = computed(() => (this.role() === 'cashier' ? 'Caisse' : 'Comptoir'));
   readonly containerMaxWidthClass = computed(() => (this.role() === 'cashier' ? 'max-w-5xl' : 'max-w-6xl'));
   readonly menuId = computed(() => `${this.role()}-menu`);
-  constructor(private location: Location) {}
+  constructor(private router: Router, private session: SessionStore) {}
   toggleMenu(): void {
     this.showMenu.update((v) => !v);
   }
@@ -26,6 +28,10 @@ export class Navbar {
     this.showMenu.set(false);
   }
   goBack(): void {
-    this.location.back();
+    if (this.router.url.startsWith('/affichage')) {
+      this.router.navigate(['/reglages']);
+      return;
+    }
+    this.router.navigate([this.session.role() === 'comptoir' ? '/comptoir' : '/caissier']);
   }
 }

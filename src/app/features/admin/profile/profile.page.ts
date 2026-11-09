@@ -1,5 +1,6 @@
 import { Component, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { MAX_DISPLAY_NAME_LEN, MIN_PASSWORD_LEN } from '../../../core/config/app.constants';
 import { errorMessage } from '../../../core/error/error-messages';
 import { getStoredDisplayName, getStoredUsername, setStoredDisplayName } from '../../../core/storage/local-storage';
@@ -9,7 +10,7 @@ import { passwordRuleError } from '../../../shared/utils/validators';
 @Component({
   selector: 'app-admin-profile',
   standalone: true,
-  imports: [FormsModule, PasswordInput],
+  imports: [FormsModule, RouterLink, PasswordInput],
   templateUrl: './profile.page.html',
 })
 export class AdminProfilePage {
