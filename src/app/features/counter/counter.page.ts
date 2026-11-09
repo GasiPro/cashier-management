@@ -11,7 +11,6 @@ import { OrderDetailModal } from './components/order-detail-modal/order-detail-m
 import { ConnectionStatus } from './components/connection-status/connection-status';
 import { ConnectionOverlay } from './components/connection-status/connection-overlay';
 import { ServerPanel } from './components/server-panel/server-panel';
-import { AccountPanel } from './components/account-panel/account-panel';
 @Component({
   selector: 'app-counter',
   standalone: true,
@@ -27,7 +26,6 @@ import { AccountPanel } from './components/account-panel/account-panel';
     ConnectionStatus,
     ConnectionOverlay,
     ServerPanel,
-    AccountPanel,
   ],
   providers: [CounterStore],
   templateUrl: './counter.page.html',

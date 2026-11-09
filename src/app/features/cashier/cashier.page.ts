@@ -88,7 +88,7 @@ export class CashierPage implements OnInit, OnDestroy {
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
       if (msg.type === 'error_protocol') {
         if (!this.approved) {
-          this.returnToLogin();
+          this.logout();
         }
         return;
       }
@@ -114,11 +114,11 @@ export class CashierPage implements OnInit, OnDestroy {
   }
   private registerOnOpen(): void {
     if (this.approved) {
-      this.returnToLogin();
+      this.logout();
       return;
     }
     if (!this.registration.registerCashier(this.username)) {
-      this.returnToLogin();
+      this.logout();
     }
   }
   private notifyOrderChange(change: OrderChange): void {
@@ -131,7 +131,7 @@ export class CashierPage implements OnInit, OnDestroy {
     };
     this.store.notify(messages[change.kind]);
   }
-  private returnToLogin(): void {
+  logout(): void {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     this.closeSubscription?.unsubscribe();
