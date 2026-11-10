@@ -20,3 +20,8 @@ export interface DisplaySettings {
   backgroundColor: string;
   fontSize: number;
 }
+export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
+  theme: 'clair',
+  backgroundColor: BACKGROUND_PRESETS.light[0],
+  fontSize: 14,
+};

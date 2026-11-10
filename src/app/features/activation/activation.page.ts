@@ -1,6 +1,5 @@
 import { Component, OnDestroy, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { initDisplaySettings } from '../../core/display/display-settings';
 import { activate } from '../../data/settings/settings.api';
 const LAUNCH_MIN_DELAY_MS = 6000;
 const CONTACT_EMAIL = 'fanambynana@duck.com';
@@ -61,10 +60,7 @@ export class ActivationPage implements OnDestroy {
     }
     this.clearContactTimer();
     this.launching.set(true);
-    await Promise.all([
-      initDisplaySettings(),
-      new Promise<void>((resolve) => setTimeout(resolve, LAUNCH_MIN_DELAY_MS)),
-    ]);
+    await new Promise<void>((resolve) => setTimeout(resolve, LAUNCH_MIN_DELAY_MS));
     await this.router.navigate(['/login'], { replaceUrl: true });
   }
   private startContactTimer(): void {

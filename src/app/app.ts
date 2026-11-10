@@ -12,8 +12,7 @@ export class App {
   private readonly session = inject(SessionStore);
   constructor() {
     effect(() => {
-      this.session.role();
-      void initDisplaySettings();
+      void initDisplaySettings(this.session.role());
     });
   }
 }

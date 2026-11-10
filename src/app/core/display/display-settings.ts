@@ -1,5 +1,11 @@
 import { loadDisplaySettings } from '../../data/settings/settings.api';
-import { BACKGROUND_PRESETS, DisplaySettings, ThemeOption } from '../../data/settings/settings.model';
+import {
+  BACKGROUND_PRESETS,
+  DEFAULT_DISPLAY_SETTINGS,
+  DisplaySettings,
+  ThemeOption,
+} from '../../data/settings/settings.model';
+import { UserRole } from '../auth/session.store';
 const REFERENCE_FONT_SIZE = 14;
 const DEFAULT_ROOT_FONT_PX = 16;
 const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
@@ -32,9 +38,13 @@ export function applyDisplaySettings(settings: DisplaySettings): void {
   currentTheme = settings.theme;
   applyTheme();
 }
-export async function initDisplaySettings(): Promise<void> {
+export async function initDisplaySettings(role: UserRole | null): Promise<void> {
+  if (!role) {
+    applyDisplaySettings(DEFAULT_DISPLAY_SETTINGS);
+    return;
+  }
   try {
-    applyDisplaySettings(await loadDisplaySettings());
+    applyDisplaySettings(await loadDisplaySettings(role));
   } catch (e) {
     console.error('failed to load display settings', e);
   }

@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, signal, computed, inject } from '@angular
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { SessionStore } from '../../../core/auth/session.store';
+import { SessionStore, UserRole } from '../../../core/auth/session.store';
 import { getStoredDisplayName, getStoredUsername } from '../../../core/storage/local-storage';
 import { errorMessage } from '../../../core/error/error-messages';
 import {
@@ -33,8 +33,8 @@ export class DisplayPage implements OnInit, OnDestroy {
   readonly minFontSize = MIN_FONT_SIZE;
   readonly maxFontSize = MAX_FONT_SIZE;
   readonly themeChoices = THEME_CHOICES;
-  /** Admin sees these settings inside the admin layout, without the cashier/counter chrome. */
-  readonly isAdmin = inject(SessionStore).role() === 'admin';
+  private readonly role = inject(SessionStore).role() as UserRole;
+  readonly isAdmin = this.role === 'admin';
   username = getStoredUsername() ?? 'Caisse';
   private displayName = getStoredDisplayName() ?? '';
   /** Name shown in the navbar — the account display name when one exists, otherwise the username. */
@@ -85,9 +85,9 @@ export class DisplayPage implements OnInit, OnDestroy {
     this.loading.set(true);
     try {
       const [theme, backgroundColor, fontSize] = await Promise.all([
-        settingsApi.getTheme(),
-        settingsApi.getBackgroundColor(),
-        settingsApi.getFontSize(),
+        settingsApi.getTheme(this.role),
+        settingsApi.getBackgroundColor(this.role),
+        settingsApi.getFontSize(this.role),
       ]);
       this.theme.set(theme);
       this.themeDraft.set(theme);
@@ -135,9 +135,12 @@ export class DisplayPage implements OnInit, OnDestroy {
     this.saving.set(true);
     this.setStatus('', false);
     try {
-      const theme = await settingsApi.setTheme(this.themeDraft());
-      const backgroundColor = await settingsApi.setBackgroundColor(this.backgroundColorDraft());
-      const fontSize = await settingsApi.setFontSize(this.fontSizeDraft());
+      const theme = await settingsApi.setTheme(this.role, this.themeDraft());
+      const backgroundColor = await settingsApi.setBackgroundColor(
+        this.role,
+        this.backgroundColorDraft(),
+      );
+      const fontSize = await settingsApi.setFontSize(this.role, this.fontSizeDraft());
       this.theme.set(theme);
       this.themeDraft.set(theme);
       this.backgroundColor.set(backgroundColor);
