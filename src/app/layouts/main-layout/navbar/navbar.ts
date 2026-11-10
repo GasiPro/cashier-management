@@ -28,7 +28,7 @@ export class Navbar {
     this.showMenu.set(false);
   }
   goBack(): void {
-    if (this.router.url.startsWith('/affichage')) {
+    if (this.router.url.startsWith('/affichage') || this.router.url.startsWith('/profil')) {
       this.router.navigate(['/reglages']);
       return;
     }
