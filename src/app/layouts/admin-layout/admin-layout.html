@@ -3,13 +3,19 @@
       <div>
         <nav class="px-4 pt-6 pb-3">
           <a [routerLink]="homeRoute" [class]="navItemClass(homeRoute)">
-            Accueil
+            <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" [attr.d]="homeIcon" />
+            </svg>
+            <span class="truncate">Accueil</span>
           </a>
         </nav>
         <nav class="px-4 pt-2 space-y-1.5">
           @for (item of navItems; track item.id) {
           <a [routerLink]="item.route" [class]="navItemClass(item.route)">
-            {{ item.label }}
+            <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" [attr.d]="item.icon" />
+            </svg>
+            <span class="truncate">{{ item.label }}</span>
           </a>
           }
         </nav>

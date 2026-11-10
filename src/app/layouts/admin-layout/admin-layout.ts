@@ -12,16 +12,18 @@ interface AdminNavItem {
   id: string;
   label: string;
   route: string;
+  icon: string;
 }
 const NAV_ITEMS: AdminNavItem[] = [
-  { id: 'comptes', label: 'Comptes', route: 'comptes' },
-  { id: 'appareils', label: 'Appareils & connexions', route: 'appareils' },
-  { id: 'grille-tarifaire', label: 'Grille tarifaire', route: 'grille-tarifaire' },
-  { id: 'commandes', label: 'Commandes', route: 'commandes' },
-  { id: 'rapport', label: 'Rapport', route: 'rapport' },
-  { id: 'mise-a-jour', label: 'Mise à jour', route: 'mise-a-jour' },
+  { id: 'comptes', label: 'Comptes', route: 'comptes', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },
+  { id: 'appareils', label: 'Appareils & connexions', route: 'appareils', icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
+  { id: 'grille-tarifaire', label: 'Grille tarifaire', route: 'grille-tarifaire', icon: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z' },
+  { id: 'commandes', label: 'Commandes', route: 'commandes', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01' },
+  { id: 'rapport', label: 'Rapport', route: 'rapport', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
+  { id: 'mise-a-jour', label: 'Mise à jour', route: 'mise-a-jour', icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' },
 ];
 const HOME_ROUTE = 'dashboard';
+const HOME_ICON = 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6';
 @Component({
   selector: 'app-admin-layout',
   standalone: true,
@@ -31,6 +33,7 @@ const HOME_ROUTE = 'dashboard';
 export class AdminLayout implements OnInit, OnDestroy {
   readonly navItems = NAV_ITEMS;
   readonly homeRoute = HOME_ROUTE;
+  readonly homeIcon = HOME_ICON;
   readonly username = getStoredUsername() ?? 'Admin';
   readonly showMenu = signal(false);
   readonly displayName = signal(this.storedLabel());
@@ -149,7 +152,7 @@ export class AdminLayout implements OnInit, OnDestroy {
     return path === `/admin/${route}` || path.startsWith(`/admin/${route}/`);
   }
   navItemClass(route: string): string {
-    const base = 'w-full text-left px-3 py-2 rounded-lg text-sm transition-colors block';
+    const base = 'w-full flex items-center gap-3 text-left px-3 py-2 rounded-lg text-sm transition-colors';
     return this.isActive(route)
       ? `${base} bg-[#EFF4FA] text-[#1E3A5F] font-medium`
       : `${base} text-gray-700 hover:bg-gray-50`;
