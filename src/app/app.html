@@ -1,17 +1,3 @@
-<div class="min-h-screen flex flex-col" [attr.inert]="splashVisible() ? '' : null">
+<div class="min-h-screen flex flex-col">
     <router-outlet />
 </div>
-@if (splashVisible()) {
-<main
-  class="fixed inset-0 z-50 bg-[#FAFAFA] bg-cover bg-center flex items-center justify-center px-6 py-16"
-  style="background-image: url('splash-bg.png')">
-  <div class="text-center max-w-2xl" role="status" aria-live="polite">
-    <span
-      class="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-[5px] border-gray-200 border-t-[#1E3A5F]
-             animate-spin [animation-duration:2.2s] motion-reduce:animate-none inline-block mb-12"></span>
-    <p class="text-2xl sm:text-3xl lg:text-4xl font-light leading-relaxed text-[#1A1A1A]">
-      <span class="block">Chaque jour est une nouvelle occasion de faire de belles choses !</span>
-    </p>
-  </div>
-</main>
-}

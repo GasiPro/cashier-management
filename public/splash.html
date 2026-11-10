@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>GasiPro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4rem 1.5rem;
+      box-sizing: border-box;
+      background-color: #EBE8E1;
+      background-image: url('splash-bg.png');
+      background-size: cover;
+      background-position: center;
+      color: #1A1A1A;
+      font-family: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Roboto, Arial, sans-serif;
+      line-height: 1.5;
+      text-align: center;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+      -webkit-user-select: none;
+      user-select: none;
+      cursor: default;
+    }
+    main {
+      max-width: 42rem;
+    }
+    .spinner {
+      display: inline-block;
+      width: 6rem;
+      height: 6rem;
+      margin-bottom: 3rem;
+      box-sizing: border-box;
+      border: 5px solid #DAD6CC;
+      border-top-color: #1E3A5F;
+      border-radius: 50%;
+      animation: spin 2.2s linear infinite;
+    }
+    p {
+      margin: 0;
+      font-size: 1.875rem;
+      font-weight: 300;
+      line-height: 1.625;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .spinner { animation: none; }
+    }
+  </style>
+</head>
+<body oncontextmenu="return false;">
+  <main role="status" aria-live="polite">
+    <span class="spinner"></span>
+    <p>Chaque jour est une nouvelle occasion de faire de belles choses !</p>
+  </main>
+</body>
+</html>

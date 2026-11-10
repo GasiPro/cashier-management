@@ -10,7 +10,7 @@
   </button>
   }
 </div>
-<div class="flex gap-2 mb-5 overflow-x-auto pb-1">
+<div class="flex gap-2 mb-2.5 overflow-x-auto pb-[14px]">
   @for (cat of store.filteredCategories; track cat) {
   <button (click)="store.setCategory(cat)" [class]="store.activeCategory === cat
         ? 'bg-[#EFF4FA] text-[#1E3A5F] border-[#1E3A5F]'

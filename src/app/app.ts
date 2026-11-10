@@ -1,4 +1,4 @@
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, effect, inject } from '@angular/core';
 import {
   NavigationCancel,
   NavigationCancellationCode,
@@ -10,6 +10,7 @@ import {
 } from '@angular/router';
 import { filter, firstValueFrom } from 'rxjs';
 import { SessionStore } from './core/auth/session.store';
+import { ipcCloseSplash } from './core/ipc/tauri-ipc';
 import { initDisplaySettings } from './core/display/display-settings';
 
 const SPLASH_MIN_DELAY_MS = 6000;
@@ -32,23 +33,26 @@ function isNavigationSettled(event: RouterEvent): boolean {
 export class App {
   private readonly session = inject(SessionStore);
   private readonly router = inject(Router);
-  readonly splashVisible = signal(true);
 
   constructor() {
     effect(() => {
       void initDisplaySettings(this.session.role());
     });
-    void this.runSplash();
+    void this.closeSplashWhenReady();
   }
 
-  /** Keeps the splash up until the first screen is ready, for at least SPLASH_MIN_DELAY_MS. */
-  private async runSplash(): Promise<void> {
+  /** Reveals the app once the first screen is ready, after at least SPLASH_MIN_DELAY_MS of splash. */
+  private async closeSplashWhenReady(): Promise<void> {
     const firstNavigation = firstValueFrom(this.router.events.pipe(filter(isNavigationSettled)));
     await Promise.all([
       firstNavigation,
       document.fonts.ready,
       new Promise<void>((resolve) => setTimeout(resolve, SPLASH_MIN_DELAY_MS)),
     ]);
-    this.splashVisible.set(false);
+    try {
+      await ipcCloseSplash();
+    } catch (e) {
+      console.error('failed to close splash', e);
+    }
   }
 }

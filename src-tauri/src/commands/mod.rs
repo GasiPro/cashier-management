@@ -5,3 +5,4 @@ pub mod order_command;
 pub mod pricing_command;
 pub mod server_command;
 pub mod setting_command;
+pub mod splash_command;

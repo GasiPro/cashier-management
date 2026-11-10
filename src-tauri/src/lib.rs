@@ -6,18 +6,16 @@ pub mod infrastructure;
 pub mod models;
 pub mod repositories;
 pub mod services;
-
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tokio::sync::Mutex;
-
 use app::AppState;
 use config::rate_limit;
 use config::setting_config::DEFAULT_MAX_CONNECTED_DEVICES;
+use infrastructure::splash;
 use infrastructure::websocket::{self, WsContext};
 use services::order_service::OrderService;
 use services::{account_service, connection_service, pricing_service, setting_service};
-
 pub fn run() {
     let ctx = WsContext {
         order_service: Arc::new(OrderService::new()),
@@ -42,7 +40,6 @@ pub fn run() {
         sessions: ctx.sessions.clone(),
         auth_attempts: rate_limit::new_tracker(),
     };
-
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -55,8 +52,8 @@ pub fn run() {
                         .build(),
                 )?;
             }
-
             let handle = app.handle();
+            splash::open(handle)?;
             let loaded_settings = setting_service::load_settings(handle);
             *ctx.max_connected_devices.lock().unwrap() = loaded_settings.max_connected_devices;
             *ctx.accounts.lock().unwrap() = account_service::load_or_bootstrap(handle);
@@ -65,8 +62,6 @@ pub fn run() {
             *ctx.pricing.lock().unwrap() = pricing_service::load_or_bootstrap(handle);
             ctx.order_service.load(handle);
             *ctx.app_handle.lock().unwrap() = Some(handle.clone());
-
-            // Start serving only once every store is loaded.
             websocket::start_clock(ctx.peers.clone());
             websocket::start_server(ctx);
             Ok(())
@@ -80,6 +75,7 @@ pub fn run() {
             commands::auth_command::auth,
             commands::account_command::account,
             commands::file_command::file,
+            commands::splash_command::splash,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
