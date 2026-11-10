@@ -122,11 +122,21 @@ export class PricingPage implements OnInit {
   newItemType = signal<PricingItemType>('service');
   creatingItem = signal(false);
   newItemFormError = signal('');
+  showCreatePanel = signal(false);
   /** Result feedback (success or server error) for catalogue actions, announced via aria-live. */
   itemStatusMessage = signal('');
   itemStatusIsError = signal(false);
   setNewItemType(type: PricingItemType): void {
     this.newItemType.set(type);
+  }
+  openCreatePanel(): void {
+    this.showCreatePanel.set(true);
+    this.newItemFormError.set('');
+    setTimeout(() => this.newItemLabelInput?.nativeElement.focus());
+  }
+  closeCreatePanel(): void {
+    this.showCreatePanel.set(false);
+    this.resetNewItemForm();
   }
   private readonly trimmedNewItemLabel = computed(() => this.newItemLabel().trim());
   private readonly trimmedNewItemCategory = computed(() => this.newItemCategory().trim());
@@ -190,12 +200,11 @@ export class PricingPage implements OnInit {
       });
       this.items.update((list) => [created, ...list]);
       this.setItemStatus(`Tarif « ${created.label} » ajouté.`, false);
-      this.resetNewItemForm();
-      this.newItemLabelInput?.nativeElement.focus();
+      this.closeCreatePanel();
     } catch (e) {
       console.error('create_pricing_item failed', e);
       const message = errorMessage(e, "Échec de l'ajout du tarif. Réessayez.");
-      this.setItemStatus(message, true);
+      this.newItemFormError.set(message);
     } finally {
       this.creatingItem.set(false);
     }
@@ -205,6 +214,7 @@ export class PricingPage implements OnInit {
     this.newItemCategory.set('');
     this.newItemPrice.set(null);
     this.newItemType.set('service');
+    this.newItemFormError.set('');
   }
   private setItemStatus(message: string, isError: boolean): void {
     this.itemStatusMessage.set(message);
@@ -335,7 +345,7 @@ export class PricingPage implements OnInit {
       this.items.update((list) => list.filter((i) => i.id !== item.id));
       this.confirmingDeleteId.set(null);
       this.setItemStatus(`Tarif « ${item.label} » supprimé.`, false);
-      this.newItemLabelInput?.nativeElement.focus();
+      document.getElementById('pricing-add-btn')?.focus();
     } catch (e) {
       console.error('delete_pricing_item failed', e);
       const message = errorMessage(e, 'Échec de la suppression du tarif. Réessayez.');
