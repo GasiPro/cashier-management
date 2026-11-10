@@ -1,8 +1,6 @@
 import { Component, computed, input, model } from '@angular/core';
-
 export type PasswordInputSize = 'sm' | 'md' | 'lg';
 export type PasswordToggleStyle = 'icon' | 'text';
-
 @Component({
   selector: 'app-password-input',
   standalone: true,
@@ -24,26 +22,22 @@ export class PasswordInput {
   size = input<PasswordInputSize>('md');
   showToggle = input<boolean>(true);
   toggleStyle = input<PasswordToggleStyle>('icon');
-
   readonly inputClasses = computed(() => {
-    const padding = this.size() === 'lg' ? 'px-4 py-3' : this.size() === 'md' ? 'px-4 py-2.5' : 'px-3 py-2';
+    const padding = this.size() === 'lg' ? 'px-4 py-3.5' : this.size() === 'md' ? 'px-4 py-3' : 'px-3 py-2.5';
     return `flex-1 border border-gray-200 rounded-lg ${padding} text-sm text-[#1A1A1A] ` +
-      'focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300';
+      'focus:outline-none focus:border-[#1E3A5F] focus:ring-2 focus:ring-[#1E3A5F]/10 transition-all placeholder-gray-300';
   });
-
   readonly buttonClasses = computed(() => {
     const base = 'flex-shrink-0 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition-colors ' +
       'focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]';
     if (this.toggleStyle() === 'text') {
-      return `${base} px-3 py-2 text-xs font-medium text-gray-500`;
+      return `${base} px-3 py-2.5 text-xs font-medium text-gray-500`;
     }
-    return `${base} ${this.size() === 'lg' ? 'p-3' : 'p-2.5'}`;
+    return `${base} ${this.size() === 'lg' ? 'p-3.5' : 'p-3'}`;
   });
-
   onInput(event: Event): void {
     this.value.set((event.target as HTMLInputElement).value);
   }
-
   toggleVisibility(): void {
     this.visible.update((v) => !v);
   }

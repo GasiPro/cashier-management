@@ -1,5 +1,5 @@
 <section>
-  <div class="flex items-center gap-2 mb-4">
+  <div class="flex items-center gap-2 mb-5">
     <span class="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200
              px-2.5 py-1 rounded-full uppercase tracking-wide">
       Encaissées
@@ -9,28 +9,28 @@
   @if (totalCount() === 0) {
   <p class="text-sm text-gray-400 italic py-4">Aucun encaissement réalisé pour le moment.</p>
   } @else {
-  <div class="bg-white border border-gray-200 rounded-lg overflow-x-auto">
+  <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto">
     <table class="w-full text-sm min-w-[340px] table-auto">
       <thead>
         <tr class="border-b border-gray-100 bg-gray-50">
-          <th class="text-left px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide w-12">N°</th>
-          <th class="text-left px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide">Détails</th>
-          <th class="text-left px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide hidden sm:table-cell">Comptoir</th>
-          <th class="text-right px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide whitespace-nowrap">Montant</th>
-          <th class="text-right px-3 sm:px-4 py-2.5 text-xs text-gray-400 font-medium uppercase tracking-wide hidden sm:table-cell">Payé à</th>
+          <th class="text-left px-3 sm:px-4 py-3.5 text-xs text-gray-400 font-medium uppercase tracking-wide w-12">N°</th>
+          <th class="text-left px-3 sm:px-4 py-3.5 text-xs text-gray-400 font-medium uppercase tracking-wide">Détails</th>
+          <th class="text-left px-3 sm:px-4 py-3.5 text-xs text-gray-400 font-medium uppercase tracking-wide hidden sm:table-cell">Comptoir</th>
+          <th class="text-right px-3 sm:px-4 py-3.5 text-xs text-gray-400 font-medium uppercase tracking-wide whitespace-nowrap">Montant</th>
+          <th class="text-right px-3 sm:px-4 py-3.5 text-xs text-gray-400 font-medium uppercase tracking-wide hidden sm:table-cell">Payé à</th>
         </tr>
       </thead>
       <tbody>
         @for (group of groups(); track group.groupId) {
-        <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors cursor-pointer
+        <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors cursor-pointer
                    focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#1E3A5F]"
             tabindex="0"
             [attr.aria-label]="'Voir le détail de la commande ' + formatGroupId(group.groupId)"
             (click)="opened.emit(group)"
             (keydown.enter)="opened.emit(group)"
             (keydown.space)="$event.preventDefault(); opened.emit(group)">
-          <td class="px-3 sm:px-4 py-3 font-mono font-semibold text-gray-700 whitespace-nowrap">{{ formatGroupId(group.groupId) }}</td>
-          <td class="px-3 sm:px-4 py-3 text-gray-600 max-w-[140px] xs:max-w-xs md:max-w-md truncate">
+          <td class="px-3 sm:px-4 py-3.5 font-mono font-semibold text-gray-700 whitespace-nowrap">{{ formatGroupId(group.groupId) }}</td>
+          <td class="px-3 sm:px-4 py-3.5 text-gray-600 max-w-[140px] xs:max-w-xs md:max-w-md truncate">
             {{ getGroupItemsSummary(group) }}
             @if (groupHasDiscount(group)) {
             <span class="inline-flex items-center gap-1 ml-1 text-[10px] font-semibold text-amber-700
@@ -49,9 +49,9 @@
             </span>
             }
           </td>
-          <td class="px-3 sm:px-4 py-3 text-gray-500 hidden sm:table-cell whitespace-nowrap">{{ group.counterUsername }}</td>
-          <td class="px-3 sm:px-4 py-3 text-right font-semibold text-[#1A1A1A] tabular-nums whitespace-nowrap">{{ group.totalAmount | number:'1.0-0' }} Ar</td>
-          <td class="px-3 sm:px-4 py-3 text-right text-gray-400 hidden sm:table-cell whitespace-nowrap">{{ formatPaidLabel(group) }}</td>
+          <td class="px-3 sm:px-4 py-3.5 text-gray-500 hidden sm:table-cell whitespace-nowrap">{{ group.counterUsername }}</td>
+          <td class="px-3 sm:px-4 py-3.5 text-right font-semibold text-[#1A1A1A] tabular-nums whitespace-nowrap">{{ group.totalAmount | number:'1.0-0' }} Ar</td>
+          <td class="px-3 sm:px-4 py-3.5 text-right text-gray-400 hidden sm:table-cell whitespace-nowrap">{{ formatPaidLabel(group) }}</td>
         </tr>
         }
       </tbody>

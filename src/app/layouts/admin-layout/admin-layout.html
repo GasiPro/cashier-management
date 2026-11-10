@@ -1,12 +1,12 @@
 <div class="fixed inset-0 bg-white flex overflow-hidden">
     <aside class="w-64 shrink-0 border-r border-gray-200 h-full flex flex-col justify-between overflow-y-auto">
       <div>
-        <nav class="px-4 pt-5 pb-3">
+        <nav class="px-4 pt-6 pb-3">
           <a [routerLink]="homeRoute" [class]="navItemClass(homeRoute)">
             Accueil
           </a>
         </nav>
-        <nav class="px-4 pt-2 space-y-1">
+        <nav class="px-4 pt-2 space-y-1.5">
           @for (item of navItems; track item.id) {
           <a [routerLink]="item.route" [class]="navItemClass(item.route)">
             {{ item.label }}
@@ -19,7 +19,10 @@
           [attr.aria-expanded]="showMenu()" aria-haspopup="menu" aria-controls="admin-user-menu"
           class="w-full flex items-center justify-between text-sm text-gray-700 hover:text-gray-900
                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
-          <span class="truncate">{{ username }}</span>
+          <span class="flex items-center gap-2.5 min-w-0">
+            <span class="w-7 h-7 rounded-full bg-[#EFF4FA] text-[#1E3A5F] text-xs font-bold flex items-center justify-center shrink-0" aria-hidden="true">{{ username.charAt(0).toUpperCase() }}</span>
+            <span class="truncate">{{ username }}</span>
+          </span>
           <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
           </svg>
@@ -56,8 +59,8 @@
       </div>
     </div>
     <div class="flex-1 flex flex-col min-w-0 h-full">
-      <header class="flex items-center justify-between gap-3 px-6 py-4 border-b border-gray-200">
-        <h1 class="text-base font-semibold text-gray-800 shrink-0">Espace Admin</h1>
+      <header class="flex items-center justify-between gap-3 px-6 py-5 border-b border-gray-200">
+        <h1 class="text-lg font-bold tracking-tight text-gray-800 shrink-0">Espace Admin</h1>
         <div class="flex items-center justify-end gap-3 min-w-0 flex-1">
           @if (searchOpen()) {
           <div class="relative w-full max-w-xs sm:max-w-sm">
@@ -88,7 +91,7 @@
           }
         </div>
       </header>
-      <main class="flex-1 p-6 overflow-y-auto">
+      <main class="flex-1 p-8 overflow-y-auto">
         @if (searching()) {
         <section aria-label="Résultats de recherche" class="max-w-3xl mx-auto">
           @if (searchResults().length > 0) {

@@ -1,13 +1,13 @@
 <div class="bg-[#FAFAFA] min-h-screen flex flex-col">
-  <header class="px-6 py-5 border-b border-gray-200">
+  <header class="px-6 py-6 border-b border-gray-200">
     <div class="max-w-md mx-auto flex items-center gap-3">
-      <div class="w-7 h-7 bg-[#1E3A5F] rounded-sm flex items-center justify-center">
-        <span class="text-white text-xs font-bold">G</span>
+      <div class="w-9 h-9 bg-[#1E3A5F] rounded-lg shadow-sm flex items-center justify-center">
+        <span class="text-white text-sm font-bold">G</span>
       </div>
-      <span class="text-sm font-semibold tracking-wide text-gray-800">GasiPro</span>
+      <span class="text-lg font-bold tracking-tight text-gray-800">GasiPro</span>
     </div>
   </header>
-  <main class="flex-1 flex items-center justify-center px-4 py-12">
+  <main class="flex-1 flex items-center justify-center px-4 py-16">
     <div class="w-full max-w-md">
       @if (step() === 'role') {
       <app-role-picker (selectCashier)="selectCashier()" (selectCounter)="selectCounter()" />

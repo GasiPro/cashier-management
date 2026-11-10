@@ -6,6 +6,9 @@
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
       color-scheme: light;
@@ -16,6 +19,16 @@
       --color-gray-100: #E7E3DB;
       --color-gray-200: #DAD6CC;
       --color-gray-300: #CBC6BB;
+      /* Nunito + a slightly firmer weight scale so hierarchy stays clear with a rounder font. */
+      --font-sans: "Nunito", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      --font-weight-medium: 600;
+      --font-weight-semibold: 700;
+      --font-weight-bold: 800;
+      /* Softer, roomier corners. */
+      --radius-md: 0.5rem;
+      --radius-lg: 0.75rem;
+      --radius-xl: 1rem;
+      --radius-2xl: 1.25rem;
     }
     /* Page background used by the screens (bg-[#FAFAFA]) */
     .bg-\[\#FAFAFA\] {
@@ -71,7 +84,7 @@
       overscroll-behavior: none;
     }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Roboto, Arial, sans-serif;
+      font-family: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Roboto, Arial, sans-serif;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
       text-rendering: optimizeLegibility;
@@ -79,6 +92,12 @@
       text-size-adjust: 100%;
       -webkit-tap-highlight-color: transparent;
       cursor: default;
+    }
+    h1, h2, h3 {
+      letter-spacing: -0.01em;
+    }
+    ::selection {
+      background-color: rgba(30, 58, 95, 0.18);
     }
     /* Native apps don't let you drag-select arbitrary chrome (menus, labels,
        buttons) the way a web page does — but text you'd actually want to
