@@ -1,5 +1,5 @@
-<div class="fixed inset-0 bg-white flex overflow-hidden">
-    <aside class="w-64 shrink-0 border-r border-gray-200 h-full flex flex-col justify-between overflow-y-auto">
+<div class="fixed inset-0 bg-[#FAFAFA] flex overflow-hidden">
+    <aside class="w-64 shrink-0 bg-white border-r border-gray-200 h-full flex flex-col justify-between overflow-y-auto">
       <div>
         <nav class="px-4 pt-6 pb-3">
           <a [routerLink]="homeRoute" [class]="navItemClass(homeRoute)">
@@ -60,7 +60,7 @@
       </div>
     </div>
     <div class="flex-1 flex flex-col min-w-0 h-full">
-      <header class="flex items-center justify-between gap-3 px-6 py-5 border-b border-gray-200">
+      <header class="flex items-center justify-between gap-3 px-6 py-5 bg-white border-b border-gray-200">
         <h1 class="text-lg font-bold tracking-tight text-gray-800 shrink-0">Espace Admin</h1>
         <div class="flex items-center justify-end gap-3 min-w-0 flex-1">
           @if (searchOpen()) {
