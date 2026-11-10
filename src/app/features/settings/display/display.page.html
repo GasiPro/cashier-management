@@ -1,9 +1,32 @@
+@if (isAdmin) {
+<div class="max-w-3xl mx-auto">
+  <a routerLink="/admin/reglages" aria-label="Retour"
+    class="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors mb-4
+           focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+    </svg>
+    Retour
+  </a>
+  <div class="space-y-6">
+    <ng-container *ngTemplateOutlet="content"></ng-container>
+  </div>
+</div>
+} @else {
 <div class="bg-[#FAFAFA] h-screen overflow-hidden flex">
   <app-left-sidebar></app-left-sidebar>
   <div class="flex-1 min-w-0 h-screen overflow-hidden flex flex-col">
   <app-navbar role="cashier" [displayLabel]="displayLabel" [currentTime]="currentTime()" [showMenuButton]="false" [showBackButton]="true"></app-navbar>
   <main class="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-6">
     <div class="max-w-3xl mx-auto space-y-6">
+      <ng-container *ngTemplateOutlet="content"></ng-container>
+    </div>
+  </main>
+  <app-bottom-bar role="cashier"></app-bottom-bar>
+  </div>
+</div>
+}
+<ng-template #content>
       @if (loading()) {
       <p class="text-sm text-gray-400 italic py-4">Chargement…</p>
       } @else {
@@ -137,8 +160,4 @@
         {{ statusMessage() }}
       </p>
       }
-    </div>
-  </main>
-  <app-bottom-bar role="cashier"></app-bottom-bar>
-  </div>
-</div>
+</ng-template>

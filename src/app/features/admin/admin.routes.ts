@@ -34,6 +34,14 @@ export const ADMIN_ROUTES: Routes = [
         loadComponent: () => import('./profile/profile.page').then((m) => m.AdminProfilePage),
       },
       {
+        path: 'reglages',
+        loadComponent: () => import('./settings/settings.page').then((m) => m.AdminSettingsPage),
+      },
+      {
+        path: 'affichage',
+        loadComponent: () => import('../settings/display/display.page').then((m) => m.DisplayPage),
+      },
+      {
         path: 'mise-a-jour',
         loadComponent: () => import('./update/update.page').then((m) => m.UpdatePage),
       },

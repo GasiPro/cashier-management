@@ -1,7 +1,8 @@
-import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
+import { SessionStore } from '../../../core/auth/session.store';
 import { getStoredDisplayName, getStoredUsername } from '../../../core/storage/local-storage';
 import { errorMessage } from '../../../core/error/error-messages';
 import {
@@ -25,13 +26,15 @@ import { Navbar } from '../../../layouts/main-layout/navbar/navbar';
 @Component({
   selector: 'app-display-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule, Navbar, LeftSidebar, BottomBar],
+  imports: [CommonModule, FormsModule, RouterLink, Navbar, LeftSidebar, BottomBar],
   templateUrl: './display.page.html'
 })
 export class DisplayPage implements OnInit, OnDestroy {
   readonly minFontSize = MIN_FONT_SIZE;
   readonly maxFontSize = MAX_FONT_SIZE;
   readonly themeChoices = THEME_CHOICES;
+  /** Admin sees these settings inside the admin layout, without the cashier/counter chrome. */
+  readonly isAdmin = inject(SessionStore).role() === 'admin';
   username = getStoredUsername() ?? 'Caisse';
   private displayName = getStoredDisplayName() ?? '';
   /** Name shown in the navbar — the account display name when one exists, otherwise the username. */

@@ -112,6 +112,16 @@ const SEARCH_PAGES: SearchPage[] = [
     items: ['Version actuelle', 'Vérifier les mises à jour', 'Nouvelle version disponible', 'Mettre à jour'],
   },
   {
+    label: 'Réglages',
+    route: 'reglages',
+    items: [],
+  },
+  {
+    label: 'Affichage',
+    route: 'affichage',
+    items: ['Thème', 'Couleur de fond', 'Taille de police'],
+  },
+  {
     label: 'Profil',
     route: 'profil',
     items: ["Nom d'utilisateur", 'Nom affiché', 'Nouveau mot de passe', 'Confirmer le nouveau mot de passe'],
@@ -121,7 +131,6 @@ const ENTRIES = SEARCH_PAGES.flatMap((page) => [
   { label: page.label, page: PAGE_TAG, route: page.route },
   ...page.items.map((label) => ({ label, page: page.label, route: page.route })),
 ]);
-/** Lower-cases and strips accents one character at a time, so indexes still match the original text. */
 function fold(value: string): string {
   return value
     .split('')
@@ -140,7 +149,6 @@ function highlight(label: string, needle: string): SearchSegment[] {
   if (from < label.length) segments.push({ text: label.slice(from), match: false });
   return segments;
 }
-/** Every entry whose text includes the query (case and accent insensitive), in index order. */
 export function searchAdmin(query: string): SearchResult[] {
   const needle = fold(query.trim());
   if (!needle) return [];
