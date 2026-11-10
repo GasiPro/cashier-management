@@ -26,22 +26,33 @@
         <h1 class="text-3xl font-semibold leading-snug text-[#1A1A1A] mb-3">Nous vous souhaitons la bienvenue,</h1>
         <p class="text-base text-gray-500">veuillez insérer votre clé de produit</p>
       </div>
-      <input
-        type="text"
-        name="productKey"
-        autocomplete="off"
-        spellcheck="false"
-        maxlength="19"
-        placeholder="XXXX-XXXX-XXXX-XXXX"
-        [value]="productKey()"
-        (input)="onInput($event)"
-        [attr.aria-invalid]="error() ? true : null"
-        class="w-full border border-gray-200 rounded-lg px-5 py-4 text-base font-mono tracking-widest text-center text-[#1A1A1A]
-               focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+      <div class="flex items-center gap-2 sm:gap-3" role="group" aria-label="Clé de produit">
+        @for (i of segmentIndexes; track i) {
+        <input
+          type="text"
+          [id]="'key-seg-' + i"
+          [name]="'productKey' + i"
+          autocomplete="off"
+          spellcheck="false"
+          maxlength="4"
+          placeholder="XXXX"
+          [value]="segments()[i]"
+          (input)="onSegmentInput(i, $event)"
+          (keydown)="onSegmentKeydown(i, $event)"
+          (paste)="onPaste($event)"
+          [attr.aria-label]="'Clé de produit, groupe ' + (i + 1) + ' sur 4'"
+          [attr.aria-invalid]="error() ? true : null"
+          class="flex-1 min-w-0 border border-gray-200 rounded-lg px-2 py-4 text-base font-mono tracking-widest text-center text-[#1A1A1A]
+                 focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+        @if (i < segmentIndexes.length - 1) {
+        <span class="text-xl text-gray-300 select-none" aria-hidden="true">-</span>
+        }
+        }
+      </div>
       <p role="alert" aria-live="assertive" class="text-sm text-red-600 mt-3 min-h-6 text-center">{{ error() }}</p>
       <button
         type="submit"
-        [disabled]="checking() || !productKey().trim()"
+        [disabled]="checking() || !isKeyComplete()"
         class="w-full mt-6 bg-[#1E3A5F] text-white text-base font-semibold py-4 rounded-lg
                hover:bg-[#16304f] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">

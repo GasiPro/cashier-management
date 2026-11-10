@@ -1,9 +1,15 @@
-import { Component, OnDestroy, signal } from '@angular/core';
+import { Component, OnDestroy, computed, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { activate } from '../../data/settings/settings.api';
 const LAUNCH_MIN_DELAY_MS = 6000;
 const CONTACT_EMAIL = 'fanambynana@duck.com';
 const CONTACT_CLOSE_DELAY_MS = 10_000;
+const KEY_SEGMENT_COUNT = 4;
+const KEY_SEGMENT_LEN = 4;
+/** Keeps only letters and digits, upper-cased, so a typed or pasted "-" is never part of a segment. */
+function cleanKey(value: string): string {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
 @Component({
   selector: 'app-activation',
   standalone: true,
@@ -11,7 +17,11 @@ const CONTACT_CLOSE_DELAY_MS = 10_000;
 })
 export class ActivationPage implements OnDestroy {
   readonly contactEmail = CONTACT_EMAIL;
-  readonly productKey = signal('');
+  readonly segmentIndexes = Array.from({ length: KEY_SEGMENT_COUNT }, (_, i) => i);
+  readonly segments = signal<string[]>(this.segmentIndexes.map(() => ''));
+  /** Full key in the XXXX-XXXX-XXXX-XXXX form expected by the backend; the dashes are added here, never typed. */
+  readonly productKey = computed(() => this.segments().join('-'));
+  readonly isKeyComplete = computed(() => this.segments().every((s) => s.length === KEY_SEGMENT_LEN));
   readonly error = signal('');
   readonly checking = signal(false);
   readonly launching = signal(false);
@@ -22,9 +32,33 @@ export class ActivationPage implements OnDestroy {
   ngOnDestroy(): void {
     this.clearContactTimer();
   }
-  onInput(event: Event): void {
-    this.productKey.set((event.target as HTMLInputElement).value.toUpperCase());
+  onSegmentInput(index: number, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const value = cleanKey(input.value).slice(0, KEY_SEGMENT_LEN);
+    input.value = value;
+    this.segments.update((list) => list.map((s, i) => (i === index ? value : s)));
     this.error.set('');
+    if (value.length === KEY_SEGMENT_LEN && index < KEY_SEGMENT_COUNT - 1) {
+      this.focusSegment(index + 1);
+    }
+  }
+  onSegmentKeydown(index: number, event: KeyboardEvent): void {
+    if (event.key === 'Backspace' && index > 0 && (event.target as HTMLInputElement).value === '') {
+      event.preventDefault();
+      this.focusSegment(index - 1);
+    }
+  }
+  /** A pasted key (with or without dashes) is spread over the four segments. */
+  onPaste(event: ClipboardEvent): void {
+    event.preventDefault();
+    const text = cleanKey(event.clipboardData?.getData('text') ?? '').slice(0, KEY_SEGMENT_COUNT * KEY_SEGMENT_LEN);
+    if (!text) return;
+    this.segments.set(this.segmentIndexes.map((i) => text.slice(i * KEY_SEGMENT_LEN, (i + 1) * KEY_SEGMENT_LEN)));
+    this.error.set('');
+    this.focusSegment(Math.min(Math.floor(text.length / KEY_SEGMENT_LEN), KEY_SEGMENT_COUNT - 1));
+  }
+  private focusSegment(index: number): void {
+    document.getElementById(`key-seg-${index}`)?.focus();
   }
   /** Opens the contact message and (re)starts its auto-close countdown. */
   requestKey(): void {
@@ -43,7 +77,7 @@ export class ActivationPage implements OnDestroy {
   }
   async submit(event: Event): Promise<void> {
     event.preventDefault();
-    if (this.checking()) return;
+    if (this.checking() || !this.isKeyComplete()) return;
     this.checking.set(true);
     this.error.set('');
     try {
