@@ -119,6 +119,7 @@ impl OrderService {
                     paid_at: None,
                     observation: item.observation.clone(),
                     raison: None,
+                    handled_by: None,
                 });
                 state.next_id += 1;
             }
@@ -126,17 +127,30 @@ impl OrderService {
         })?;
         Ok(created_group_id)
     }
-    pub fn mark_group_as_paid(&self, group_id: i64) -> Result<(), String> {
+    pub fn mark_group_as_paid(
+        &self,
+        group_id: i64,
+        handled_by: Option<String>,
+    ) -> Result<(), String> {
         let paid_at = Utc::now().to_rfc3339();
+        let handled_by = clean_handler(handled_by);
         self.update_pending_group(group_id, |order| {
             order.status = OrderStatus::Paye;
             order.paid_at = Some(paid_at.clone());
+            order.handled_by = handled_by.clone();
         })
     }
-    pub fn reject_group(&self, group_id: i64, raison: Option<String>) -> Result<(), String> {
+    pub fn reject_group(
+        &self,
+        group_id: i64,
+        raison: Option<String>,
+        handled_by: Option<String>,
+    ) -> Result<(), String> {
+        let handled_by = clean_handler(handled_by);
         self.update_pending_group(group_id, |order| {
             order.status = OrderStatus::Rejetee;
             order.raison = raison.clone();
+            order.handled_by = handled_by.clone();
         })
     }
     pub fn update_order(
@@ -254,6 +268,11 @@ impl OrderService {
         }
         Ok(())
     }
+}
+fn clean_handler(handled_by: Option<String>) -> Option<String> {
+    handled_by
+        .map(|name| name.trim().to_string())
+        .filter(|name| !name.is_empty())
 }
 fn is_owned_by(order: &Order, owner: Option<&str>) -> bool {
     owner.map_or(true, |name| order.counter_username == name)

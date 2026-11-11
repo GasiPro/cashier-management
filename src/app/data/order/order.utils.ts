@@ -19,6 +19,7 @@ export function buildGroups(orders: OrderLine[]): OrderGroup[] {
       counterUsername: lines[0].counter_username,
       observation: lines[0].observation,
       raison: lines[0].raison,
+      handledBy: lines[0].handled_by ?? null,
     });
   }
   return groups.sort((a, b) => b.groupId - a.groupId);

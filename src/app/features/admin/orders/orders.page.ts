@@ -1,4 +1,4 @@
-import { Component, signal, computed, inject } from '@angular/core';
+import { Component, OnDestroy, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { errorMessage } from '../../../core/error/error-messages';
@@ -6,6 +6,7 @@ import * as orderApi from '../../../data/order/order.api';
 import { OrderStore } from '../../../data/order/order.store';
 import { OrderGroup, OrderLine } from '../../../data/order/order.model';
 import { buildGroups, formatGroupId, getGroupItemsSummary } from '../../../data/order/order.utils';
+import { startOfDay } from '../../../shared/utils/date';
 type StatusFilter = 'all' | OrderLine['status'];
 type SortKey = 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc';
 @Component({
@@ -14,7 +15,7 @@ type SortKey = 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc';
   imports: [CommonModule, FormsModule],
   templateUrl: './orders.page.html'
 })
-export class OrdersPage {
+export class OrdersPage implements OnDestroy {
   private readonly orderStore = inject(OrderStore);
   readonly wsConnected = this.orderStore.wsConnected;
   orderStatusMessage = signal('');
@@ -39,7 +40,44 @@ export class OrdersPage {
       this.markingPaidGroupId.set(null);
     }
   }
-  readonly groups = computed<OrderGroup[]>(() => buildGroups(this.orderStore.orders()));
+  private readonly todayStart = signal(startOfDay(new Date()));
+  private midnightTimer: ReturnType<typeof setTimeout> | null = null;
+  constructor() {
+    this.scheduleMidnight();
+  }
+  ngOnDestroy(): void {
+    if (this.midnightTimer) clearTimeout(this.midnightTimer);
+  }
+  private scheduleMidnight(): void {
+    const now = new Date();
+    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+    this.midnightTimer = setTimeout(() => {
+      this.todayStart.set(startOfDay(new Date()));
+      this.scheduleMidnight();
+    }, nextMidnight - now.getTime() + 1000);
+  }
+  showArchive = signal(false);
+  toggleArchive(): void {
+    this.showArchive.update((value) => !value);
+    this.expandedGroupId.set(null);
+    this.confirmingRejectGroupId.set(null);
+    this.resetFilters();
+  }
+  referenceTime(group: OrderGroup): string {
+    return group.status === 'PAYE' && group.paidAt ? group.paidAt : group.createdAt;
+  }
+  private isArchived(group: OrderGroup): boolean {
+    return (
+      group.status !== 'EN_ATTENTE' &&
+      new Date(this.referenceTime(group)).getTime() < this.todayStart()
+    );
+  }
+  private readonly allGroups = computed<OrderGroup[]>(() => buildGroups(this.orderStore.orders()));
+  readonly archiveCount = computed(() => this.allGroups().filter((g) => this.isArchived(g)).length);
+  readonly groups = computed<OrderGroup[]>(() => {
+    const archive = this.showArchive();
+    return this.allGroups().filter((g) => this.isArchived(g) === archive);
+  });
   readonly totalCount = computed(() => this.groups().length);
   readonly paidCount = computed(() => this.groups().filter((g) => g.status === 'PAYE').length);
   readonly pendingCount = computed(() => this.groups().filter((g) => g.status === 'EN_ATTENTE').length);

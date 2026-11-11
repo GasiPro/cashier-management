@@ -15,10 +15,12 @@ pub enum OrderCommand {
     },
     GroupMarkPaid {
         group_id: i64,
+        handled_by: Option<String>,
     },
     GroupReject {
         group_id: i64,
         raison: Option<String>,
+        handled_by: Option<String>,
     },
 }
 async fn broadcast_orders(state: &AppState) {
@@ -42,13 +44,20 @@ pub async fn order(
             broadcast_orders(&state).await;
             Ok(serde_json::Value::Null)
         }
-        OrderCommand::GroupMarkPaid { group_id } => {
-            orders.mark_group_as_paid(group_id)?;
+        OrderCommand::GroupMarkPaid {
+            group_id,
+            handled_by,
+        } => {
+            orders.mark_group_as_paid(group_id, handled_by)?;
             broadcast_orders(&state).await;
             Ok(serde_json::Value::Null)
         }
-        OrderCommand::GroupReject { group_id, raison } => {
-            orders.reject_group(group_id, raison)?;
+        OrderCommand::GroupReject {
+            group_id,
+            raison,
+            handled_by,
+        } => {
+            orders.reject_group(group_id, raison, handled_by)?;
             broadcast_orders(&state).await;
             Ok(serde_json::Value::Null)
         }

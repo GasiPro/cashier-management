@@ -1,5 +1,4 @@
 export type OrderStatus = 'EN_ATTENTE' | 'PAYE' | 'REJETEE';
-
 export interface OrderLine {
   id: number;
   group_id: number;
@@ -14,8 +13,8 @@ export interface OrderLine {
   paid_at: string | null;
   observation: string;
   raison: string | null;
+  handled_by: string | null;
 }
-
 export interface OrderGroup {
   groupId: number;
   lines: OrderLine[];
@@ -27,4 +26,5 @@ export interface OrderGroup {
   counterUsername: string;
   observation: string;
   raison: string | null;
+  handledBy: string | null;
 }

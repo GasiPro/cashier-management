@@ -26,6 +26,8 @@ pub struct Order {
     pub observation: String,
     #[serde(default)]
     pub raison: Option<String>,
+    #[serde(default)]
+    pub handled_by: Option<String>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CartItem {
