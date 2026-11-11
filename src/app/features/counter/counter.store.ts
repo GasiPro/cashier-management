@@ -198,8 +198,6 @@ export class CounterStore {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     this.closeSubscription?.unsubscribe();
-    // Plain disconnect (no counter_logout): the cashier keeps trusting this counter,
-    // so coming back from settings reconnects without a new approval.
     this.ws.disconnect();
   }
   private leaveCashier(): void {
@@ -413,6 +411,9 @@ export class CounterStore {
   private applyPricing(services: ServiceItem[]): void {
     this.allServices.set(services);
     this.extractCategories();
+    if (this.activeCategory !== 'Tous' && !this.categories().includes(this.activeCategory)) {
+      this.activeCategory = 'Tous';
+    }
   }
   envoyerCommande(): void {
     if (this.cart.length === 0) return;
@@ -556,6 +557,7 @@ export class CounterStore {
   }
   get filteredServices(): ServiceItem[] {
     return this.allServices().filter((s) => {
+      if (!s.available) return false;
       const matchType = this.activeTypeFilter === 'tous' || s.type === this.activeTypeFilter;
       const matchCat  = this.activeCategory   === 'Tous' || s.category === this.activeCategory;
       return matchType && matchCat;
@@ -583,6 +585,7 @@ export class CounterStore {
   }
   private extractCategories(): void {
     const raw = this.allServices()
+      .filter((s) => s.available)
       .filter((s) => this.activeTypeFilter === 'tous' || s.type === this.activeTypeFilter)
       .map((s) => s.category);
     this.categories.set(Array.from(new Set(raw)));

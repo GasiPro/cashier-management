@@ -1,17 +1,17 @@
 import { ipcInvoke } from '../../core/ipc/tauri-ipc';
 import type { PricingItemType, ServiceItem } from './pricing.model';
-
 export interface PricingItemInput {
   label: string;
   category: string;
   price: number;
   item_type: PricingItemType;
 }
-
+export interface PricingItemUpdateInput extends PricingItemInput {
+  available: boolean;
+}
 export function getPricingMatrix(): Promise<ServiceItem[]> {
   return ipcInvoke<ServiceItem[]>('pricing', { method: 'get_matrix' });
 }
-
 export function createPricingItem(input: PricingItemInput): Promise<ServiceItem> {
   return ipcInvoke<ServiceItem>('pricing', {
     method: 'item_create',
@@ -21,8 +21,7 @@ export function createPricingItem(input: PricingItemInput): Promise<ServiceItem>
     item_type: input.item_type,
   });
 }
-
-export function updatePricingItem(id: string, input: PricingItemInput): Promise<ServiceItem> {
+export function updatePricingItem(id: string, input: PricingItemUpdateInput): Promise<ServiceItem> {
   return ipcInvoke<ServiceItem>('pricing', {
     method: 'item_update',
     id,
@@ -30,9 +29,9 @@ export function updatePricingItem(id: string, input: PricingItemInput): Promise<
     category: input.category,
     price: input.price,
     item_type: input.item_type,
+    available: input.available,
   });
 }
-
 export function deletePricingItem(id: string): Promise<void> {
   return ipcInvoke<void>('pricing', { method: 'item_delete', id });
 }

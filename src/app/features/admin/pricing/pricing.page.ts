@@ -16,6 +16,14 @@ const TYPE_OPTIONS: TypeOption[] = [
   { value: 'service', label: 'Service' },
   { value: 'product', label: 'Produit' },
 ];
+interface AvailabilityOption {
+  value: boolean;
+  label: string;
+}
+const AVAILABILITY_OPTIONS: AvailabilityOption[] = [
+  { value: true, label: 'Disponible' },
+  { value: false, label: 'Indisponible' },
+];
 @Component({
   selector: 'app-admin-pricing',
   standalone: true,
@@ -26,6 +34,7 @@ export class PricingPage implements OnInit {
   readonly maxLabelLen = MAX_LABEL_LEN;
   readonly maxCategoryLen = MAX_CATEGORY_LEN;
   readonly typeOptions = TYPE_OPTIONS;
+  readonly availabilityOptions = AVAILABILITY_OPTIONS;
   @ViewChild('newItemLabelInput') private newItemLabelInput?: ElementRef<HTMLInputElement>;
   items = signal<ServiceItem[]>([]);
   loadingItems = signal(true);
@@ -57,10 +66,27 @@ export class PricingPage implements OnInit {
     const set = new Set(this.items().map((i) => i.category).filter((c) => c.trim().length > 0));
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'fr'));
   });
+  /** Categories of the items matching the active type filter ("Tous" shows every category). */
+  readonly visibleCategories = computed<string[]>(() => {
+    const type = this.typeFilter();
+    const set = new Set(
+      this.items()
+        .filter((i) => type === 'all' || i.type === type)
+        .map((i) => i.category)
+        .filter((c) => c.trim().length > 0),
+    );
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'fr'));
+  });
+  /** The selected category, or 'all' when it no longer exists under the active type. */
+  private readonly effectiveCategory = computed<string>(() => {
+    const category = this.categoryFilter();
+    return category === 'all' || this.visibleCategories().includes(category) ? category : 'all';
+  });
   readonly serviceCount = computed(() => this.items().filter((i) => i.type === 'service').length);
   readonly productCount = computed(() => this.items().filter((i) => i.type === 'product').length);
   setTypeFilter(type: TypeFilter): void {
     this.typeFilter.set(type);
+    this.categoryFilter.set('all');
   }
   isTypeFilterActive(type: TypeFilter): boolean {
     return this.typeFilter() === type;
@@ -69,10 +95,10 @@ export class PricingPage implements OnInit {
     this.categoryFilter.set(category);
   }
   isCategoryFilterActive(category: string): boolean {
-    return this.categoryFilter() === category;
+    return this.effectiveCategory() === category;
   }
   readonly filtersActive = computed(
-    () => this.typeFilter() !== 'all' || this.categoryFilter() !== 'all' || this.searchTerm().trim().length > 0,
+    () => this.typeFilter() !== 'all' || this.effectiveCategory() !== 'all' || this.searchTerm().trim().length > 0,
   );
   resetFilters(): void {
     this.typeFilter.set('all');
@@ -81,7 +107,7 @@ export class PricingPage implements OnInit {
   }
   readonly filteredItems = computed<ServiceItem[]>(() => {
     const type = this.typeFilter();
-    const category = this.categoryFilter();
+    const category = this.effectiveCategory();
     const term = this.searchTerm().trim().toLowerCase();
     const sort = this.sortKey();
     const list = this.items().filter((item) => {
@@ -106,6 +132,15 @@ export class PricingPage implements OnInit {
       }
     });
   });
+  async copyId(id: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(id);
+      this.setItemStatus(`ID « ${id} » copié.`, false);
+    } catch (e) {
+      console.error('copy id failed', e);
+      this.setItemStatus("Impossible de copier l'ID.", true);
+    }
+  }
   typeLabel(type: PricingItemType): string {
     return type === 'service' ? 'Service' : 'Produit';
   }
@@ -225,6 +260,7 @@ export class PricingPage implements OnInit {
   editCategory = signal('');
   editPrice = signal<number | null>(null);
   editType = signal<PricingItemType>('service');
+  editAvailable = signal(true);
   savingItem = signal(false);
   editItemError = signal('');
   startEditItem(item: ServiceItem): void {
@@ -234,6 +270,7 @@ export class PricingPage implements OnInit {
     this.editCategory.set(item.category);
     this.editPrice.set(item.price);
     this.editType.set(item.type);
+    this.editAvailable.set(item.available);
     this.editItemError.set('');
     // Move focus into the panel once it's rendered, so keyboard/screen-reader
     setTimeout(() => {
@@ -249,6 +286,9 @@ export class PricingPage implements OnInit {
   }
   setEditType(type: PricingItemType): void {
     this.editType.set(type);
+  }
+  setEditAvailable(available: boolean): void {
+    this.editAvailable.set(available);
   }
   canSubmitEditItem = computed(() => {
     if (this.savingItem()) return false;
@@ -280,6 +320,7 @@ export class PricingPage implements OnInit {
         category,
         price,
         item_type: this.editType(),
+        available: this.editAvailable(),
       });
       this.items.update((list) => list.map((i) => (i.id === updated.id ? updated : i)));
       this.editingId.set(null);

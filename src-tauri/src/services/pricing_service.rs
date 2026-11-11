@@ -4,9 +4,7 @@ use crate::models::pricing::{ServiceItem, ServiceItemType};
 use crate::repositories::pricing_repository;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
-
 pub type PricingStore = Arc<SyncMutex<Vec<ServiceItem>>>;
-
 pub fn load_or_bootstrap(app: &AppHandle) -> Vec<ServiceItem> {
     if let Some(items) = pricing_repository::load(app) {
         return items;
@@ -15,11 +13,9 @@ pub fn load_or_bootstrap(app: &AppHandle) -> Vec<ServiceItem> {
     let _ = pricing_repository::save(app, &items);
     items
 }
-
 pub fn get_pricing_matrix(pricing: &PricingStore) -> Vec<ServiceItem> {
     pricing.lock().unwrap().clone()
 }
-
 pub async fn create_pricing_item(
     app: &AppHandle,
     pricing: &PricingStore,
@@ -37,6 +33,7 @@ pub async fn create_pricing_item(
         category,
         label,
         price,
+        available: true,
     };
     guard.push(item.clone());
     if let Err(err) = pricing_repository::save(app, &guard) {
@@ -45,7 +42,6 @@ pub async fn create_pricing_item(
     }
     Ok((item, guard.clone()))
 }
-
 pub async fn update_pricing_item(
     app: &AppHandle,
     pricing: &PricingStore,
@@ -54,6 +50,7 @@ pub async fn update_pricing_item(
     label: Option<String>,
     price: Option<u32>,
     item_type: Option<ServiceItemType>,
+    available: Option<bool>,
 ) -> Result<(ServiceItem, Vec<ServiceItem>), String> {
     let category = match category {
         Some(c) => Some(validate_category(&c)?),
@@ -78,6 +75,9 @@ pub async fn update_pricing_item(
     if let Some(item_type) = item_type {
         item.item_type = item_type;
     }
+    if let Some(available) = available {
+        item.available = available;
+    }
     let updated = item.clone();
     if let Err(err) = pricing_repository::save(app, &guard) {
         if let Some(item) = find_item_mut(&mut guard, &id) {
@@ -87,7 +87,6 @@ pub async fn update_pricing_item(
     }
     Ok((updated, guard.clone()))
 }
-
 pub async fn delete_pricing_item(
     app: &AppHandle,
     pricing: &PricingStore,

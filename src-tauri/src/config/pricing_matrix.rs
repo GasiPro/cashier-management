@@ -1,11 +1,9 @@
 use crate::models::pricing::{ServiceItem as PricingItem, ServiceItemType as PricingItemType};
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServiceItemType {
     Service,
     Product,
 }
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceItem {
     pub id: &'static str,
@@ -14,7 +12,6 @@ pub struct ServiceItem {
     pub price: u32,
     pub item_type: ServiceItemType,
 }
-
 pub const PRICING_MATRIX: &[ServiceItem] = &[
     ServiceItem {
         id: "pca3nb",
@@ -339,7 +336,6 @@ pub const PRICING_MATRIX: &[ServiceItem] = &[
         item_type: ServiceItemType::Product,
     },
 ];
-
 pub fn default_items() -> Vec<PricingItem> {
     PRICING_MATRIX
         .iter()
@@ -352,6 +348,7 @@ pub fn default_items() -> Vec<PricingItem> {
             category: item.category.to_string(),
             label: item.label.to_string(),
             price: item.price,
+            available: true,
         })
         .collect()
 }

@@ -21,6 +21,7 @@ pub enum PricingCommand {
         label: Option<String>,
         price: Option<u32>,
         item_type: Option<ServiceItemType>,
+        available: Option<bool>,
     },
     ItemDelete {
         id: String,
@@ -60,6 +61,7 @@ pub async fn pricing(
             label,
             price,
             item_type,
+            available,
         } => {
             let (updated, snapshot) = pricing_service::update_pricing_item(
                 &app,
@@ -69,6 +71,7 @@ pub async fn pricing(
                 label,
                 price,
                 item_type,
+                available,
             )
             .await?;
             broadcast_to_approved(&state.peers, &ServerMessage::Pricing { data: snapshot }).await;
