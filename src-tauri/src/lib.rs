@@ -6,16 +6,20 @@ pub mod infrastructure;
 pub mod models;
 pub mod repositories;
 pub mod services;
+
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tokio::sync::Mutex;
+
 use app::AppState;
 use config::rate_limit;
 use config::setting_config::DEFAULT_MAX_CONNECTED_DEVICES;
 use infrastructure::splash;
 use infrastructure::websocket::{self, WsContext};
 use services::order_service::OrderService;
-use services::{account_service, connection_service, pricing_service, setting_service};
+use services::report_service::ReportStore;
+use services::{account_service, connection_service, pricing_service, report_service, setting_service};
+
 pub fn run() {
     let ctx = WsContext {
         order_service: Arc::new(OrderService::new()),
@@ -29,6 +33,7 @@ pub fn run() {
         sessions: Arc::new(SyncMutex::new(HashMap::new())),
         connection_attempts: rate_limit::new_tracker(),
     };
+    let reports: ReportStore = Arc::new(SyncMutex::new(Vec::new()));
     let state = AppState {
         order_service: ctx.order_service.clone(),
         peers: ctx.peers.clone(),
@@ -37,9 +42,11 @@ pub fn run() {
         blacklist: ctx.blacklist.clone(),
         connection_history: ctx.connection_history.clone(),
         pricing: ctx.pricing.clone(),
+        reports: reports.clone(),
         sessions: ctx.sessions.clone(),
         auth_attempts: rate_limit::new_tracker(),
     };
+
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -60,6 +67,7 @@ pub fn run() {
             *ctx.blacklist.lock().unwrap() = connection_service::load_blacklist(handle);
             *ctx.connection_history.lock().unwrap() = connection_service::load_history(handle);
             *ctx.pricing.lock().unwrap() = pricing_service::load_or_bootstrap(handle);
+            *reports.lock().unwrap() = report_service::load(handle);
             ctx.order_service.load(handle);
             *ctx.app_handle.lock().unwrap() = Some(handle.clone());
             websocket::start_clock(ctx.peers.clone());
@@ -71,6 +79,7 @@ pub fn run() {
             commands::server_command::server,
             commands::pricing_command::pricing,
             commands::order_command::order,
+            commands::report_command::report,
             commands::setting_command::settings,
             commands::auth_command::auth,
             commands::account_command::account,

@@ -3,6 +3,7 @@ pub mod auth_command;
 pub mod file_command;
 pub mod order_command;
 pub mod pricing_command;
+pub mod report_command;
 pub mod server_command;
 pub mod setting_command;
 pub mod splash_command;

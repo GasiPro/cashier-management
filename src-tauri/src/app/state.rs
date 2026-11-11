@@ -5,8 +5,10 @@ use crate::services::account_service::Accounts;
 use crate::services::connection_service::{Blacklist, ConnectionHistory};
 use crate::services::order_service::OrderService;
 use crate::services::pricing_service::PricingStore;
+use crate::services::report_service::ReportStore;
 use crate::services::setting_service::MaxConnectedDevices;
 use std::sync::Arc;
+
 pub struct AppState {
     pub order_service: Arc<OrderService>,
     pub peers: PeerMap,
@@ -15,6 +17,7 @@ pub struct AppState {
     pub blacklist: Blacklist,
     pub connection_history: ConnectionHistory,
     pub pricing: PricingStore,
+    pub reports: ReportStore,
     pub sessions: Sessions,
     pub(crate) auth_attempts: AttemptTracker,
 }
