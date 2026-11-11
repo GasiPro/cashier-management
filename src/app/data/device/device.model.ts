@@ -1,13 +1,11 @@
+import { UserType } from '../account/account.model';
+
 export const MAX_BLACKLIST_ADDR_LEN = 64;
 export const MAX_BLACKLIST_REASON_LEN = 120;
 export const MAX_ALLOWED_CONNECTED_DEVICES = 50;
-
 export type BlacklistEntryType = 'ip' | 'username';
-
 export type PeerId = string | number;
-
 export type ConnectionEvent = 'requested' | 'approved' | 'refused' | 'disconnected' | 'blocked';
-
 export interface PendingConnection {
   id: PeerId;
   label: string;
@@ -28,11 +26,13 @@ export interface ConnectedDevice {
 
 export interface ConnectionHistoryEntry {
   id: PeerId;
-  label: string;
-  username?: string | null;
+  username: string;
+  user_type: UserType;
   ip_address: string;
+  machine: string;
   event: ConnectionEvent;
-  at: string;
+  connected_at?: string | null;
+  disconnected_at?: string | null;
 }
 
 export interface BlacklistEntry {

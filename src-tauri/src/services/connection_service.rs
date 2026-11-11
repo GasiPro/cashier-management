@@ -1,8 +1,9 @@
-use crate::domain::connection::{self, optional_username, peer_label};
+use crate::domain::connection;
 use crate::infrastructure::websocket::{
     is_at_connected_devices_capacity, notify_connected_devices, notify_pending_requests,
     remove_peer, resolve_peer_addr, scope_orders_for_peer, trust_counter, PeerMap,
 };
+use crate::models::account::UserType;
 use crate::models::connection::{
     ip_from_addr, next_blacklist_id, next_history_id, BlacklistEntry, BlacklistType,
     ConnectionEvent, ConnectionHistoryEntry, ConnectionHistoryView, ServerMessage,
@@ -12,38 +13,71 @@ use crate::repositories::connection_repository;
 use crate::services::setting_service::MaxConnectedDevices;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
+
 pub type Blacklist = Arc<SyncMutex<Vec<BlacklistEntry>>>;
 pub type ConnectionHistory = Arc<SyncMutex<Vec<ConnectionHistoryEntry>>>;
 pub fn load_blacklist(app: &AppHandle) -> Vec<BlacklistEntry> {
     connection_repository::load_blacklist(app)
 }
+
 pub fn load_history(app: &AppHandle) -> Vec<ConnectionHistoryEntry> {
-    connection_repository::load_history(app)
+    let mut entries = connection_repository::load_history(app);
+    connection::close_stale_sessions(&mut entries);
+    entries
 }
-pub fn record_connection_history(
+
+fn persist_history(app: Option<&AppHandle>, entries: &[ConnectionHistoryEntry]) {
+    if let Some(app) = app {
+        if let Err(err) = connection_repository::save_history(app, entries) {
+            log::error!("Échec de l'enregistrement de l'historique des connexions : {err}");
+        }
+    }
+}
+
+pub fn start_connection_session(
     history: &ConnectionHistory,
     app: Option<&AppHandle>,
     addr: &str,
     username: &str,
-    event: ConnectionEvent,
+    machine: &str,
+    approved: bool,
 ) {
+    let now = chrono::Local::now().to_rfc3339();
     let mut guard = history.lock().unwrap();
-    connection::push_history_entry(
+    connection::start_session(
         &mut guard,
         ConnectionHistoryEntry {
             id: next_history_id(),
             addr: addr.to_string(),
             username: username.to_string(),
-            event,
-            timestamp: chrono::Local::now().to_rfc3339(),
+            machine: machine.to_string(),
+            // Only counter devices go through the connection flow.
+            user_type: UserType::Comptoir,
+            status: if approved {
+                ConnectionEvent::Approved
+            } else {
+                ConnectionEvent::Requested
+            },
+            started_at: now.clone(),
+            connected_at: approved.then_some(now),
+            disconnected_at: None,
         },
     );
-    if let Some(app) = app {
-        if let Err(err) = connection_repository::save_history(app, &guard) {
-            log::error!("Échec de l'enregistrement de l'historique des connexions : {err}");
-        }
-    }
+    persist_history(app, &guard);
 }
+
+pub fn update_connection_session(
+    history: &ConnectionHistory,
+    app: Option<&AppHandle>,
+    addr: &str,
+    event: ConnectionEvent,
+) {
+    let now = chrono::Local::now().to_rfc3339();
+    let mut guard = history.lock().unwrap();
+    connection::update_session(&mut guard, addr, event, &now);
+    persist_history(app, &guard);
+}
+
 fn history_event_label(event: ConnectionEvent) -> &'static str {
     match event {
         ConnectionEvent::Requested => "requested",
@@ -53,24 +87,31 @@ fn history_event_label(event: ConnectionEvent) -> &'static str {
         ConnectionEvent::Blocked => "blocked",
     }
 }
+
 pub fn list_connection_history(history: &ConnectionHistory) -> Vec<ConnectionHistoryView> {
     history
         .lock()
         .unwrap()
         .iter()
+        .rev()
+        .filter(|entry| connection::is_today(&entry.started_at))
         .map(|entry| ConnectionHistoryView {
             id: entry.id,
-            label: peer_label(&entry.username, &entry.addr),
-            username: optional_username(&entry.username),
+            username: entry.username.clone(),
+            user_type: entry.user_type,
             ip_address: ip_from_addr(&entry.addr).to_string(),
-            event: history_event_label(entry.event),
-            at: entry.timestamp.clone(),
+            machine: entry.machine.clone(),
+            event: history_event_label(entry.status),
+            connected_at: entry.connected_at.clone(),
+            disconnected_at: entry.disconnected_at.clone(),
         })
         .collect()
 }
+
 pub fn list_blacklist_entries(blacklist: &Blacklist) -> Vec<BlacklistEntry> {
     blacklist.lock().unwrap().clone()
 }
+
 pub async fn approve_connection(
     app: &AppHandle,
     peers: &PeerMap,
@@ -87,7 +128,7 @@ pub async fn approve_connection(
             "Limite de {max} appareil(s) connecté(s) atteinte. Déconnectez un appareil ou augmentez la limite dans Réglages."
         ));
     }
-    let approved_username = {
+    {
         let mut guard = peers.lock().await;
         let peer = guard
             .get_mut(&socket_addr)
@@ -101,19 +142,18 @@ pub async fn approve_connection(
         });
         let username = peer.username.clone();
         trust_counter(&mut guard, socket_addr.ip(), &username);
-        username
-    };
-    record_connection_history(
+    }
+    update_connection_session(
         history,
         Some(app),
         &socket_addr.to_string(),
-        &approved_username,
         ConnectionEvent::Approved,
     );
     notify_pending_requests(peers).await;
     notify_connected_devices(peers).await;
     Ok(())
 }
+
 pub async fn reject_connection(
     app: &AppHandle,
     peers: &PeerMap,
@@ -122,17 +162,17 @@ pub async fn reject_connection(
     addr: Option<String>,
 ) -> Result<(), String> {
     let socket_addr = resolve_peer_addr(peers, id, addr).await?;
-    let username = remove_peer(peers, socket_addr, &ServerMessage::ConnectionRejected).await;
-    record_connection_history(
+    remove_peer(peers, socket_addr, &ServerMessage::ConnectionRejected).await;
+    update_connection_session(
         history,
         Some(app),
         &socket_addr.to_string(),
-        &username,
         ConnectionEvent::Rejected,
     );
     notify_pending_requests(peers).await;
     Ok(())
 }
+
 pub async fn disconnect_device(
     app: &AppHandle,
     peers: &PeerMap,
@@ -141,17 +181,17 @@ pub async fn disconnect_device(
     addr: Option<String>,
 ) -> Result<(), String> {
     let socket_addr = resolve_peer_addr(peers, id, addr).await?;
-    let username = remove_peer(peers, socket_addr, &ServerMessage::ConnectionBlocked).await;
-    record_connection_history(
+    remove_peer(peers, socket_addr, &ServerMessage::ConnectionBlocked).await;
+    update_connection_session(
         history,
         Some(app),
         &socket_addr.to_string(),
-        &username,
         ConnectionEvent::Disconnected,
     );
     notify_connected_devices(peers).await;
     Ok(())
 }
+
 pub async fn block_device(
     app: &AppHandle,
     peers: &PeerMap,
@@ -163,19 +203,20 @@ pub async fn block_device(
 ) -> Result<BlacklistEntry, String> {
     let socket_addr = resolve_peer_addr(peers, id, addr).await?;
     let addr = socket_addr.to_string();
-    let username = remove_peer(peers, socket_addr, &ServerMessage::ConnectionBlocked).await;
-    let entry = block_ip(app, blacklist, &addr, reason)?;
-    record_connection_history(
-        history,
-        Some(app),
-        &addr,
-        &username,
-        ConnectionEvent::Blocked,
-    );
+    remove_peer(peers, socket_addr, &ServerMessage::ConnectionBlocked).await;
+    let blocked = block_ip(app, blacklist, &addr, reason);
+    let event = if blocked.is_ok() {
+        ConnectionEvent::Blocked
+    } else {
+        ConnectionEvent::Disconnected
+    };
+    update_connection_session(history, Some(app), &addr, event);
+    let entry = blocked?;
     notify_pending_requests(peers).await;
     notify_connected_devices(peers).await;
     Ok(entry)
 }
+
 fn block_ip(
     app: &AppHandle,
     blacklist: &Blacklist,
@@ -192,6 +233,7 @@ fn block_ip(
     }
     insert_blacklist_entry(app, &mut guard, BlacklistType::Ip, ip, reason)
 }
+
 pub async fn add_blacklist_entry(
     app: &AppHandle,
     blacklist: &Blacklist,
@@ -223,6 +265,7 @@ pub async fn add_blacklist_entry(
     }
     insert_blacklist_entry(app, &mut guard, entry_type, value, reason)
 }
+
 pub async fn remove_blacklist_entry(
     app: &AppHandle,
     blacklist: &Blacklist,
@@ -247,6 +290,7 @@ pub async fn remove_blacklist_entry(
     }
     Ok(())
 }
+
 fn insert_blacklist_entry(
     app: &AppHandle,
     entries: &mut Vec<BlacklistEntry>,
