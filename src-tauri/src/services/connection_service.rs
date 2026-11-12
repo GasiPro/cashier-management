@@ -6,7 +6,7 @@ use crate::infrastructure::websocket::{
 use crate::models::account::UserType;
 use crate::models::connection::{
     ip_from_addr, next_blacklist_id, next_history_id, BlacklistEntry, BlacklistType,
-    ConnectionEvent, ConnectionHistoryEntry, ConnectionHistoryView, ServerMessage,
+    ConnectionEvent, ConnectionHistoryEntry, ConnectionHistoryView, MachineInfo, ServerMessage,
 };
 use crate::models::order::Order;
 use crate::repositories::connection_repository;
@@ -36,7 +36,7 @@ pub fn start_connection_session(
     addr: &str,
     username: &str,
     user_type: UserType,
-    machine: &str,
+    machine: &MachineInfo,
     approved: bool,
 ) {
     let now = chrono::Local::now().to_rfc3339();
@@ -45,9 +45,10 @@ pub fn start_connection_session(
         &mut guard,
         ConnectionHistoryEntry {
             id: next_history_id(),
+            device_id: connection::device_id(machine, username).to_string(),
             addr: addr.to_string(),
             username: username.to_string(),
-            machine: machine.to_string(),
+            machine: machine.name.clone(),
             user_type,
             status: if approved {
                 ConnectionEvent::Approved
@@ -90,6 +91,7 @@ pub fn list_connection_history(history: &ConnectionHistory) -> Vec<ConnectionHis
         .filter(|entry| connection::is_today(&entry.started_at))
         .map(|entry| ConnectionHistoryView {
             id: entry.id,
+            device_id: entry.device_id.clone(),
             username: entry.username.clone(),
             user_type: entry.user_type,
             ip_address: ip_from_addr(&entry.addr).to_string(),

@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
+use uuid::Uuid;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::__cpuid;
 #[cfg(target_arch = "x86_64")]
@@ -21,6 +22,14 @@ const MAGIC: &[u8] = b"GSP2";
 const LEGACY_MAGIC: &[u8] = b"GSP1";
 static CIPHER: Mutex<Option<Aes256Gcm>> = Mutex::new(None);
 static FINGERPRINT: OnceLock<String> = OnceLock::new();
+static MACHINE_NAME: OnceLock<String> = OnceLock::new();
+const PLACEHOLDER_MODELS: [&str; 5] = [
+    "o.e.m",
+    "system manufacturer",
+    "system product name",
+    "default string",
+    "not specified",
+];
 pub(crate) fn save_binary_file(path: String, data: Vec<u8>) -> Result<(), String> {
     std::fs::write(&path, data).map_err(|e| e.to_string())
 }
@@ -160,6 +169,87 @@ fn fingerprint() -> Result<String, String> {
     let value = format!("gasipro|{uuid}|{mac}|{}", cpu_id());
     let _ = FINGERPRINT.set(value.clone());
     Ok(value)
+}
+pub(crate) fn machine_id() -> Result<Uuid, String> {
+    Ok(Uuid::new_v5(&Uuid::NAMESPACE_OID, fingerprint()?.as_bytes()))
+}
+fn is_placeholder(value: &str) -> bool {
+    let value = value.to_lowercase();
+    value.is_empty() || PLACEHOLDER_MODELS.iter().any(|marker| value.contains(marker))
+}
+#[cfg(windows)]
+fn hostname() -> String {
+    std::env::var("COMPUTERNAME").unwrap_or_default()
+}
+#[cfg(target_os = "linux")]
+fn hostname() -> String {
+    std::fs::read_to_string("/proc/sys/kernel/hostname")
+        .or_else(|_| std::fs::read_to_string("/etc/hostname"))
+        .unwrap_or_default()
+}
+#[cfg(target_os = "macos")]
+fn hostname() -> String {
+    run("scutil", &["--get", "ComputerName"])
+        .or_else(|_| run("hostname", &[]))
+        .unwrap_or_default()
+}
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
+fn hostname() -> String {
+    String::new()
+}
+#[cfg(windows)]
+fn hardware_model() -> String {
+    const SCRIPT: &str =
+        "$c = Get-CimInstance Win32_ComputerSystem; $c.Manufacturer + '|' + $c.Model";
+    run(
+        "powershell.exe",
+        &["-NoProfile", "-NonInteractive", "-Command", SCRIPT],
+    )
+    .unwrap_or_default()
+    .trim()
+    .split('|')
+    .map(str::trim)
+    .filter(|part| !is_placeholder(part))
+    .collect::<Vec<_>>()
+    .join(" ")
+}
+#[cfg(target_os = "linux")]
+fn hardware_model() -> String {
+    ["sys_vendor", "product_name"]
+        .iter()
+        .filter_map(|name| std::fs::read_to_string(format!("/sys/class/dmi/id/{name}")).ok())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !is_placeholder(value))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+#[cfg(target_os = "macos")]
+fn hardware_model() -> String {
+    run("sysctl", &["-n", "hw.model"])
+        .map(|model| format!("Apple {}", model.trim()))
+        .unwrap_or_default()
+}
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
+fn hardware_model() -> String {
+    String::new()
+}
+fn compute_machine_name() -> String {
+    let mut host = hostname().trim().to_string();
+    if host.is_empty() {
+        host = std::env::var("USERNAME")
+            .or_else(|_| std::env::var("USER"))
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+    }
+    [host, hardware_model()]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" · ")
+}
+pub(crate) fn machine_name() -> String {
+    MACHINE_NAME.get_or_init(compute_machine_name).clone()
 }
 fn load_or_create_key() -> Result<Key<Aes256Gcm>, String> {
     let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| e.to_string())?;

@@ -1,4 +1,5 @@
 use crate::app::AppState;
+use crate::infrastructure::filesystem;
 use crate::infrastructure::websocket::{
     get_connected_devices_list, get_pending_requests_list, get_server_address,
 };
@@ -9,6 +10,7 @@ use tauri::State;
 #[serde(tag = "method", rename_all = "snake_case")]
 pub enum ServerCommand {
     GetAddress,
+    GetMachine,
     ConnectionApprove {
         id: Option<i64>,
         addr: Option<String>,
@@ -55,6 +57,10 @@ pub async fn server(
 ) -> Result<serde_json::Value, String> {
     match command {
         ServerCommand::GetAddress => Ok(serde_json::json!(get_server_address())),
+        ServerCommand::GetMachine => Ok(serde_json::json!({
+            "name": filesystem::machine_name(),
+            "id": filesystem::machine_id()?.to_string(),
+        })),
         ServerCommand::ConnectionApprove { id, addr } => {
             connection_service::approve_connection(
                 &app,

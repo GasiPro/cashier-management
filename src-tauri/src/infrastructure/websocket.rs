@@ -21,7 +21,7 @@ use crate::domain::account;
 use crate::domain::connection::{self, optional_username, peer_label};
 use crate::models::account::{SessionRole, Sessions, UserType};
 use crate::models::connection::{
-    ClientMessage, ConnectedDevice, ConnectionEvent, PendingConnection, ServerMessage,
+    ClientMessage, ConnectedDevice, ConnectionEvent, MachineInfo, PendingConnection, ServerMessage,
 };
 use crate::models::order::{Order, OrderChange, OrderChangeKind};
 use crate::services::account_service::{self, Accounts};
@@ -48,13 +48,13 @@ pub struct PeerState {
     pub(crate) approved: bool,
     pub(crate) is_cashier: bool,
     pub(crate) is_admin: bool,
-    pub(crate) machine: String,
+    pub(crate) machine: MachineInfo,
     pub(crate) requested_at: Option<String>,
     pub(crate) connected_at: Option<String>,
     trusted: Vec<TrustedCounter>,
 }
 impl PeerState {
-    fn new(tx: Tx, machine: String) -> Self {
+    fn new(tx: Tx, machine: MachineInfo) -> Self {
         Self {
             id: NEXT_PEER_ID.fetch_add(1, Ordering::Relaxed),
             tx,
@@ -190,19 +190,15 @@ async fn handle_connection(ctx: &WsContext, stream: TcpStream, addr: SocketAddr)
         log::warn!("Trop de connexions simultanées, {addr} refusé.");
         return;
     }
-    let user_agent = Arc::new(SyncMutex::new(String::new()));
-    let captured_agent = user_agent.clone();
+    let query = Arc::new(SyncMutex::new(String::new()));
+    let captured_query = query.clone();
     let handshake = tokio::time::timeout(
         Duration::from_secs(WS_HANDSHAKE_TIMEOUT_SECS),
         accept_hdr_async(
             stream,
             move |request: &Request, response: Response| -> Result<Response, ErrorResponse> {
-                if let Some(agent) = request
-                    .headers()
-                    .get("user-agent")
-                    .and_then(|value| value.to_str().ok())
-                {
-                    *captured_agent.lock().unwrap() = agent.to_string();
+                if let Some(value) = request.uri().query() {
+                    *captured_query.lock().unwrap() = value.to_string();
                 }
                 Ok(response)
             },
@@ -212,7 +208,7 @@ async fn handle_connection(ctx: &WsContext, stream: TcpStream, addr: SocketAddr)
     let Ok(Ok(ws_stream)) = handshake else {
         return;
     };
-    let machine = connection::describe_machine(&user_agent.lock().unwrap());
+    let machine = connection::parse_machine(&query.lock().unwrap(), addr.ip());
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
     let (tx, mut rx) = mpsc::unbounded_channel();
     ctx.peers.lock().await.insert(addr, PeerState::new(tx, machine));
@@ -709,7 +705,7 @@ fn start_session(
     addr: SocketAddr,
     username: &str,
     user_type: UserType,
-    machine: &str,
+    machine: &MachineInfo,
     approved: bool,
 ) {
     let app = app_handle(ctx);
