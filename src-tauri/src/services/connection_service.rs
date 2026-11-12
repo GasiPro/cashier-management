@@ -103,6 +103,7 @@ pub fn list_connection_history(history: &ConnectionHistory) -> Vec<ConnectionHis
         .filter(|entry| connection::is_today(&entry.started_at))
         .map(|entry| ConnectionHistoryView {
             id: entry.id,
+            uuid: connection::session_uuid(entry),
             username: entry.username.clone(),
             user_type: entry.user_type,
             ip_address: ip_from_addr(&entry.addr).to_string(),

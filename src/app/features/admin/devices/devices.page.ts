@@ -269,7 +269,7 @@ export class DevicesPage implements OnInit, OnDestroy {
   }
   async copyHistoryId(entry: ConnectionHistoryEntry): Promise<void> {
     try {
-      await navigator.clipboard.writeText(entry.device_id);
+      await navigator.clipboard.writeText(entry.uuid);
       this.copiedHistoryId.set(entry.id);
       clearTimeout(this.copiedTimer);
       this.copiedTimer = setTimeout(() => this.copiedHistoryId.set(null), 1500);

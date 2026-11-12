@@ -2,6 +2,7 @@ use crate::config::connection_config::{MAX_HISTORY_ENTRIES, SESSION_MAX_HOURS};
 use crate::models::connection::{
     ip_from_addr, BlacklistEntry, BlacklistType, ConnectionEvent, ConnectionHistoryEntry,
 };
+use uuid::Uuid;
 const UNKNOWN_MACHINE: &str = "Appareil inconnu";
 const OS_NAMES: [(&str, &str); 10] = [
     ("Windows NT 10.0", "Windows 10/11"),
@@ -228,6 +229,15 @@ pub fn describe_machine(user_agent: &str) -> String {
         (None, Some(browser)) => browser,
         (None, None) => UNKNOWN_MACHINE.to_string(),
     }
+}
+pub fn session_uuid(entry: &ConnectionHistoryEntry) -> String {
+    let device = if entry.device_id.is_empty() {
+        format!("{}|{}", ip_from_addr(&entry.addr), entry.machine)
+    } else {
+        entry.device_id.clone()
+    };
+    let key = format!("{device}|{}", entry.username.trim().to_lowercase());
+    Uuid::new_v5(&Uuid::NAMESPACE_OID, key.as_bytes()).to_string()
 }
 pub fn optional_username(username: &str) -> Option<String> {
     let trimmed = username.trim();

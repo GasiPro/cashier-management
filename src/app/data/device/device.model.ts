@@ -23,6 +23,7 @@ export interface ConnectedDevice {
 }
 export interface ConnectionHistoryEntry {
   id: PeerId;
+  uuid: string;
   username: string;
   user_type: UserType;
   ip_address: string;

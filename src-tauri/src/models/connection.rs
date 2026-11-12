@@ -177,6 +177,7 @@ pub struct ConnectedDevice {
 #[derive(Debug, Clone, Serialize)]
 pub struct ConnectionHistoryView {
     pub id: i64,
+    pub uuid: String,
     pub username: String,
     pub user_type: UserType,
     pub ip_address: String,

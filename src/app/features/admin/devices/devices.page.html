@@ -242,7 +242,7 @@
             </dl>
             <div class="flex items-center gap-1 ml-auto">
               <span class="sr-only">Identifiant</span>
-              <span class="font-mono text-gray-400">#{{ entry.id }}</span>
+              <span class="font-mono text-gray-400" [attr.title]="entry.uuid">{{ entry.uuid }}</span>
               <button type="button" (click)="copyHistoryId(entry)"
                 title="Copier l'identifiant" aria-label="Copier l'identifiant"
                 class="p-1.5 rounded text-gray-400 hover:text-[#1E3A5F] hover:bg-[#EFF4FA] transition-colors

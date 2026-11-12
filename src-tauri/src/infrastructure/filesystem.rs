@@ -177,72 +177,101 @@ fn is_placeholder(value: &str) -> bool {
     let value = value.to_lowercase();
     value.is_empty() || PLACEHOLDER_MODELS.iter().any(|marker| value.contains(marker))
 }
-#[cfg(windows)]
-fn hostname() -> String {
-    std::env::var("COMPUTERNAME").unwrap_or_default()
-}
-#[cfg(target_os = "linux")]
-fn hostname() -> String {
-    std::fs::read_to_string("/proc/sys/kernel/hostname")
-        .or_else(|_| std::fs::read_to_string("/etc/hostname"))
-        .unwrap_or_default()
-}
-#[cfg(target_os = "macos")]
-fn hostname() -> String {
-    run("scutil", &["--get", "ComputerName"])
-        .or_else(|_| run("hostname", &[]))
-        .unwrap_or_default()
-}
-#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
-fn hostname() -> String {
-    String::new()
-}
-#[cfg(windows)]
-fn hardware_model() -> String {
-    const SCRIPT: &str =
-        "$c = Get-CimInstance Win32_ComputerSystem; $c.Manufacturer + '|' + $c.Model";
-    run(
-        "powershell.exe",
-        &["-NoProfile", "-NonInteractive", "-Command", SCRIPT],
-    )
-    .unwrap_or_default()
-    .trim()
-    .split('|')
-    .map(str::trim)
-    .filter(|part| !is_placeholder(part))
-    .collect::<Vec<_>>()
-    .join(" ")
-}
-#[cfg(target_os = "linux")]
-fn hardware_model() -> String {
-    ["sys_vendor", "product_name"]
-        .iter()
-        .filter_map(|name| std::fs::read_to_string(format!("/sys/class/dmi/id/{name}")).ok())
-        .map(|value| value.trim().to_string())
-        .filter(|value| !is_placeholder(value))
+const OS_FAMILY: &str = if cfg!(windows) {
+    "Windows"
+} else if cfg!(target_os = "macos") {
+    "macOS"
+} else if cfg!(target_os = "linux") {
+    "Linux"
+} else {
+    std::env::consts::OS
+};
+fn friendly_model(vendor: &str, product: &str, version: &str) -> String {
+    if vendor.to_lowercase().contains("lenovo") && !is_placeholder(version) {
+        return version.to_string();
+    }
+    [vendor, product]
+        .into_iter()
+        .filter(|part| !is_placeholder(part))
         .collect::<Vec<_>>()
         .join(" ")
 }
-#[cfg(target_os = "macos")]
-fn hardware_model() -> String {
-    run("sysctl", &["-n", "hw.model"])
-        .map(|model| format!("Apple {}", model.trim()))
+#[cfg(windows)]
+fn system_details() -> (String, String) {
+    const SCRIPT: &str = "$c = Get-CimInstance Win32_ComputerSystem; \
+        $v = (Get-CimInstance Win32_ComputerSystemProduct).Version; \
+        (Get-CimInstance Win32_OperatingSystem).Caption + '|' + $c.Manufacturer + '|' + $c.Model + '|' + $v";
+    let output = run(
+        "powershell.exe",
+        &["-NoProfile", "-NonInteractive", "-Command", SCRIPT],
+    )
+    .unwrap_or_default();
+    let mut parts = output.trim().split('|').map(str::trim);
+    let variant = parts
+        .next()
+        .unwrap_or_default()
+        .trim_start_matches("Microsoft ")
+        .to_string();
+    let vendor = parts.next().unwrap_or_default();
+    let product = parts.next().unwrap_or_default();
+    let version = parts.next().unwrap_or_default();
+    (variant, friendly_model(vendor, product, version))
+}
+#[cfg(target_os = "linux")]
+fn dmi_value(name: &str) -> String {
+    std::fs::read_to_string(format!("/sys/class/dmi/id/{name}"))
+        .map(|value| value.trim().to_string())
         .unwrap_or_default()
 }
+#[cfg(target_os = "linux")]
+fn linux_variant() -> String {
+    const FLAVOURS: [(&str, &str); 3] = [
+        ("lubuntu", "Lubuntu"),
+        ("xubuntu", "Xubuntu"),
+        ("kubuntu", "Kubuntu"),
+    ];
+    for name in ["DESKTOP_SESSION", "XDG_CURRENT_DESKTOP"] {
+        let value = std::env::var(name).unwrap_or_default().to_lowercase();
+        if let Some(&(_, flavour)) = FLAVOURS.iter().find(|&&(token, _)| value.contains(token)) {
+            return flavour.to_string();
+        }
+    }
+    std::fs::read_to_string("/etc/os-release")
+        .ok()
+        .and_then(|content| {
+            content
+                .lines()
+                .find_map(|line| line.strip_prefix("NAME="))
+                .map(|value| value.trim().trim_matches('"').to_string())
+        })
+        .unwrap_or_default()
+}
+#[cfg(target_os = "linux")]
+fn system_details() -> (String, String) {
+    (
+        linux_variant(),
+        friendly_model(
+            &dmi_value("sys_vendor"),
+            &dmi_value("product_name"),
+            &dmi_value("product_version"),
+        ),
+    )
+}
+#[cfg(target_os = "macos")]
+fn system_details() -> (String, String) {
+    let variant = run("sw_vers", &["-productVersion"])
+        .map(|version| format!("macOS {}", version.trim()))
+        .unwrap_or_default();
+    let model = run("sysctl", &["-n", "hw.model"]).unwrap_or_default();
+    (variant, friendly_model("Apple", model.trim(), ""))
+}
 #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
-fn hardware_model() -> String {
-    String::new()
+fn system_details() -> (String, String) {
+    (String::new(), String::new())
 }
 fn compute_machine_name() -> String {
-    let mut host = hostname().trim().to_string();
-    if host.is_empty() {
-        host = std::env::var("USERNAME")
-            .or_else(|_| std::env::var("USER"))
-            .unwrap_or_default()
-            .trim()
-            .to_string();
-    }
-    [host, hardware_model()]
+    let (variant, model) = system_details();
+    [OS_FAMILY.to_string(), variant, model]
         .into_iter()
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()
