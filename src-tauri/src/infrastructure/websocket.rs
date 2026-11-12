@@ -29,7 +29,6 @@ use crate::services::connection_service::{self, Blacklist, ConnectionHistory};
 use crate::services::order_service::OrderService;
 use crate::services::pricing_service::PricingStore;
 use crate::services::setting_service::MaxConnectedDevices;
-
 const INVALID_TOKEN: &str = "Jeton de session invalide ou expiré.";
 const SERVER_NOT_READY: &str = "Serveur non prêt. Réessayez.";
 pub(crate) type Tx = mpsc::UnboundedSender<Message>;
@@ -42,7 +41,6 @@ pub(crate) struct TrustedCounter {
     username: String,
     expires_at: chrono::DateTime<chrono::Local>,
 }
-
 pub struct PeerState {
     pub(crate) id: i64,
     pub(crate) tx: Tx,
@@ -55,7 +53,6 @@ pub struct PeerState {
     pub(crate) connected_at: Option<String>,
     trusted: Vec<TrustedCounter>,
 }
-
 impl PeerState {
     fn new(tx: Tx, machine: String) -> Self {
         Self {
@@ -83,7 +80,6 @@ impl PeerState {
         self.is_cashier || self.is_admin
     }
 }
-
 #[derive(Clone)]
 pub(crate) struct WsContext {
     pub order_service: Arc<OrderService>,
@@ -97,7 +93,6 @@ pub(crate) struct WsContext {
     pub sessions: Sessions,
     pub connection_attempts: AttemptTracker,
 }
-
 fn bind_listener() -> Option<std::net::TcpListener> {
     for port in WS_PORT..WS_PORT.saturating_add(WS_PORT_ATTEMPTS) {
         match std::net::TcpListener::bind((WS_BIND_HOST, port)) {
@@ -118,7 +113,6 @@ fn bind_listener() -> Option<std::net::TcpListener> {
     }
     None
 }
-
 pub(crate) fn start_server(ctx: WsContext) {
     let Some(std_listener) = bind_listener() else {
         log::error!(
@@ -147,7 +141,6 @@ pub(crate) fn start_server(ctx: WsContext) {
         }
     });
 }
-
 pub(crate) fn start_clock(peers: PeerMap) {
     tauri::async_runtime::spawn(async move {
         let mut tick: u64 = 0;
@@ -162,14 +155,12 @@ pub(crate) fn start_clock(peers: PeerMap) {
         }
     });
 }
-
 async fn ping_all(peers: &PeerMap) {
     let guard = peers.lock().await;
     for peer in guard.values() {
         let _ = peer.tx.send(Message::Ping(Vec::<u8>::new().into()));
     }
 }
-
 async fn serve_peer(ctx: WsContext, stream: TcpStream, addr: SocketAddr) {
     let outcome = AssertUnwindSafe(handle_connection(&ctx, stream, addr))
         .catch_unwind()
@@ -179,16 +170,14 @@ async fn serve_peer(ctx: WsContext, stream: TcpStream, addr: SocketAddr) {
     }
     drop_peer(&ctx, addr).await;
 }
-
 async fn drop_peer(ctx: &WsContext, addr: SocketAddr) {
     let departed = ctx.peers.lock().await.remove(&addr);
-    if departed.is_some_and(|p| !p.is_staff() && !p.username.is_empty()) {
+    if departed.is_some_and(|p| !p.username.is_empty()) {
         end_session(ctx, addr);
         notify_pending_requests(&ctx.peers).await;
         notify_connected_devices(&ctx.peers).await;
     }
 }
-
 async fn handle_connection(ctx: &WsContext, stream: TcpStream, addr: SocketAddr) {
     let blacklisted = {
         let guard = ctx.blacklist.lock().unwrap();
@@ -254,7 +243,6 @@ async fn handle_connection(ctx: &WsContext, stream: TcpStream, addr: SocketAddr)
     }
     ws_writer.abort();
 }
-
 async fn handle_text(ctx: &WsContext, addr: SocketAddr, text: &str) {
     let message = match serde_json::from_str::<ClientMessage>(text) {
         Ok(message) => message,
@@ -392,7 +380,6 @@ async fn handle_text(ctx: &WsContext, addr: SocketAddr, text: &str) {
         } => update_own_account(ctx, addr, display_name, password).await,
     }
 }
-
 async fn is_unapproved(peers: &PeerMap, addr: SocketAddr) -> bool {
     peers
         .lock()
@@ -400,7 +387,6 @@ async fn is_unapproved(peers: &PeerMap, addr: SocketAddr) -> bool {
         .get(&addr)
         .is_some_and(|peer| !peer.approved)
 }
-
 async fn register_staff(ctx: &WsContext, addr: SocketAddr, token: &str, role: SessionRole) {
     if !is_unapproved(&ctx.peers, addr).await {
         return;
@@ -408,16 +394,24 @@ async fn register_staff(ctx: &WsContext, addr: SocketAddr, token: &str, role: Se
     let Some(username) = consume_token(ctx, addr, token, role).await else {
         return;
     };
-    {
+    let machine = {
         let mut guard = ctx.peers.lock().await;
-        if let Some(peer) = guard.get_mut(&addr) {
-            peer.username = username;
-            peer.approved = true;
-            peer.is_cashier = role == SessionRole::Cashier;
-            peer.is_admin = role == SessionRole::Admin;
-            peer.connected_at = Some(chrono::Local::now().to_rfc3339());
-        }
-    }
+        let Some(peer) = guard.get_mut(&addr) else {
+            return;
+        };
+        peer.username = username.clone();
+        peer.approved = true;
+        peer.is_cashier = role == SessionRole::Cashier;
+        peer.is_admin = role == SessionRole::Admin;
+        peer.connected_at = Some(chrono::Local::now().to_rfc3339());
+        peer.machine.clone()
+    };
+    let user_type = if role == SessionRole::Admin {
+        UserType::Admin
+    } else {
+        UserType::Caissier
+    };
+    start_session(ctx, addr, &username, user_type, &machine, true);
     let orders = ServerMessage::Orders {
         data: ctx.order_service.get_orders(),
     };
@@ -432,8 +426,8 @@ async fn register_staff(ctx: &WsContext, addr: SocketAddr, token: &str, role: Se
         send_to_addr(&ctx.peers, addr, &pending).await;
         send_to_addr(&ctx.peers, addr, &connected).await;
     }
+    notify_connected_devices(&ctx.peers).await;
 }
-
 async fn register_counter(ctx: &WsContext, addr: SocketAddr, token: &str) {
     if !is_unapproved(&ctx.peers, addr).await {
         return;
@@ -463,11 +457,10 @@ async fn register_counter(ctx: &WsContext, addr: SocketAddr, token: &str) {
         send_to_addr(&ctx.peers, addr, &ServerMessage::ConnectionRejected).await;
         return;
     };
-    start_session(ctx, addr, &username, &machine, true);
+    start_session(ctx, addr, &username, UserType::Comptoir, &machine, true);
     send_to_addr(&ctx.peers, addr, &ServerMessage::Orders { data: scoped }).await;
     notify_connected_devices(&ctx.peers).await;
 }
-
 async fn request_connection(ctx: &WsContext, addr: SocketAddr, username: &str, password: &str) {
     let state = ctx
         .peers
@@ -550,11 +543,10 @@ async fn request_connection(ctx: &WsContext, addr: SocketAddr, username: &str, p
         peer.requested_at = Some(chrono::Local::now().to_rfc3339());
         peer.machine.clone()
     };
-    start_session(ctx, addr, &account_username, &machine, false);
+    start_session(ctx, addr, &account_username, UserType::Comptoir, &machine, false);
     send_to_addr(&ctx.peers, addr, &ServerMessage::ConnectionPending).await;
     notify_pending_requests(&ctx.peers).await;
 }
-
 async fn approve_trusted_counter(ctx: &WsContext, addr: SocketAddr, username: &str) {
     let (scoped, machine) = {
         let mut guard = ctx.peers.lock().await;
@@ -569,13 +561,12 @@ async fn approve_trusted_counter(ctx: &WsContext, addr: SocketAddr, username: &s
             peer.machine.clone(),
         )
     };
-    start_session(ctx, addr, username, &machine, true);
+    start_session(ctx, addr, username, UserType::Comptoir, &machine, true);
     send_to_addr(&ctx.peers, addr, &ServerMessage::ConnectionApproved).await;
     send_to_addr(&ctx.peers, addr, &ServerMessage::Orders { data: scoped }).await;
     notify_pending_requests(&ctx.peers).await;
     notify_connected_devices(&ctx.peers).await;
 }
-
 fn is_trusted_counter(
     peers: &HashMap<SocketAddr, PeerState>,
     ip: IpAddr,
@@ -588,7 +579,6 @@ fn is_trusted_counter(
             .any(|t| t.ip == ip && t.username == username && t.expires_at > now)
     })
 }
-
 pub(crate) fn trust_counter(
     peers: &mut HashMap<SocketAddr, PeerState>,
     ip: IpAddr,
@@ -606,14 +596,12 @@ pub(crate) fn trust_counter(
         });
     }
 }
-
 fn revoke_trust(peers: &mut HashMap<SocketAddr, PeerState>, ip: IpAddr, username: &str) {
     for peer in peers.values_mut().filter(|p| p.is_cashier) {
         peer.trusted
             .retain(|t| !(t.ip == ip && t.username == username));
     }
 }
-
 async fn update_own_account(
     ctx: &WsContext,
     addr: SocketAddr,
@@ -645,7 +633,6 @@ async fn update_own_account(
     };
     send_to_addr(&ctx.peers, addr, &reply).await;
 }
-
 async fn consume_token(
     ctx: &WsContext,
     addr: SocketAddr,
@@ -661,7 +648,6 @@ async fn consume_token(
     }
     username
 }
-
 async fn finish_order_change(
     ctx: &WsContext,
     addr: SocketAddr,
@@ -692,18 +678,15 @@ async fn finish_order_change(
         }
     }
 }
-
 struct Caller {
     username: String,
     is_staff: bool,
 }
-
 impl Caller {
     fn owner(&self) -> Option<&str> {
         (!self.is_staff).then_some(self.username.as_str())
     }
 }
-
 async fn approved_caller(peers: &PeerMap, addr: SocketAddr) -> Option<Caller> {
     let guard = peers.lock().await;
     guard.get(&addr).filter(|p| p.approved).map(|p| Caller {
@@ -711,7 +694,6 @@ async fn approved_caller(peers: &PeerMap, addr: SocketAddr) -> Option<Caller> {
         is_staff: p.is_staff(),
     })
 }
-
 async fn account_username(peers: &PeerMap, addr: SocketAddr) -> Option<String> {
     let guard = peers.lock().await;
     guard
@@ -719,15 +701,14 @@ async fn account_username(peers: &PeerMap, addr: SocketAddr) -> Option<String> {
         .filter(|p| p.approved && !p.is_cashier)
         .map(|p| p.username.clone())
 }
-
 fn app_handle(ctx: &WsContext) -> Option<tauri::AppHandle> {
     ctx.app_handle.lock().unwrap().clone()
 }
-
 fn start_session(
     ctx: &WsContext,
     addr: SocketAddr,
     username: &str,
+    user_type: UserType,
     machine: &str,
     approved: bool,
 ) {
@@ -737,11 +718,11 @@ fn start_session(
         app.as_ref(),
         &addr.to_string(),
         username,
+        user_type,
         machine,
         approved,
     );
 }
-
 fn end_session(ctx: &WsContext, addr: SocketAddr) {
     let app = app_handle(ctx);
     connection_service::update_connection_session(
@@ -751,13 +732,11 @@ fn end_session(ctx: &WsContext, addr: SocketAddr) {
         ConnectionEvent::Disconnected,
     );
 }
-
 pub(crate) async fn send_to_addr(peers: &PeerMap, addr: SocketAddr, msg: &ServerMessage) {
     if let Some(peer) = peers.lock().await.get(&addr) {
         peer.send(msg);
     }
 }
-
 pub(crate) async fn broadcast_to_approved(peers: &PeerMap, msg: &ServerMessage) {
     let Ok(json) = serde_json::to_string(msg) else {
         return;
@@ -767,7 +746,6 @@ pub(crate) async fn broadcast_to_approved(peers: &PeerMap, msg: &ServerMessage) 
         peer.send_text(json.clone());
     }
 }
-
 pub(crate) async fn broadcast_orders_to_approved(peers: &PeerMap, orders: &[Order]) {
     let guard = peers.lock().await;
     for peer in guard.values().filter(|p| p.approved) {
@@ -776,7 +754,6 @@ pub(crate) async fn broadcast_orders_to_approved(peers: &PeerMap, orders: &[Orde
         });
     }
 }
-
 pub(crate) fn scope_orders_for_peer(orders: &[Order], peer: &PeerState) -> Vec<Order> {
     if peer.is_staff() {
         orders.to_vec()
@@ -788,7 +765,6 @@ pub(crate) fn scope_orders_for_peer(orders: &[Order], peer: &PeerState) -> Vec<O
             .collect()
     }
 }
-
 pub(crate) async fn notify_cashier(peers: &PeerMap, msg: &ServerMessage) {
     let Ok(json) = serde_json::to_string(msg) else {
         return;
@@ -798,17 +774,23 @@ pub(crate) async fn notify_cashier(peers: &PeerMap, msg: &ServerMessage) {
         peer.send_text(json.clone());
     }
 }
-
+async fn notify_staff(peers: &PeerMap, msg: &ServerMessage) {
+    let Ok(json) = serde_json::to_string(msg) else {
+        return;
+    };
+    let guard = peers.lock().await;
+    for peer in guard.values().filter(|p| p.is_staff()) {
+        peer.send_text(json.clone());
+    }
+}
 pub(crate) async fn notify_pending_requests(peers: &PeerMap) {
     let pending = get_pending_requests_list(peers).await;
-    notify_cashier(peers, &ServerMessage::ConnectionRequests { data: pending }).await;
+    notify_staff(peers, &ServerMessage::ConnectionRequests { data: pending }).await;
 }
-
 pub(crate) async fn notify_connected_devices(peers: &PeerMap) {
     let connected = get_connected_devices_list(peers).await;
-    notify_cashier(peers, &ServerMessage::ConnectedDevices { data: connected }).await;
+    notify_staff(peers, &ServerMessage::ConnectedDevices { data: connected }).await;
 }
-
 pub(crate) async fn remove_peer(peers: &PeerMap, addr: SocketAddr, farewell: &ServerMessage) {
     let mut guard = peers.lock().await;
     if let Some(peer) = guard.remove(&addr) {
@@ -816,7 +798,6 @@ pub(crate) async fn remove_peer(peers: &PeerMap, addr: SocketAddr, farewell: &Se
         revoke_trust(&mut guard, addr.ip(), &peer.username);
     }
 }
-
 pub(crate) async fn get_pending_requests_list(peers: &PeerMap) -> Vec<PendingConnection> {
     let guard = peers.lock().await;
     let mut list: Vec<PendingConnection> = guard
@@ -837,7 +818,6 @@ pub(crate) async fn get_pending_requests_list(peers: &PeerMap) -> Vec<PendingCon
     list.sort_by_key(|entry| entry.id);
     list
 }
-
 pub(crate) async fn get_connected_devices_list(peers: &PeerMap) -> Vec<ConnectedDevice> {
     let guard = peers.lock().await;
     let mut list: Vec<ConnectedDevice> = guard
@@ -858,7 +838,6 @@ pub(crate) async fn get_connected_devices_list(peers: &PeerMap) -> Vec<Connected
     list.sort_by_key(|entry| entry.id);
     list
 }
-
 pub(crate) async fn resolve_peer_addr(
     peers: &PeerMap,
     id: Option<i64>,
@@ -878,18 +857,15 @@ pub(crate) async fn resolve_peer_addr(
     };
     found.ok_or_else(|| "Appareil introuvable ou déjà déconnecté.".to_string())
 }
-
 fn connected_device_count(peers: &HashMap<SocketAddr, PeerState>) -> usize {
     peers
         .values()
         .filter(|s| s.approved && !s.is_staff())
         .count()
 }
-
 fn at_capacity(max: u32, connected: usize) -> bool {
     max > 0 && connected >= max as usize
 }
-
 pub(crate) async fn is_at_connected_devices_capacity(
     peers: &PeerMap,
     max_connected_devices: &MaxConnectedDevices,
@@ -898,7 +874,6 @@ pub(crate) async fn is_at_connected_devices_capacity(
     let guard = peers.lock().await;
     at_capacity(max, connected_device_count(&guard))
 }
-
 pub(crate) fn get_server_address() -> String {
     let local_addr = UdpSocket::bind("0.0.0.0:0").ok().and_then(|socket| {
         socket.connect(WS_PROBE_ADDRESS).ok()?;

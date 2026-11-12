@@ -193,6 +193,13 @@
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                @if (entry.event === 'approved') {
+                <span class="relative flex h-2.5 w-2.5 flex-shrink-0" title="En ligne">
+                  <span class="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping motion-reduce:animate-none"></span>
+                  <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+                  <span class="sr-only">En ligne</span>
+                </span>
+                }
                 <p class="text-sm font-semibold text-[#1A1A1A] truncate">{{ entry.username }}</p>
                 <app-badge tone="brand">{{ userTypeLabel(entry.user_type) }}</app-badge>
               </div>
@@ -218,6 +225,8 @@
                 <dd class="font-medium text-gray-600">
                   @if (entry.disconnected_at) {
                   {{ entry.disconnected_at | time }}
+                  } @else if (entry.event === 'approved') {
+                  <span class="italic text-emerald-600">en cours</span>
                   } @else if (entry.connected_at) {
                   <span class="italic text-gray-400" title="La connexion se coupe automatiquement après 12 heures.">auto</span>
                   } @else {

@@ -13,19 +13,16 @@ use crate::repositories::connection_repository;
 use crate::services::setting_service::MaxConnectedDevices;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
-
 pub type Blacklist = Arc<SyncMutex<Vec<BlacklistEntry>>>;
 pub type ConnectionHistory = Arc<SyncMutex<Vec<ConnectionHistoryEntry>>>;
 pub fn load_blacklist(app: &AppHandle) -> Vec<BlacklistEntry> {
     connection_repository::load_blacklist(app)
 }
-
 pub fn load_history(app: &AppHandle) -> Vec<ConnectionHistoryEntry> {
     let mut entries = connection_repository::load_history(app);
     connection::close_stale_sessions(&mut entries);
     entries
 }
-
 fn persist_history(app: Option<&AppHandle>, entries: &[ConnectionHistoryEntry]) {
     if let Some(app) = app {
         if let Err(err) = connection_repository::save_history(app, entries) {
@@ -33,12 +30,12 @@ fn persist_history(app: Option<&AppHandle>, entries: &[ConnectionHistoryEntry]) 
         }
     }
 }
-
 pub fn start_connection_session(
     history: &ConnectionHistory,
     app: Option<&AppHandle>,
     addr: &str,
     username: &str,
+    user_type: UserType,
     machine: &str,
     approved: bool,
 ) {
@@ -51,8 +48,7 @@ pub fn start_connection_session(
             addr: addr.to_string(),
             username: username.to_string(),
             machine: machine.to_string(),
-            // Only counter devices go through the connection flow.
-            user_type: UserType::Comptoir,
+            user_type,
             status: if approved {
                 ConnectionEvent::Approved
             } else {
@@ -65,7 +61,6 @@ pub fn start_connection_session(
     );
     persist_history(app, &guard);
 }
-
 pub fn update_connection_session(
     history: &ConnectionHistory,
     app: Option<&AppHandle>,
@@ -77,7 +72,6 @@ pub fn update_connection_session(
     connection::update_session(&mut guard, addr, event, &now);
     persist_history(app, &guard);
 }
-
 fn history_event_label(event: ConnectionEvent) -> &'static str {
     match event {
         ConnectionEvent::Requested => "requested",
@@ -87,7 +81,6 @@ fn history_event_label(event: ConnectionEvent) -> &'static str {
         ConnectionEvent::Blocked => "blocked",
     }
 }
-
 pub fn list_connection_history(history: &ConnectionHistory) -> Vec<ConnectionHistoryView> {
     history
         .lock()
@@ -107,11 +100,9 @@ pub fn list_connection_history(history: &ConnectionHistory) -> Vec<ConnectionHis
         })
         .collect()
 }
-
 pub fn list_blacklist_entries(blacklist: &Blacklist) -> Vec<BlacklistEntry> {
     blacklist.lock().unwrap().clone()
 }
-
 pub async fn approve_connection(
     app: &AppHandle,
     peers: &PeerMap,
@@ -153,7 +144,6 @@ pub async fn approve_connection(
     notify_connected_devices(peers).await;
     Ok(())
 }
-
 pub async fn reject_connection(
     app: &AppHandle,
     peers: &PeerMap,
@@ -172,7 +162,6 @@ pub async fn reject_connection(
     notify_pending_requests(peers).await;
     Ok(())
 }
-
 pub async fn disconnect_device(
     app: &AppHandle,
     peers: &PeerMap,
@@ -191,7 +180,6 @@ pub async fn disconnect_device(
     notify_connected_devices(peers).await;
     Ok(())
 }
-
 pub async fn block_device(
     app: &AppHandle,
     peers: &PeerMap,
@@ -216,7 +204,6 @@ pub async fn block_device(
     notify_connected_devices(peers).await;
     Ok(entry)
 }
-
 fn block_ip(
     app: &AppHandle,
     blacklist: &Blacklist,
@@ -233,7 +220,6 @@ fn block_ip(
     }
     insert_blacklist_entry(app, &mut guard, BlacklistType::Ip, ip, reason)
 }
-
 pub async fn add_blacklist_entry(
     app: &AppHandle,
     blacklist: &Blacklist,
@@ -265,7 +251,6 @@ pub async fn add_blacklist_entry(
     }
     insert_blacklist_entry(app, &mut guard, entry_type, value, reason)
 }
-
 pub async fn remove_blacklist_entry(
     app: &AppHandle,
     blacklist: &Blacklist,
@@ -290,7 +275,6 @@ pub async fn remove_blacklist_entry(
     }
     Ok(())
 }
-
 fn insert_blacklist_entry(
     app: &AppHandle,
     entries: &mut Vec<BlacklistEntry>,
