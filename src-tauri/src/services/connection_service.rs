@@ -6,7 +6,7 @@ use crate::infrastructure::websocket::{
 use crate::models::account::UserType;
 use crate::models::connection::{
     ip_from_addr, next_blacklist_id, next_history_id, BlacklistEntry, BlacklistType,
-    ConnectionEvent, ConnectionHistoryEntry, ConnectionHistoryView, MachineInfo, ServerMessage,
+    ConnectionEvent, ConnectionHistoryEntry, ConnectionHistoryView, ServerMessage,
 };
 use crate::models::order::Order;
 use crate::repositories::connection_repository;
@@ -36,7 +36,8 @@ pub fn start_connection_session(
     addr: &str,
     username: &str,
     user_type: UserType,
-    machine: &MachineInfo,
+    machine: &str,
+    device_id: &str,
     approved: bool,
 ) {
     let now = chrono::Local::now().to_rfc3339();
@@ -45,10 +46,10 @@ pub fn start_connection_session(
         &mut guard,
         ConnectionHistoryEntry {
             id: next_history_id(),
-            device_id: connection::device_id(machine, username).to_string(),
             addr: addr.to_string(),
             username: username.to_string(),
-            machine: machine.name.clone(),
+            machine: machine.to_string(),
+            device_id: device_id.to_string(),
             user_type,
             status: if approved {
                 ConnectionEvent::Approved
@@ -58,6 +59,8 @@ pub fn start_connection_session(
             started_at: now.clone(),
             connected_at: approved.then_some(now),
             disconnected_at: None,
+            online: approved,
+            auto_disconnected: false,
         },
     );
     persist_history(app, &guard);
@@ -73,6 +76,15 @@ pub fn update_connection_session(
     connection::update_session(&mut guard, addr, event, &now);
     persist_history(app, &guard);
 }
+pub fn mark_connection_offline(
+    history: &ConnectionHistory,
+    app: Option<&AppHandle>,
+    addr: &str,
+) {
+    let mut guard = history.lock().unwrap();
+    connection::mark_offline(&mut guard, addr);
+    persist_history(app, &guard);
+}
 fn history_event_label(event: ConnectionEvent) -> &'static str {
     match event {
         ConnectionEvent::Requested => "requested",
@@ -83,22 +95,24 @@ fn history_event_label(event: ConnectionEvent) -> &'static str {
     }
 }
 pub fn list_connection_history(history: &ConnectionHistory) -> Vec<ConnectionHistoryView> {
-    history
-        .lock()
-        .unwrap()
+    let mut guard = history.lock().unwrap();
+    connection::expire_sessions(&mut guard);
+    guard
         .iter()
         .rev()
         .filter(|entry| connection::is_today(&entry.started_at))
         .map(|entry| ConnectionHistoryView {
             id: entry.id,
-            device_id: entry.device_id.clone(),
             username: entry.username.clone(),
             user_type: entry.user_type,
             ip_address: ip_from_addr(&entry.addr).to_string(),
             machine: entry.machine.clone(),
+            device_id: entry.device_id.clone(),
             event: history_event_label(entry.status),
             connected_at: entry.connected_at.clone(),
             disconnected_at: entry.disconnected_at.clone(),
+            online: entry.online,
+            auto_disconnected: entry.auto_disconnected,
         })
         .collect()
 }

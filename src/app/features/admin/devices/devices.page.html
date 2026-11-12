@@ -193,7 +193,7 @@
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                @if (entry.event === 'approved') {
+                @if (entry.event === 'approved' && entry.online) {
                 <span class="relative flex h-2.5 w-2.5 flex-shrink-0" title="En ligne">
                   <span class="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping motion-reduce:animate-none"></span>
                   <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
@@ -206,7 +206,14 @@
               <p class="text-xs text-gray-500 mt-1 truncate" [attr.title]="entry.machine">{{ entry.machine }}</p>
               <p class="text-xs text-gray-400 font-mono mt-0.5">{{ entry.ip_address }}</p>
             </div>
-            <app-badge [tone]="eventTone(entry.event)">{{ eventLabel(entry.event) }}</app-badge>
+            <div class="flex flex-wrap items-center justify-end gap-1.5">
+              <app-badge [tone]="eventTone(entry.event)">{{ eventLabel(entry.event) }}</app-badge>
+              @if (entry.event === 'approved') {
+              <app-badge [tone]="entry.online ? 'success' : 'warning'">
+                {{ entry.online ? 'En ligne' : 'Hors ligne' }}
+              </app-badge>
+              }
+            </div>
           </div>
           <div class="mt-3 pt-3 border-t border-gray-100 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
             <dl class="flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -220,20 +227,18 @@
                   }
                 </dd>
               </div>
+              @if (entry.disconnected_at) {
               <div class="flex items-baseline gap-1.5">
                 <dt class="text-gray-400">Déconnexion</dt>
                 <dd class="font-medium text-gray-600">
-                  @if (entry.disconnected_at) {
                   {{ entry.disconnected_at | time }}
-                  } @else if (entry.event === 'approved') {
-                  <span class="italic text-emerald-600">en cours</span>
-                  } @else if (entry.connected_at) {
-                  <span class="italic text-gray-400" title="La connexion se coupe automatiquement après 12 heures.">auto</span>
-                  } @else {
-                  —
+                  @if (entry.auto_disconnected) {
+                  <span class="ml-1 italic font-normal text-gray-400"
+                    title="La connexion se coupe automatiquement après 12 heures.">Déconnecté automatiquement</span>
                   }
                 </dd>
               </div>
+              }
             </dl>
             <div class="flex items-center gap-1 ml-auto">
               <span class="sr-only">Identifiant</span>

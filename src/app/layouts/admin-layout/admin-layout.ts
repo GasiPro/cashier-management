@@ -105,6 +105,7 @@ export class AdminLayout implements OnInit, OnDestroy {
   }
   logout(): void {
     this.closeMenu();
+    this.ws.send({ type: 'logout' });
     this.returnToLogin();
   }
   ngOnDestroy(): void {

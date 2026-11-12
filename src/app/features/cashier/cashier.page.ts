@@ -135,6 +135,7 @@ export class CashierPage implements OnInit, OnDestroy {
     this.store.notify(messages[change.kind]);
   }
   logout(): void {
+    this.ws.send({ type: 'logout' });
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     this.closeSubscription?.unsubscribe();

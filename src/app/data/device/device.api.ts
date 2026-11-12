@@ -11,7 +11,9 @@ import {
 export function getServerAddress(): Promise<string> {
   return invoke<string>('server', { command: { method: 'get_address' } });
 }
-/** URL of this machine's own WebSocket server, following the port the server actually bound to. */
+export function getMachineInfo(): Promise<{ name: string; id: string }> {
+  return invoke<{ name: string; id: string }>('server', { command: { method: 'get_machine' } });
+}
 export async function getLocalWsUrl(): Promise<string> {
   try {
     const port = (await getServerAddress()).split(':').pop() ?? '';

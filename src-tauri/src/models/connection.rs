@@ -3,36 +3,29 @@ use crate::models::order::{CartItem, Order, OrderChange};
 use crate::models::pricing::ServiceItem;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::sync::atomic::{AtomicI64, Ordering};
-
 static NEXT_BLACKLIST_ID: AtomicI64 = AtomicI64::new(1);
 static NEXT_HISTORY_ID: AtomicI64 = AtomicI64::new(1);
 pub fn next_blacklist_id() -> i64 {
     NEXT_BLACKLIST_ID.fetch_add(1, Ordering::Relaxed)
 }
-
 fn bump_blacklist_id_floor(id: i64) {
     NEXT_BLACKLIST_ID.fetch_max(id + 1, Ordering::Relaxed);
 }
-
 pub fn next_history_id() -> i64 {
     NEXT_HISTORY_ID.fetch_add(1, Ordering::Relaxed)
 }
-
 pub fn bump_history_id_floor(id: i64) {
     NEXT_HISTORY_ID.fetch_max(id + 1, Ordering::Relaxed);
 }
-
 pub fn ip_from_addr(addr: &str) -> &str {
     addr.rsplit_once(':').map(|(ip, _)| ip).unwrap_or(addr)
 }
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BlacklistType {
     Ip,
     Username,
 }
-
 #[derive(Debug, Clone, Serialize)]
 pub struct BlacklistEntry {
     pub id: i64,
@@ -42,7 +35,6 @@ pub struct BlacklistEntry {
     pub reason: Option<String>,
     pub created_at: String,
 }
-
 #[derive(Deserialize)]
 struct RawBlacklistEntry {
     #[serde(default)]
@@ -58,7 +50,6 @@ struct RawBlacklistEntry {
     #[serde(default)]
     created_at: Option<String>,
 }
-
 impl<'de> Deserialize<'de> for BlacklistEntry {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -87,7 +78,6 @@ impl<'de> Deserialize<'de> for BlacklistEntry {
         })
     }
 }
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ConnectionEvent {
@@ -97,7 +87,6 @@ pub enum ConnectionEvent {
     Disconnected,
     Blocked,
 }
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionHistoryEntry {
     #[serde(default)]
@@ -105,13 +94,18 @@ pub struct ConnectionHistoryEntry {
     pub addr: String,
     pub username: String,
     pub machine: String,
+    #[serde(default)]
+    pub device_id: String,
     pub user_type: UserType,
     pub status: ConnectionEvent,
     pub started_at: String,
     pub connected_at: Option<String>,
     pub disconnected_at: Option<String>,
+    #[serde(default)]
+    pub online: bool,
+    #[serde(default)]
+    pub auto_disconnected: bool,
 }
-
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
 pub enum ClientMessage {
@@ -131,8 +125,8 @@ pub enum ClientMessage {
     },
     #[serde(rename = "request_connection")]
     RequestConnection { username: String, password: String },
-    #[serde(rename = "counter_logout")]
-    CounterLogout,
+    #[serde(rename = "logout", alias = "counter_logout")]
+    Logout,
     #[serde(rename = "order_create")]
     CreateOrder {
         cart: Vec<CartItem>,
@@ -161,7 +155,6 @@ pub enum ClientMessage {
         password: Option<String>,
     },
 }
-
 #[derive(Debug, Serialize, Clone)]
 pub struct PendingConnection {
     pub id: i64,
@@ -171,7 +164,6 @@ pub struct PendingConnection {
     pub port: u16,
     pub requested_at: String,
 }
-
 pub type ConnectionRequest = PendingConnection;
 #[derive(Debug, Serialize, Clone)]
 pub struct ConnectedDevice {
@@ -182,7 +174,6 @@ pub struct ConnectedDevice {
     pub port: u16,
     pub connected_at: String,
 }
-
 #[derive(Debug, Clone, Serialize)]
 pub struct ConnectionHistoryView {
     pub id: i64,
@@ -190,11 +181,13 @@ pub struct ConnectionHistoryView {
     pub user_type: UserType,
     pub ip_address: String,
     pub machine: String,
+    pub device_id: String,
     pub event: &'static str,
     pub connected_at: Option<String>,
     pub disconnected_at: Option<String>,
+    pub online: bool,
+    pub auto_disconnected: bool,
 }
-
 #[derive(Debug, Serialize, Clone)]
 #[serde(tag = "type")]
 pub enum ServerMessage {

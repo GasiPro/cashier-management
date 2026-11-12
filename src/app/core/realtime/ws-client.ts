@@ -6,8 +6,17 @@ import {
   WS_STALE_TIMEOUT_MS,
   WS_WATCHDOG_INTERVAL_MS,
 } from '../config/app.constants';
+import { getMachineInfo } from '../../data/device/device.api';
 import type { WsMessage } from './ws-protocol';
-
+let identityQuery = '';
+export async function loadMachineIdentity(): Promise<void> {
+  try {
+    const { name, id } = await getMachineInfo();
+    identityQuery = `machine=${encodeURIComponent(name)}&machine_id=${encodeURIComponent(id)}`;
+  } catch (e) {
+    console.error('failed to read machine identity', e);
+  }
+}
 @Injectable({ providedIn: 'root' })
 export class WsClient implements OnDestroy {
   private socket: WebSocket | null = null;
@@ -21,7 +30,6 @@ export class WsClient implements OnDestroy {
   private lastTickAt = 0;
   private url = '';
   private manuallyClosed = false;
-
   connect(url: string): void {
     if (this.socket && this.url === url && this.socket.readyState <= WebSocket.OPEN) {
       return;
@@ -35,11 +43,9 @@ export class WsClient implements OnDestroy {
     this.detachSocket();
     this.open();
   }
-
   private open(): void {
-    const socket = new WebSocket(this.url);
+    const socket = new WebSocket(this.urlWithIdentity());
     this.socket = socket;
-
     socket.onopen = () => {
       if (this.socket !== socket) {
         socket.close();
@@ -48,7 +54,6 @@ export class WsClient implements OnDestroy {
       this.startWatchdog(socket);
       this.openEvent$.next();
     };
-
     socket.onmessage = (event: MessageEvent<string>) => {
       if (this.socket !== socket) return;
       this.lastMessageAt = Date.now();
@@ -65,7 +70,6 @@ export class WsClient implements OnDestroy {
         this.messages$.next(parsed);
       }
     };
-
     socket.onclose = () => {
       if (this.socket !== null && this.socket !== socket) return;
       this.stopWatchdog();
@@ -74,18 +78,15 @@ export class WsClient implements OnDestroy {
         this.scheduleReconnect();
       }
     };
-
     socket.onerror = () => {
       if (this.socket !== socket) return;
       socket.close();
     };
   }
-
-  /**
-   * The server sends a `time` message every second to approved peers. If they stop
-   * arriving the connection is half-open (network drop, sleeping server), which the
-   * browser would only report after a very long TCP timeout, so it is dropped here.
-   */
+  private urlWithIdentity(): string {
+    if (!identityQuery) return this.url;
+    return `${this.url}${this.url.includes('?') ? '&' : '?'}${identityQuery}`;
+  }
   private startWatchdog(socket: WebSocket): void {
     this.stopWatchdog();
     this.watchdogArmed = false;
@@ -105,7 +106,6 @@ export class WsClient implements OnDestroy {
       }
     }, WS_WATCHDOG_INTERVAL_MS);
   }
-
   private stopWatchdog(): void {
     if (this.watchdogTimer) {
       clearInterval(this.watchdogTimer);
@@ -113,7 +113,6 @@ export class WsClient implements OnDestroy {
     }
     this.watchdogArmed = false;
   }
-
   private dropStaleSocket(socket: WebSocket): void {
     if (this.socket !== socket) return;
     this.socket = null;
@@ -125,14 +124,12 @@ export class WsClient implements OnDestroy {
     try {
       socket.close();
     } catch {
-      // the socket is already unusable
     }
     this.closeEvent$.next();
     if (!this.manuallyClosed) {
       this.scheduleReconnect();
     }
   }
-
   private scheduleReconnect(): void {
     if (this.reconnectTimer) return;
     this.reconnectTimer = setTimeout(() => {
@@ -142,11 +139,9 @@ export class WsClient implements OnDestroy {
       }
     }, WS_RECONNECT_DELAY_MS);
   }
-
   isOpen(): boolean {
     return this.socket?.readyState === WebSocket.OPEN;
   }
-
   checkAddress(url: string, timeoutMs = WS_PROBE_TIMEOUT_MS): Promise<boolean> {
     return new Promise((resolve) => {
       let settled = false;
@@ -173,7 +168,6 @@ export class WsClient implements OnDestroy {
       probe.onerror = () => finish(false);
     });
   }
-
   send(payload: unknown): boolean {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       try {
@@ -185,19 +179,15 @@ export class WsClient implements OnDestroy {
     }
     return false;
   }
-
   getMessages(): Observable<WsMessage> {
     return this.messages$.asObservable();
   }
-
   onOpened(): Observable<void> {
     return this.openEvent$.asObservable();
   }
-
   onClosed(): Observable<void> {
     return this.closeEvent$.asObservable();
   }
-
   disconnect(): void {
     this.manuallyClosed = true;
     if (this.reconnectTimer) {
@@ -206,7 +196,6 @@ export class WsClient implements OnDestroy {
     }
     this.detachSocket();
   }
-
   private detachSocket(): void {
     const previous = this.socket;
     this.socket = null;
@@ -215,7 +204,6 @@ export class WsClient implements OnDestroy {
       previous.close();
     }
   }
-
   ngOnDestroy(): void {
     this.disconnect();
   }

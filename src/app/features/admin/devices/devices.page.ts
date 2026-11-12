@@ -19,7 +19,6 @@ import {
 import { TimePipe } from '../../../shared/pipes/time.pipe';
 import { Badge, BadgeTone } from '../../../shared/ui/badge/badge';
 import { isValidIp } from '../../../shared/utils/validators';
-
 const MAX_BLACKLIST_ADDR_LEN = 64;
 const MAX_BLACKLIST_REASON_LEN = 120;
 @Component({
@@ -28,7 +27,6 @@ const MAX_BLACKLIST_REASON_LEN = 120;
   imports: [CommonModule, FormsModule, Badge, TimePipe],
   templateUrl: './devices.page.html'
 })
-
 export class DevicesPage implements OnInit, OnDestroy {
   readonly maxBlacklistAddrLen = MAX_BLACKLIST_ADDR_LEN;
   readonly maxBlacklistReasonLen = MAX_BLACKLIST_REASON_LEN;
@@ -57,20 +55,17 @@ export class DevicesPage implements OnInit, OnDestroy {
       void this.loadHistory(true);
     });
   }
-
   ngOnDestroy(): void {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     clearTimeout(this.copiedTimer);
   }
-
   statusMessage = signal('');
   statusIsError = signal(false);
   private setStatus(message: string, isError: boolean): void {
     this.statusMessage.set(message);
     this.statusIsError.set(isError);
   }
-
   formatDate(isoDate: string): string {
     const date = new Date(isoDate);
     if (Number.isNaN(date.getTime())) return isoDate;
@@ -82,15 +77,12 @@ export class DevicesPage implements OnInit, OnDestroy {
       minute: '2-digit',
     });
   }
-
   displayName(item: { username?: string | null; label: string }): string {
     return item.username?.trim() || item.label;
   }
-
   addrOf(item: { ip_address: string; port: number }): string {
     return `${item.ip_address}:${item.port}`;
   }
-
   eventLabel(event: ConnectionEvent): string {
     switch (event) {
       case 'requested':
@@ -107,7 +99,6 @@ export class DevicesPage implements OnInit, OnDestroy {
         return event;
     }
   }
-
   eventTone(event: ConnectionEvent): BadgeTone {
     switch (event) {
       case 'requested':
@@ -121,11 +112,9 @@ export class DevicesPage implements OnInit, OnDestroy {
         return 'info';
     }
   }
-
   userTypeLabel(type: UserType): string {
     return userTypeLabel(type);
   }
-
   wsAddress = signal('');
   loadingWsAddress = signal(true);
   private async loadWsAddress(): Promise<void> {
@@ -139,7 +128,6 @@ export class DevicesPage implements OnInit, OnDestroy {
       this.loadingWsAddress.set(false);
     }
   }
-
   async copyWsAddress(): Promise<void> {
     try {
       await navigator.clipboard.writeText(this.wsAddress());
@@ -149,7 +137,6 @@ export class DevicesPage implements OnInit, OnDestroy {
       this.setStatus("Impossible de copier l'adresse.", true);
     }
   }
-
   pendingConnections = signal<PendingConnection[]>([]);
   loadingPending = signal(true);
   respondingToId = signal<PeerId | null>(null);
@@ -167,7 +154,6 @@ export class DevicesPage implements OnInit, OnDestroy {
       this.loadingPending.set(false);
     }
   }
-
   async approveConnection(connection: PendingConnection): Promise<void> {
     if (this.respondingToId()) return;
     this.respondingToId.set(connection.id);
@@ -184,7 +170,6 @@ export class DevicesPage implements OnInit, OnDestroy {
       this.respondingToId.set(null);
     }
   }
-
   async rejectConnection(connection: PendingConnection): Promise<void> {
     if (this.respondingToId()) return;
     this.respondingToId.set(connection.id);
@@ -202,7 +187,6 @@ export class DevicesPage implements OnInit, OnDestroy {
       this.respondingToId.set(null);
     }
   }
-
   connectedDevices = signal<ConnectedDevice[]>([]);
   loadingConnected = signal(true);
   disconnectingId = signal<PeerId | null>(null);
@@ -220,7 +204,6 @@ export class DevicesPage implements OnInit, OnDestroy {
       this.loadingConnected.set(false);
     }
   }
-
   async disconnectDevice(device: ConnectedDevice): Promise<void> {
     if (this.disconnectingId()) return;
     this.disconnectingId.set(device.id);
@@ -238,7 +221,6 @@ export class DevicesPage implements OnInit, OnDestroy {
       this.disconnectingId.set(null);
     }
   }
-
   confirmingBlockId = signal<PeerId | null>(null);
   blockingId = signal<PeerId | null>(null);
   blockError = signal('');
@@ -246,12 +228,10 @@ export class DevicesPage implements OnInit, OnDestroy {
     this.confirmingBlockId.set(device.id);
     this.blockError.set('');
   }
-
   cancelBlockDevice(): void {
     this.confirmingBlockId.set(null);
     this.blockError.set('');
   }
-
   /** Disconnects the device and adds its IP address to the blacklist in one step. */
   async confirmBlockDevice(device: ConnectedDevice): Promise<void> {
     if (this.blockingId()) return;
@@ -270,7 +250,6 @@ export class DevicesPage implements OnInit, OnDestroy {
       this.blockingId.set(null);
     }
   }
-
   history = signal<ConnectionHistoryEntry[]>([]);
   loadingHistory = signal(true);
   copiedHistoryId = signal<PeerId | null>(null);
@@ -288,10 +267,9 @@ export class DevicesPage implements OnInit, OnDestroy {
       this.loadingHistory.set(false);
     }
   }
-
   async copyHistoryId(entry: ConnectionHistoryEntry): Promise<void> {
     try {
-      await navigator.clipboard.writeText(String(entry.id));
+      await navigator.clipboard.writeText(entry.device_id);
       this.copiedHistoryId.set(entry.id);
       clearTimeout(this.copiedTimer);
       this.copiedTimer = setTimeout(() => this.copiedHistoryId.set(null), 1500);
@@ -300,7 +278,6 @@ export class DevicesPage implements OnInit, OnDestroy {
       this.setStatus("Impossible de copier l'identifiant.", true);
     }
   }
-
   blacklist = signal<BlacklistEntry[]>([]);
   loadingBlacklist = signal(true);
   newBlacklistAddr = signal('');
@@ -312,7 +289,6 @@ export class DevicesPage implements OnInit, OnDestroy {
     this.newBlacklistType.set(type);
     this.blacklistFormError.set('');
   }
-
   private readonly trimmedNewBlacklistAddr = computed(() => this.newBlacklistAddr().trim());
   canSubmitBlacklist = computed(() => {
     const addr = this.trimmedNewBlacklistAddr();
@@ -325,7 +301,6 @@ export class DevicesPage implements OnInit, OnDestroy {
       )
     );
   });
-
   private async loadBlacklist(silent = false): Promise<void> {
     if (!silent) this.loadingBlacklist.set(true);
     try {
@@ -340,7 +315,6 @@ export class DevicesPage implements OnInit, OnDestroy {
       this.loadingBlacklist.set(false);
     }
   }
-
   private validateBlacklistForm(): string {
     const addr = this.trimmedNewBlacklistAddr();
     const type = this.newBlacklistType();
@@ -360,7 +334,6 @@ export class DevicesPage implements OnInit, OnDestroy {
     }
     return '';
   }
-
   async addBlacklistEntry(): Promise<void> {
     if (this.addingBlacklistEntry()) return;
     const formError = this.validateBlacklistForm();
@@ -388,7 +361,6 @@ export class DevicesPage implements OnInit, OnDestroy {
       this.addingBlacklistEntry.set(false);
     }
   }
-
   confirmingRemoveBlacklistId = signal<PeerId | null>(null);
   removingBlacklistId = signal<PeerId | null>(null);
   removeBlacklistError = signal('');
@@ -396,12 +368,10 @@ export class DevicesPage implements OnInit, OnDestroy {
     this.confirmingRemoveBlacklistId.set(entry.id);
     this.removeBlacklistError.set('');
   }
-
   cancelRemoveBlacklistEntry(): void {
     this.confirmingRemoveBlacklistId.set(null);
     this.removeBlacklistError.set('');
   }
-
   async confirmRemoveBlacklistEntry(entry: BlacklistEntry): Promise<void> {
     if (this.removingBlacklistId()) return;
     this.removingBlacklistId.set(entry.id);
