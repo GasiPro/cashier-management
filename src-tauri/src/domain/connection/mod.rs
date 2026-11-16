@@ -2,7 +2,6 @@ use crate::config::connection_config::{MAX_HISTORY_ENTRIES, SESSION_MAX_HOURS};
 use crate::models::connection::{
     ip_from_addr, BlacklistEntry, BlacklistType, ConnectionEvent, ConnectionHistoryEntry,
 };
-use uuid::Uuid;
 const UNKNOWN_MACHINE: &str = "Appareil inconnu";
 const OS_NAMES: [(&str, &str); 10] = [
     ("Windows NT 10.0", "Windows 10/11"),
@@ -68,17 +67,22 @@ fn is_open(entry: &ConnectionHistoryEntry) -> bool {
         ConnectionEvent::Requested | ConnectionEvent::Approved
     )
 }
+fn same_device(a: &ConnectionHistoryEntry, b: &ConnectionHistoryEntry) -> bool {
+    if a.device_id.is_empty() || b.device_id.is_empty() {
+        ip_from_addr(&a.addr) == ip_from_addr(&b.addr)
+    } else {
+        a.device_id == b.device_id
+    }
+}
 fn end_superseded_sessions(entries: &mut [ConnectionHistoryEntry], current: usize, at: &str) {
-    let username = entries[current].username.clone();
-    let user_type = entries[current].user_type;
-    let ip = ip_from_addr(&entries[current].addr).to_string();
+    let current_entry = entries[current].clone();
     for (index, old) in entries.iter_mut().enumerate() {
         if index != current
             && old.status == ConnectionEvent::Approved
             && !old.online
-            && old.username == username
-            && old.user_type == user_type
-            && ip_from_addr(&old.addr) == ip
+            && old.username == current_entry.username
+            && old.user_type == current_entry.user_type
+            && same_device(old, &current_entry)
         {
             old.status = ConnectionEvent::Disconnected;
             old.disconnected_at = Some(at.to_string());
@@ -229,15 +233,6 @@ pub fn describe_machine(user_agent: &str) -> String {
         (None, Some(browser)) => browser,
         (None, None) => UNKNOWN_MACHINE.to_string(),
     }
-}
-pub fn session_uuid(entry: &ConnectionHistoryEntry) -> String {
-    let device = if entry.device_id.is_empty() {
-        format!("{}|{}", ip_from_addr(&entry.addr), entry.machine)
-    } else {
-        entry.device_id.clone()
-    };
-    let key = format!("{device}|{}", entry.username.trim().to_lowercase());
-    Uuid::new_v5(&Uuid::NAMESPACE_OID, key.as_bytes()).to_string()
 }
 pub fn optional_username(username: &str) -> Option<String> {
     let trimmed = username.trim();

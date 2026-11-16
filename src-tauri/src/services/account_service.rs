@@ -7,11 +7,8 @@ use crate::models::account::{
 use crate::repositories::account_repository;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
-
 pub type Accounts = Arc<SyncMutex<Vec<StoredAccount>>>;
-
 const LAST_ADMIN_ERROR: &str = "Impossible : il doit rester au moins un administrateur actif.";
-
 pub fn load_or_bootstrap(app: &AppHandle) -> Vec<StoredAccount> {
     let accounts = account_repository::load(app);
     if !accounts.is_empty() {
@@ -40,7 +37,6 @@ pub fn load_or_bootstrap(app: &AppHandle) -> Vec<StoredAccount> {
     let _ = account_repository::save(app, &accounts);
     accounts
 }
-
 fn is_last_active_admin(accounts: &[StoredAccount], username: &str) -> bool {
     let mut admins = accounts
         .iter()
@@ -50,7 +46,6 @@ fn is_last_active_admin(accounts: &[StoredAccount], username: &str) -> bool {
         _ => false,
     }
 }
-
 pub fn find_account_view(accounts_store: &Accounts, username: &str) -> Option<Account> {
     accounts_store
         .lock()
@@ -59,7 +54,15 @@ pub fn find_account_view(accounts_store: &Accounts, username: &str) -> Option<Ac
         .find(|a| a.username.eq_ignore_ascii_case(username))
         .map(Account::from)
 }
-
+pub fn find_account_id(accounts_store: &Accounts, username: &str) -> String {
+    accounts_store
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|a| a.username.eq_ignore_ascii_case(username))
+        .map(|a| a.id.clone())
+        .unwrap_or_default()
+}
 pub fn verify_active_credentials(
     accounts_store: &Accounts,
     username: &str,
@@ -83,7 +86,6 @@ pub fn verify_active_credentials(
         })
         .map(|a| a.username.clone())
 }
-
 pub async fn create_account(
     app: &AppHandle,
     accounts_store: &Accounts,
@@ -125,7 +127,6 @@ pub async fn create_account(
         guard.last().expect("account was just pushed"),
     ))
 }
-
 pub fn list_accounts(accounts_store: &Accounts) -> Vec<Account> {
     accounts_store
         .lock()
@@ -134,7 +135,6 @@ pub fn list_accounts(accounts_store: &Accounts) -> Vec<Account> {
         .map(Account::from)
         .collect()
 }
-
 pub async fn update_account(
     app: &AppHandle,
     accounts_store: &Accounts,
@@ -182,7 +182,6 @@ pub async fn update_account(
     }
     Ok(updated)
 }
-
 pub async fn suspend_account(
     app: &AppHandle,
     accounts_store: &Accounts,
@@ -208,7 +207,6 @@ pub async fn suspend_account(
     }
     Ok(updated)
 }
-
 pub async fn reactivate_account(
     app: &AppHandle,
     accounts_store: &Accounts,
@@ -230,7 +228,6 @@ pub async fn reactivate_account(
     }
     Ok(updated)
 }
-
 pub async fn delete_account(
     app: &AppHandle,
     accounts_store: &Accounts,
@@ -253,7 +250,6 @@ pub async fn delete_account(
     }
     Ok(())
 }
-
 pub fn list_account_activities(accounts_store: &Accounts) -> Vec<AccountActivity> {
     account::list_activities(&accounts_store.lock().unwrap())
 }

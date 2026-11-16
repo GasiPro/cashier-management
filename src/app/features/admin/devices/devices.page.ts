@@ -5,26 +5,28 @@ import { Subscription } from 'rxjs';
 import { errorMessage } from '../../../core/error/error-messages';
 import { WsClient } from '../../../core/realtime/ws-client';
 import { WsMessage } from '../../../core/realtime/ws-protocol';
-import { UserType, userTypeLabel } from '../../../data/account/account.model';
 import * as deviceApi from '../../../data/device/device.api';
 import {
   BlacklistEntry,
   BlacklistEntryType,
   ConnectedDevice,
-  ConnectionEvent,
   ConnectionHistoryEntry,
   PeerId,
   PendingConnection,
 } from '../../../data/device/device.model';
-import { TimePipe } from '../../../shared/pipes/time.pipe';
-import { Badge, BadgeTone } from '../../../shared/ui/badge/badge';
 import { isValidIp } from '../../../shared/utils/validators';
+import { DeviceCard } from './components/device-card/device-card';
 const MAX_BLACKLIST_ADDR_LEN = 64;
 const MAX_BLACKLIST_REASON_LEN = 120;
+/** A connected history entry, with the live connection (if any) the admin can act on. */
+export interface ConnectedRow {
+  entry: ConnectionHistoryEntry;
+  peerId: PeerId | null;
+}
 @Component({
   selector: 'app-admin-devices',
   standalone: true,
-  imports: [CommonModule, FormsModule, Badge, TimePipe],
+  imports: [CommonModule, FormsModule, DeviceCard],
   templateUrl: './devices.page.html'
 })
 export class DevicesPage implements OnInit, OnDestroy {
@@ -32,7 +34,6 @@ export class DevicesPage implements OnInit, OnDestroy {
   readonly maxBlacklistReasonLen = MAX_BLACKLIST_REASON_LEN;
   private wsSubscription?: Subscription;
   private openSubscription?: Subscription;
-  private copiedTimer?: ReturnType<typeof setTimeout>;
   constructor(private ws: WsClient) {}
   ngOnInit(): void {
     this.loadWsAddress();
@@ -58,7 +59,6 @@ export class DevicesPage implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
-    clearTimeout(this.copiedTimer);
   }
   statusMessage = signal('');
   statusIsError = signal(false);
@@ -79,41 +79,6 @@ export class DevicesPage implements OnInit, OnDestroy {
   }
   displayName(item: { username?: string | null; label: string }): string {
     return item.username?.trim() || item.label;
-  }
-  addrOf(item: { ip_address: string; port: number }): string {
-    return `${item.ip_address}:${item.port}`;
-  }
-  eventLabel(event: ConnectionEvent): string {
-    switch (event) {
-      case 'requested':
-        return 'En attente';
-      case 'approved':
-        return 'Connecté';
-      case 'refused':
-        return 'Refusé';
-      case 'disconnected':
-        return 'Déconnecté';
-      case 'blocked':
-        return 'Bloqué';
-      default:
-        return event;
-    }
-  }
-  eventTone(event: ConnectionEvent): BadgeTone {
-    switch (event) {
-      case 'requested':
-        return 'warning';
-      case 'approved':
-        return 'success';
-      case 'refused':
-      case 'blocked':
-        return 'danger';
-      default:
-        return 'info';
-    }
-  }
-  userTypeLabel(type: UserType): string {
-    return userTypeLabel(type);
   }
   wsAddress = signal('');
   loadingWsAddress = signal(true);
@@ -188,10 +153,8 @@ export class DevicesPage implements OnInit, OnDestroy {
     }
   }
   connectedDevices = signal<ConnectedDevice[]>([]);
-  loadingConnected = signal(true);
   disconnectingId = signal<PeerId | null>(null);
   private async loadConnected(silent = false): Promise<void> {
-    if (!silent) this.loadingConnected.set(true);
     try {
       const devices = await deviceApi.listConnectedDevices();
       this.connectedDevices.set(devices);
@@ -200,18 +163,23 @@ export class DevicesPage implements OnInit, OnDestroy {
       if (!silent) {
         this.setStatus(errorMessage(e, 'Impossible de charger les appareils connectés.'), true);
       }
-    } finally {
-      this.loadingConnected.set(false);
     }
   }
-  async disconnectDevice(device: ConnectedDevice): Promise<void> {
-    if (this.disconnectingId()) return;
-    this.disconnectingId.set(device.id);
+  private peerIdOf(entry: ConnectionHistoryEntry): PeerId | null {
+    const peer = this.connectedDevices().find(
+      (d) => d.device_id === entry.device_id && d.username === entry.username,
+    );
+    return peer?.id ?? null;
+  }
+  async disconnectDevice(row: ConnectedRow): Promise<void> {
+    const id = row.peerId;
+    if (id === null || this.disconnectingId()) return;
+    this.disconnectingId.set(id);
     this.setStatus('', false);
     try {
-      await deviceApi.disconnectDevice(device.id);
-      this.connectedDevices.update((list) => list.filter((d) => d.id !== device.id));
-      this.setStatus(`« ${this.displayName(device)} » déconnecté.`, false);
+      await deviceApi.disconnectDevice(id);
+      this.connectedDevices.update((list) => list.filter((d) => d.id !== id));
+      this.setStatus(`« ${row.entry.username} » déconnecté.`, false);
       void this.loadHistory(true);
     } catch (e) {
       console.error('disconnect_device failed', e);
@@ -224,8 +192,9 @@ export class DevicesPage implements OnInit, OnDestroy {
   confirmingBlockId = signal<PeerId | null>(null);
   blockingId = signal<PeerId | null>(null);
   blockError = signal('');
-  requestBlockDevice(device: ConnectedDevice): void {
-    this.confirmingBlockId.set(device.id);
+  requestBlockDevice(row: ConnectedRow): void {
+    if (row.peerId === null) return;
+    this.confirmingBlockId.set(row.peerId);
     this.blockError.set('');
   }
   cancelBlockDevice(): void {
@@ -233,15 +202,16 @@ export class DevicesPage implements OnInit, OnDestroy {
     this.blockError.set('');
   }
   /** Disconnects the device and adds its IP address to the blacklist in one step. */
-  async confirmBlockDevice(device: ConnectedDevice): Promise<void> {
-    if (this.blockingId()) return;
-    this.blockingId.set(device.id);
+  async confirmBlockDevice(row: ConnectedRow): Promise<void> {
+    const id = row.peerId;
+    if (id === null || this.blockingId()) return;
+    this.blockingId.set(id);
     this.blockError.set('');
     try {
-      await deviceApi.blockDevice(device.id);
+      await deviceApi.blockDevice(id);
       await Promise.all([this.loadConnected(true), this.loadBlacklist(true), this.loadHistory(true)]);
       this.confirmingBlockId.set(null);
-      this.setStatus(`« ${this.displayName(device)} » bloqué et déconnecté.`, false);
+      this.setStatus(`« ${row.entry.username} » bloqué et déconnecté.`, false);
     } catch (e) {
       console.error('block_device failed', e);
       const message = errorMessage(e, 'Échec du blocage. Réessayez.');
@@ -252,7 +222,14 @@ export class DevicesPage implements OnInit, OnDestroy {
   }
   history = signal<ConnectionHistoryEntry[]>([]);
   loadingHistory = signal(true);
-  copiedHistoryId = signal<PeerId | null>(null);
+  connectedRows = computed<ConnectedRow[]>(() =>
+    this.history()
+      .filter((entry) => entry.event === 'approved')
+      .map((entry) => ({ entry, peerId: this.peerIdOf(entry) })),
+  );
+  pastEntries = computed(() =>
+    this.history().filter((entry) => entry.event !== 'approved' && entry.event !== 'requested'),
+  );
   private async loadHistory(silent = false): Promise<void> {
     if (!silent) this.loadingHistory.set(true);
     try {
@@ -265,17 +242,6 @@ export class DevicesPage implements OnInit, OnDestroy {
       }
     } finally {
       this.loadingHistory.set(false);
-    }
-  }
-  async copyHistoryId(entry: ConnectionHistoryEntry): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(entry.uuid);
-      this.copiedHistoryId.set(entry.id);
-      clearTimeout(this.copiedTimer);
-      this.copiedTimer = setTimeout(() => this.copiedHistoryId.set(null), 1500);
-    } catch (e) {
-      console.error('failed to copy history id', e);
-      this.setStatus("Impossible de copier l'identifiant.", true);
     }
   }
   blacklist = signal<BlacklistEntry[]>([]);

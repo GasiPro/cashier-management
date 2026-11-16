@@ -1,0 +1,75 @@
+<div class="border rounded-lg p-3 sm:p-4" [class]="cardClasses()">
+  <div class="flex items-start justify-between gap-3">
+    <div class="min-w-0">
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+        @if (event() === 'approved' && online()) {
+        <span class="relative flex h-2.5 w-2.5 flex-shrink-0" title="En ligne">
+          <span class="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping motion-reduce:animate-none"></span>
+          <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+          <span class="sr-only">En ligne</span>
+        </span>
+        }
+        <p class="text-sm font-semibold text-[#1A1A1A] truncate">{{ device().username }}</p>
+        <app-badge tone="brand">{{ roleLabel() }}</app-badge>
+      </div>
+      <p class="text-xs text-gray-500 mt-1 truncate" [attr.title]="device().machine">{{ device().machine }}</p>
+    </div>
+    <div class="flex flex-wrap items-center justify-end gap-1.5">
+      <app-badge [tone]="badge().tone">{{ badge().label }}</app-badge>
+      @if (event() === 'approved') {
+      <app-badge [tone]="online() ? 'success' : 'warning'">
+        {{ online() ? 'En ligne' : 'Hors ligne' }}
+      </app-badge>
+      }
+    </div>
+  </div>
+  <div class="mt-3 pt-3 border-t border-gray-100 flex flex-wrap items-start justify-between gap-x-6 gap-y-2 text-xs">
+    <dl class="flex flex-wrap items-center gap-x-6 gap-y-2">
+      @if (at()) {
+      <div class="flex items-baseline gap-1.5">
+        <dt class="text-gray-400">{{ atLabel() }}</dt>
+        <dd class="font-medium text-gray-600">{{ at() | time }}</dd>
+      </div>
+      }
+      @if (disconnectedAt()) {
+      <div class="flex items-baseline gap-1.5">
+        <dt class="text-gray-400">Déconnexion</dt>
+        <dd class="font-medium text-gray-600">
+          {{ disconnectedAt() | time }}
+          @if (autoDisconnected()) {
+          <span class="ml-1 italic font-normal text-gray-400"
+            title="La connexion se coupe automatiquement après 12 heures.">Déconnecté automatiquement</span>
+          }
+        </dd>
+      </div>
+      }
+    </dl>
+    <dl class="flex flex-col items-end gap-0.5 min-w-0 ml-auto">
+      @for (id of ids(); track id.key) {
+      <div class="flex items-center gap-1 min-w-0">
+        <dt class="text-gray-400">{{ id.label }}</dt>
+        <dd class="font-mono text-[11px] text-gray-400 break-all" [attr.title]="id.value">{{ id.value || '—' }}</dd>
+        @if (id.value) {
+        <button type="button" (click)="copy(id.key, id.value)"
+          [attr.title]="'Copier l\'identifiant ' + id.label.toLowerCase()"
+          [attr.aria-label]="'Copier l\'identifiant ' + id.label.toLowerCase()"
+          class="p-1 rounded text-gray-400 hover:text-[#1E3A5F] hover:bg-[#EFF4FA] transition-colors
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+          @if (copied() === id.key) {
+          <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          } @else {
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+          </svg>
+          }
+        </button>
+        }
+      </div>
+      }
+    </dl>
+  </div>
+  <ng-content />
+</div>

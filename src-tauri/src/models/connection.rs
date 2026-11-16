@@ -96,6 +96,8 @@ pub struct ConnectionHistoryEntry {
     pub machine: String,
     #[serde(default)]
     pub device_id: String,
+    #[serde(default)]
+    pub account_id: String,
     pub user_type: UserType,
     pub status: ConnectionEvent,
     pub started_at: String,
@@ -160,6 +162,10 @@ pub struct PendingConnection {
     pub id: i64,
     pub label: String,
     pub username: Option<String>,
+    pub user_type: UserType,
+    pub machine: String,
+    pub device_id: String,
+    pub account_id: String,
     pub ip_address: String,
     pub port: u16,
     pub requested_at: String,
@@ -170,6 +176,7 @@ pub struct ConnectedDevice {
     pub id: i64,
     pub label: String,
     pub username: Option<String>,
+    pub device_id: String,
     pub ip_address: String,
     pub port: u16,
     pub connected_at: String,
@@ -177,12 +184,11 @@ pub struct ConnectedDevice {
 #[derive(Debug, Clone, Serialize)]
 pub struct ConnectionHistoryView {
     pub id: i64,
-    pub uuid: String,
     pub username: String,
     pub user_type: UserType,
-    pub ip_address: String,
     pub machine: String,
     pub device_id: String,
+    pub account_id: String,
     pub event: &'static str,
     pub connected_at: Option<String>,
     pub disconnected_at: Option<String>,

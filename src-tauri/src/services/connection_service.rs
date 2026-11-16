@@ -38,6 +38,7 @@ pub fn start_connection_session(
     user_type: UserType,
     machine: &str,
     device_id: &str,
+    account_id: &str,
     approved: bool,
 ) {
     let now = chrono::Local::now().to_rfc3339();
@@ -50,6 +51,7 @@ pub fn start_connection_session(
             username: username.to_string(),
             machine: machine.to_string(),
             device_id: device_id.to_string(),
+            account_id: account_id.to_string(),
             user_type,
             status: if approved {
                 ConnectionEvent::Approved
@@ -103,12 +105,11 @@ pub fn list_connection_history(history: &ConnectionHistory) -> Vec<ConnectionHis
         .filter(|entry| connection::is_today(&entry.started_at))
         .map(|entry| ConnectionHistoryView {
             id: entry.id,
-            uuid: connection::session_uuid(entry),
             username: entry.username.clone(),
             user_type: entry.user_type,
-            ip_address: ip_from_addr(&entry.addr).to_string(),
             machine: entry.machine.clone(),
             device_id: entry.device_id.clone(),
+            account_id: entry.account_id.clone(),
             event: history_event_label(entry.status),
             connected_at: entry.connected_at.clone(),
             disconnected_at: entry.disconnected_at.clone(),

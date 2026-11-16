@@ -50,6 +50,7 @@ pub struct PeerState {
     pub(crate) is_admin: bool,
     pub(crate) machine: String,
     pub(crate) device_id: String,
+    pub(crate) account_id: String,
     pub(crate) requested_at: Option<String>,
     pub(crate) connected_at: Option<String>,
     trusted: Vec<TrustedCounter>,
@@ -65,6 +66,7 @@ impl PeerState {
             is_admin: false,
             machine,
             device_id,
+            account_id: String::new(),
             requested_at: None,
             connected_at: None,
             trusted: Vec::new(),
@@ -415,24 +417,34 @@ async fn register_staff(ctx: &WsContext, addr: SocketAddr, token: &str, role: Se
     let Some(username) = consume_token(ctx, addr, token, role).await else {
         return;
     };
-    let (machine, device_id) = {
+    let (machine, device_id, account_id) = {
         let mut guard = ctx.peers.lock().await;
         let Some(peer) = guard.get_mut(&addr) else {
             return;
         };
         peer.username = username.clone();
+        peer.account_id = account_service::find_account_id(&ctx.accounts, &username);
         peer.approved = true;
         peer.is_cashier = role == SessionRole::Cashier;
         peer.is_admin = role == SessionRole::Admin;
         peer.connected_at = Some(chrono::Local::now().to_rfc3339());
-        (peer.machine.clone(), peer.device_id.clone())
+        (peer.machine.clone(), peer.device_id.clone(), peer.account_id.clone())
     };
     let user_type = if role == SessionRole::Admin {
         UserType::Admin
     } else {
         UserType::Caissier
     };
-    start_session(ctx, addr, &username, user_type, &machine, &device_id, true);
+    start_session(
+        ctx,
+        addr,
+        &username,
+        user_type,
+        &machine,
+        &device_id,
+        &account_id,
+        true,
+    );
     let orders = ServerMessage::Orders {
         data: ctx.order_service.get_orders(),
     };
@@ -466,20 +478,31 @@ async fn register_counter(ctx: &WsContext, addr: SocketAddr, token: &str) {
                 return;
             };
             peer.username = username.clone();
+            peer.account_id = account_service::find_account_id(&ctx.accounts, &username);
             peer.approved = true;
             peer.connected_at = Some(chrono::Local::now().to_rfc3339());
             Some((
                 scope_orders_for_peer(&ctx.order_service.get_orders(), peer),
                 peer.machine.clone(),
                 peer.device_id.clone(),
+                peer.account_id.clone(),
             ))
         }
     };
-    let Some((scoped, machine, device_id)) = admitted else {
+    let Some((scoped, machine, device_id, account_id)) = admitted else {
         send_to_addr(&ctx.peers, addr, &ServerMessage::ConnectionRejected).await;
         return;
     };
-    start_session(ctx, addr, &username, UserType::Comptoir, &machine, &device_id, true);
+    start_session(
+        ctx,
+        addr,
+        &username,
+        UserType::Comptoir,
+        &machine,
+        &device_id,
+        &account_id,
+        true,
+    );
     send_to_addr(&ctx.peers, addr, &ServerMessage::Orders { data: scoped }).await;
     notify_connected_devices(&ctx.peers).await;
 }
@@ -556,35 +579,56 @@ async fn request_connection(ctx: &WsContext, addr: SocketAddr, username: &str, p
         approve_trusted_counter(ctx, addr, &account_username).await;
         return;
     }
-    let (machine, device_id) = {
+    let (machine, device_id, account_id) = {
         let mut guard = ctx.peers.lock().await;
         let Some(peer) = guard.get_mut(&addr) else {
             return;
         };
         peer.username = account_username.clone();
+        peer.account_id = account_service::find_account_id(&ctx.accounts, &account_username);
         peer.requested_at = Some(chrono::Local::now().to_rfc3339());
-        (peer.machine.clone(), peer.device_id.clone())
+        (peer.machine.clone(), peer.device_id.clone(), peer.account_id.clone())
     };
-    start_session(ctx, addr, &account_username, UserType::Comptoir, &machine, &device_id, false);
+    start_session(
+        ctx,
+        addr,
+        &account_username,
+        UserType::Comptoir,
+        &machine,
+        &device_id,
+        &account_id,
+        false,
+    );
     send_to_addr(&ctx.peers, addr, &ServerMessage::ConnectionPending).await;
     notify_pending_requests(&ctx.peers).await;
 }
 async fn approve_trusted_counter(ctx: &WsContext, addr: SocketAddr, username: &str) {
-    let (scoped, machine, device_id) = {
+    let (scoped, machine, device_id, account_id) = {
         let mut guard = ctx.peers.lock().await;
         let Some(peer) = guard.get_mut(&addr) else {
             return;
         };
         peer.username = username.to_string();
+        peer.account_id = account_service::find_account_id(&ctx.accounts, username);
         peer.approved = true;
         peer.connected_at = Some(chrono::Local::now().to_rfc3339());
         (
             scope_orders_for_peer(&ctx.order_service.get_orders(), peer),
             peer.machine.clone(),
             peer.device_id.clone(),
+            peer.account_id.clone(),
         )
     };
-    start_session(ctx, addr, username, UserType::Comptoir, &machine, &device_id, true);
+    start_session(
+        ctx,
+        addr,
+        username,
+        UserType::Comptoir,
+        &machine,
+        &device_id,
+        &account_id,
+        true,
+    );
     send_to_addr(&ctx.peers, addr, &ServerMessage::ConnectionApproved).await;
     send_to_addr(&ctx.peers, addr, &ServerMessage::Orders { data: scoped }).await;
     notify_pending_requests(&ctx.peers).await;
@@ -734,6 +778,7 @@ fn start_session(
     user_type: UserType,
     machine: &str,
     device_id: &str,
+    account_id: &str,
     approved: bool,
 ) {
     let app = app_handle(ctx);
@@ -745,6 +790,7 @@ fn start_session(
         user_type,
         machine,
         device_id,
+        account_id,
         approved,
     );
 }
@@ -840,6 +886,10 @@ pub(crate) async fn get_pending_requests_list(peers: &PeerMap) -> Vec<PendingCon
             id: s.id,
             label: peer_label(&s.username, &addr.to_string()),
             username: optional_username(&s.username),
+            user_type: UserType::Comptoir,
+            machine: s.machine.clone(),
+            device_id: s.device_id.clone(),
+            account_id: s.account_id.clone(),
             ip_address: addr.ip().to_string(),
             port: addr.port(),
             requested_at: s
@@ -860,6 +910,7 @@ pub(crate) async fn get_connected_devices_list(peers: &PeerMap) -> Vec<Connected
             id: s.id,
             label: peer_label(&s.username, &addr.to_string()),
             username: optional_username(&s.username),
+            device_id: s.device_id.clone(),
             ip_address: addr.ip().to_string(),
             port: addr.port(),
             connected_at: s
