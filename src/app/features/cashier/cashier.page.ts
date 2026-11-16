@@ -245,8 +245,4 @@ export class CashierPage implements OnInit, OnDestroy {
   copyWsAddress(): void {
     navigator.clipboard.writeText(this.wsAddress()).catch(() => {});
   }
-  goToSettings(): void {
-    this.store.closePanel();
-    this.router.navigate(['/reglages']);
-  }
 }
