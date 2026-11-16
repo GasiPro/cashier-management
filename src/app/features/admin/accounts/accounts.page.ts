@@ -13,6 +13,48 @@ import { errorMessage } from '../../../core/error/error-messages';
 import { getStoredUsername } from '../../../core/storage/local-storage';
 import * as accountApi from '../../../data/account/account.api';
 import { AccountActivity, AccountHistoryEntry, AccountView, USER_TYPES, UserType } from '../../../data/account/account.model';
+import * as deviceApi from '../../../data/device/device.api';
+import {
+  BlacklistEntry,
+  BlacklistEntryType,
+  MAX_ALLOWED_CONNECTED_DEVICES,
+  MAX_BLACKLIST_ADDR_LEN,
+  MAX_BLACKLIST_REASON_LEN,
+  PeerId,
+} from '../../../data/device/device.model';
+import { isValidIp } from '../../../shared/utils/validators';
+
+interface BlacklistTypeChoice {
+  value: BlacklistEntryType;
+  label: string;
+  field: string;
+  placeholder: string;
+  emptyError: string;
+}
+
+const BLACKLIST_TYPES: BlacklistTypeChoice[] = [
+  {
+    value: 'ip',
+    label: 'Adresse IP',
+    field: 'Adresse IP',
+    placeholder: 'ex : 192.168.1.42',
+    emptyError: 'Saisissez une adresse IP.',
+  },
+  {
+    value: 'account',
+    label: 'Compte',
+    field: "Identifiant ou nom d'utilisateur",
+    placeholder: 'ex : caisse2',
+    emptyError: "Saisissez un identifiant ou un nom d'utilisateur.",
+  },
+  {
+    value: 'device',
+    label: 'Appareil',
+    field: "Identifiant de l'appareil",
+    placeholder: "Identifiant de l'appareil",
+    emptyError: "Saisissez un identifiant d'appareil.",
+  },
+];
 @Component({
   selector: 'app-admin-accounts',
   standalone: true,
@@ -25,10 +67,16 @@ export class AccountsPage implements OnInit {
   readonly maxUsernameLen = MAX_USERNAME_LEN;
   readonly minPasswordLen = MIN_PASSWORD_LEN;
   readonly maxDisplayNameLen = MAX_DISPLAY_NAME_LEN;
+  readonly blacklistTypes = BLACKLIST_TYPES;
+  readonly maxBlacklistAddrLen = MAX_BLACKLIST_ADDR_LEN;
+  readonly maxBlacklistReasonLen = MAX_BLACKLIST_REASON_LEN;
+  readonly maxAllowedConnectedDevices = MAX_ALLOWED_CONNECTED_DEVICES;
   @ViewChild('newAccountUsernameInput') private newAccountUsernameInput?: ElementRef<HTMLInputElement>;
   ngOnInit(): void {
     this.loadAccounts();
     this.loadActivities();
+    this.loadBlacklist();
+    this.loadDevicesSetting();
   }
   accounts = signal<AccountView[]>([]);
   loadingAccounts = signal(true);
@@ -394,6 +442,185 @@ export class AccountsPage implements OnInit {
       }
     } finally {
       this.loadingActivities.set(false);
+    }
+  }
+
+  // ── Security: blacklist ──────────────────────────────────────────────────
+  blacklist = signal<BlacklistEntry[]>([]);
+  loadingBlacklist = signal(true);
+  newBlacklistType = signal<BlacklistEntryType>('ip');
+  newBlacklistValue = signal('');
+  newBlacklistReason = signal('');
+  addingBlacklistEntry = signal(false);
+  blacklistFormError = signal('');
+  blacklistStatusMessage = signal('');
+  blacklistStatusIsError = signal(false);
+  confirmingRemoveBlacklistId = signal<PeerId | null>(null);
+  removingBlacklistId = signal<PeerId | null>(null);
+  removeBlacklistError = signal('');
+  readonly selectedBlacklistType = computed<BlacklistTypeChoice>(
+    () => this.blacklistTypes.find((t) => t.value === this.newBlacklistType()) ?? this.blacklistTypes[0],
+  );
+  private readonly trimmedBlacklistValue = computed(() => this.newBlacklistValue().trim());
+  canSubmitBlacklist = computed(() => {
+    const value = this.trimmedBlacklistValue();
+    return (
+      value.length > 0 &&
+      value.length <= this.maxBlacklistAddrLen &&
+      !this.addingBlacklistEntry() &&
+      !this.blacklistHas(this.newBlacklistType(), value)
+    );
+  });
+  private setBlacklistStatus(message: string, isError: boolean): void {
+    this.blacklistStatusMessage.set(message);
+    this.blacklistStatusIsError.set(isError);
+  }
+  private blacklistHas(type: BlacklistEntryType, value: string): boolean {
+    return this.blacklist().some((b) => b.type === type && b.value.toLowerCase() === value.toLowerCase());
+  }
+  blacklistTypeLabel(type: BlacklistEntryType): string {
+    return this.blacklistTypes.find((t) => t.value === type)?.label ?? type;
+  }
+  setBlacklistType(type: BlacklistEntryType): void {
+    this.newBlacklistType.set(type);
+    this.blacklistFormError.set('');
+  }
+  private async loadBlacklist(): Promise<void> {
+    this.loadingBlacklist.set(true);
+    try {
+      this.blacklist.set(await deviceApi.listBlacklist());
+    } catch (e) {
+      console.error('failed to load blacklist', e);
+      this.setBlacklistStatus(errorMessage(e, 'Impossible de charger la liste noire.'), true);
+    } finally {
+      this.loadingBlacklist.set(false);
+    }
+  }
+  private validateBlacklistForm(): string {
+    const type = this.newBlacklistType();
+    const value = this.trimmedBlacklistValue();
+    if (value.length === 0) return this.selectedBlacklistType().emptyError;
+    if (type === 'ip' && !isValidIp(value)) return 'Adresse IP invalide (ex : 192.168.1.42).';
+    if (value.length > this.maxBlacklistAddrLen) {
+      return `Cette valeur ne peut pas dépasser ${this.maxBlacklistAddrLen} caractères.`;
+    }
+    if (this.blacklistHas(type, value)) return 'Cette entrée est déjà dans la liste noire.';
+    return '';
+  }
+  async addBlacklistEntry(): Promise<void> {
+    if (this.addingBlacklistEntry()) return;
+    const formError = this.validateBlacklistForm();
+    if (formError) {
+      this.blacklistFormError.set(formError);
+      return;
+    }
+    this.blacklistFormError.set('');
+    this.addingBlacklistEntry.set(true);
+    try {
+      await deviceApi.addBlacklistEntry(
+        this.newBlacklistType(),
+        this.trimmedBlacklistValue(),
+        this.newBlacklistReason().trim() || null,
+      );
+      this.blacklist.set(await deviceApi.listBlacklist());
+      this.newBlacklistValue.set('');
+      this.newBlacklistReason.set('');
+      this.setBlacklistStatus('Entrée ajoutée à la liste noire.', false);
+    } catch (e) {
+      console.error('add_blacklist_entry failed', e);
+      this.blacklistFormError.set(errorMessage(e, "Échec de l'ajout. Réessayez."));
+    } finally {
+      this.addingBlacklistEntry.set(false);
+    }
+  }
+  requestRemoveBlacklistEntry(entry: BlacklistEntry): void {
+    this.confirmingRemoveBlacklistId.set(entry.id);
+    this.removeBlacklistError.set('');
+  }
+  cancelRemoveBlacklistEntry(): void {
+    this.confirmingRemoveBlacklistId.set(null);
+    this.removeBlacklistError.set('');
+  }
+  async confirmRemoveBlacklistEntry(entry: BlacklistEntry): Promise<void> {
+    if (this.removingBlacklistId()) return;
+    this.removingBlacklistId.set(entry.id);
+    this.removeBlacklistError.set('');
+    try {
+      await deviceApi.removeBlacklistEntry(entry.id);
+      this.blacklist.update((list) => list.filter((b) => b.id !== entry.id));
+      this.confirmingRemoveBlacklistId.set(null);
+      this.setBlacklistStatus('Entrée retirée de la liste noire.', false);
+    } catch (e) {
+      console.error('remove_blacklist_entry failed', e);
+      this.removeBlacklistError.set(errorMessage(e, 'Échec de la suppression. Réessayez.'));
+    } finally {
+      this.removingBlacklistId.set(null);
+    }
+  }
+  // ── Security: max connected devices ──────────────────────────────────────
+  maxConnectedDevices = signal(0);
+  maxConnectedDevicesDraft = signal(0);
+  connectedDevicesCount = signal(0);
+  loadingDevicesSetting = signal(true);
+  savingDevicesSetting = signal(false);
+  devicesStatusMessage = signal('');
+  devicesStatusIsError = signal(false);
+  devicesSettingDirty = computed(() => this.maxConnectedDevicesDraft() !== this.maxConnectedDevices());
+  atDevicesCapacity = computed(
+    () => this.maxConnectedDevices() > 0 && this.connectedDevicesCount() >= this.maxConnectedDevices(),
+  );
+  private setDevicesStatus(message: string, isError: boolean): void {
+    this.devicesStatusMessage.set(message);
+    this.devicesStatusIsError.set(isError);
+  }
+  private async loadDevicesSetting(): Promise<void> {
+    this.loadingDevicesSetting.set(true);
+    try {
+      const [max, connected] = await Promise.all([deviceApi.getMaxDevices(), deviceApi.countConnectedDevices()]);
+      this.maxConnectedDevices.set(max);
+      this.maxConnectedDevicesDraft.set(max);
+      this.connectedDevicesCount.set(connected);
+    } catch (e) {
+      console.error('failed to load device settings', e);
+      this.setDevicesStatus(errorMessage(e, 'Impossible de charger les réglages des appareils.'), true);
+    } finally {
+      this.loadingDevicesSetting.set(false);
+    }
+  }
+  decrementMaxConnectedDevices(): void {
+    this.maxConnectedDevicesDraft.update((v) => Math.max(0, v - 1));
+  }
+  incrementMaxConnectedDevices(): void {
+    this.maxConnectedDevicesDraft.update((v) => Math.min(this.maxAllowedConnectedDevices, v + 1));
+  }
+  onMaxConnectedDevicesInput(value: string): void {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return;
+    this.maxConnectedDevicesDraft.set(Math.min(this.maxAllowedConnectedDevices, Math.max(0, Math.round(parsed))));
+  }
+  resetMaxConnectedDevicesDraft(): void {
+    this.maxConnectedDevicesDraft.set(this.maxConnectedDevices());
+    this.setDevicesStatus('', false);
+  }
+  async saveMaxConnectedDevices(): Promise<void> {
+    if (!this.devicesSettingDirty() || this.savingDevicesSetting()) return;
+    this.savingDevicesSetting.set(true);
+    this.setDevicesStatus('', false);
+    try {
+      const applied = await deviceApi.setMaxDevices(this.maxConnectedDevicesDraft());
+      this.maxConnectedDevices.set(applied);
+      this.maxConnectedDevicesDraft.set(applied);
+      this.setDevicesStatus(
+        applied === 0
+          ? "Nombre d'appareils illimité enregistré."
+          : `Limite enregistrée : ${applied} appareil${applied > 1 ? 's' : ''} maximum.`,
+        false,
+      );
+    } catch (e) {
+      console.error('devices_max_set failed', e);
+      this.setDevicesStatus(errorMessage(e, "Échec de l'enregistrement. Réessayez."), true);
+    } finally {
+      this.savingDevicesSetting.set(false);
     }
   }
 }

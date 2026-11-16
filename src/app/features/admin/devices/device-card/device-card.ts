@@ -1,8 +1,8 @@
 import { Component, OnDestroy, computed, input, signal } from '@angular/core';
-import { userTypeLabel } from '../../../../../data/account/account.model';
-import { ConnectionEvent, Device } from '../../../../../data/device/device.model';
-import { TimePipe } from '../../../../../shared/pipes/time.pipe';
-import { Badge, BadgeTone } from '../../../../../shared/ui/badge/badge';
+import { userTypeLabel } from '../../../../data/account/account.model';
+import { ConnectionEvent, Device } from '../../../../data/device/device.model';
+import { TimePipe } from '../../../../shared/pipes/time.pipe';
+import { Badge, BadgeTone } from '../../../../shared/ui/badge/badge';
 const EVENT_BADGES: Record<ConnectionEvent, { label: string; tone: BadgeTone }> = {
   requested: { label: 'En attente', tone: 'warning' },
   approved: { label: 'Connecté', tone: 'success' },
@@ -21,7 +21,6 @@ export class DeviceCard implements OnDestroy {
   device = input.required<Device>();
   event = input.required<ConnectionEvent>();
   online = input<boolean>(false);
-  /** Request time while waiting, connection time otherwise. */
   at = input<string | null | undefined>(null);
   disconnectedAt = input<string | null | undefined>(null);
   autoDisconnected = input<boolean>(false);

@@ -1,24 +1,17 @@
 import { Component, OnInit, OnDestroy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { errorMessage } from '../../../core/error/error-messages';
 import { WsClient } from '../../../core/realtime/ws-client';
 import { WsMessage } from '../../../core/realtime/ws-protocol';
 import * as deviceApi from '../../../data/device/device.api';
 import {
-  BlacklistEntry,
-  BlacklistEntryType,
   ConnectedDevice,
   ConnectionHistoryEntry,
   PeerId,
   PendingConnection,
 } from '../../../data/device/device.model';
-import { isValidIp } from '../../../shared/utils/validators';
-import { DeviceCard } from './components/device-card/device-card';
-const MAX_BLACKLIST_ADDR_LEN = 64;
-const MAX_BLACKLIST_REASON_LEN = 120;
-/** A connected history entry, with the live connection (if any) the admin can act on. */
+import { DeviceCard } from './device-card/device-card';
 export interface ConnectedRow {
   entry: ConnectionHistoryEntry;
   peerId: PeerId | null;
@@ -26,12 +19,10 @@ export interface ConnectedRow {
 @Component({
   selector: 'app-admin-devices',
   standalone: true,
-  imports: [CommonModule, FormsModule, DeviceCard],
+  imports: [CommonModule, DeviceCard],
   templateUrl: './devices.page.html'
 })
 export class DevicesPage implements OnInit, OnDestroy {
-  readonly maxBlacklistAddrLen = MAX_BLACKLIST_ADDR_LEN;
-  readonly maxBlacklistReasonLen = MAX_BLACKLIST_REASON_LEN;
   private wsSubscription?: Subscription;
   private openSubscription?: Subscription;
   constructor(private ws: WsClient) {}
@@ -40,7 +31,6 @@ export class DevicesPage implements OnInit, OnDestroy {
     this.loadPending();
     this.loadConnected();
     this.loadHistory();
-    this.loadBlacklist();
     this.wsSubscription = this.ws.getMessages().subscribe((msg: WsMessage) => {
       if (msg.type === 'connection_requests') {
         void this.loadPending(true);
@@ -65,17 +55,6 @@ export class DevicesPage implements OnInit, OnDestroy {
   private setStatus(message: string, isError: boolean): void {
     this.statusMessage.set(message);
     this.statusIsError.set(isError);
-  }
-  formatDate(isoDate: string): string {
-    const date = new Date(isoDate);
-    if (Number.isNaN(date.getTime())) return isoDate;
-    return date.toLocaleDateString('fr-FR', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
   }
   displayName(item: { username?: string | null; label: string }): string {
     return item.username?.trim() || item.label;
@@ -209,7 +188,7 @@ export class DevicesPage implements OnInit, OnDestroy {
     this.blockError.set('');
     try {
       await deviceApi.blockDevice(id);
-      await Promise.all([this.loadConnected(true), this.loadBlacklist(true), this.loadHistory(true)]);
+      await Promise.all([this.loadConnected(true), this.loadHistory(true)]);
       this.confirmingBlockId.set(null);
       this.setStatus(`« ${row.entry.username} » bloqué et déconnecté.`, false);
     } catch (e) {
@@ -242,117 +221,6 @@ export class DevicesPage implements OnInit, OnDestroy {
       }
     } finally {
       this.loadingHistory.set(false);
-    }
-  }
-  blacklist = signal<BlacklistEntry[]>([]);
-  loadingBlacklist = signal(true);
-  newBlacklistAddr = signal('');
-  newBlacklistReason = signal('');
-  addingBlacklistEntry = signal(false);
-  blacklistFormError = signal('');
-  newBlacklistType = signal<BlacklistEntryType>('ip');
-  setBlacklistType(type: BlacklistEntryType): void {
-    this.newBlacklistType.set(type);
-    this.blacklistFormError.set('');
-  }
-  private readonly trimmedNewBlacklistAddr = computed(() => this.newBlacklistAddr().trim());
-  canSubmitBlacklist = computed(() => {
-    const addr = this.trimmedNewBlacklistAddr();
-    return (
-      addr.length > 0 &&
-      addr.length <= this.maxBlacklistAddrLen &&
-      !this.addingBlacklistEntry() &&
-      !this.blacklist().some(
-        (b) => b.type === this.newBlacklistType() && b.value.toLowerCase() === addr.toLowerCase(),
-      )
-    );
-  });
-  private async loadBlacklist(silent = false): Promise<void> {
-    if (!silent) this.loadingBlacklist.set(true);
-    try {
-      const blacklist = await deviceApi.listBlacklist();
-      this.blacklist.set(blacklist);
-    } catch (e) {
-      console.error('failed to load blacklist', e);
-      if (!silent) {
-        this.setStatus(errorMessage(e, 'Impossible de charger la liste noire.'), true);
-      }
-    } finally {
-      this.loadingBlacklist.set(false);
-    }
-  }
-  private validateBlacklistForm(): string {
-    const addr = this.trimmedNewBlacklistAddr();
-    const type = this.newBlacklistType();
-    if (addr.length === 0) {
-      return type === 'ip' ? 'Saisissez une adresse IP.' : "Saisissez un nom d'utilisateur.";
-    }
-    if (type === 'ip' && !isValidIp(addr)) {
-      return 'Adresse IP invalide (ex : 192.168.1.42).';
-    }
-    if (addr.length > this.maxBlacklistAddrLen) {
-      return `Cette valeur ne peut pas dépasser ${this.maxBlacklistAddrLen} caractères.`;
-    }
-    if (this.blacklist().some((b) => b.type === type && b.value.toLowerCase() === addr.toLowerCase())) {
-      return type === 'ip'
-        ? 'Cette adresse est déjà dans la liste noire.'
-        : "Ce nom d'utilisateur est déjà dans la liste noire.";
-    }
-    return '';
-  }
-  async addBlacklistEntry(): Promise<void> {
-    if (this.addingBlacklistEntry()) return;
-    const formError = this.validateBlacklistForm();
-    if (formError) {
-      this.blacklistFormError.set(formError);
-      return;
-    }
-    this.blacklistFormError.set('');
-    this.addingBlacklistEntry.set(true);
-    try {
-      await deviceApi.addBlacklistEntry(
-        this.newBlacklistType(),
-        this.trimmedNewBlacklistAddr(),
-        this.newBlacklistReason().trim() || null,
-      );
-      await this.loadBlacklist();
-      this.newBlacklistAddr.set('');
-      this.newBlacklistReason.set('');
-      this.setStatus('Entrée ajoutée à la liste noire.', false);
-    } catch (e) {
-      console.error('add_blacklist_entry failed', e);
-      const message = errorMessage(e, "Échec de l'ajout. Réessayez.");
-      this.blacklistFormError.set(message);
-    } finally {
-      this.addingBlacklistEntry.set(false);
-    }
-  }
-  confirmingRemoveBlacklistId = signal<PeerId | null>(null);
-  removingBlacklistId = signal<PeerId | null>(null);
-  removeBlacklistError = signal('');
-  requestRemoveBlacklistEntry(entry: BlacklistEntry): void {
-    this.confirmingRemoveBlacklistId.set(entry.id);
-    this.removeBlacklistError.set('');
-  }
-  cancelRemoveBlacklistEntry(): void {
-    this.confirmingRemoveBlacklistId.set(null);
-    this.removeBlacklistError.set('');
-  }
-  async confirmRemoveBlacklistEntry(entry: BlacklistEntry): Promise<void> {
-    if (this.removingBlacklistId()) return;
-    this.removingBlacklistId.set(entry.id);
-    this.removeBlacklistError.set('');
-    try {
-      await deviceApi.removeBlacklistEntry(entry.id);
-      this.blacklist.update((list) => list.filter((b) => b.id !== entry.id));
-      this.confirmingRemoveBlacklistId.set(null);
-      this.setStatus('Entrée retirée de la liste noire.', false);
-    } catch (e) {
-      console.error('remove_blacklist_entry failed', e);
-      const message = errorMessage(e, 'Échec de la suppression. Réessayez.');
-      this.removeBlacklistError.set(message);
-    } finally {
-      this.removingBlacklistId.set(null);
     }
   }
 }

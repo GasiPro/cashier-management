@@ -2,10 +2,9 @@ import { UserType } from '../account/account.model';
 export const MAX_BLACKLIST_ADDR_LEN = 64;
 export const MAX_BLACKLIST_REASON_LEN = 120;
 export const MAX_ALLOWED_CONNECTED_DEVICES = 50;
-export type BlacklistEntryType = 'ip' | 'username';
+export type BlacklistEntryType = 'ip' | 'account' | 'device';
 export type PeerId = string | number;
 export type ConnectionEvent = 'requested' | 'approved' | 'refused' | 'disconnected' | 'blocked';
-/** A computer (hardware fingerprint) used with an account, whatever its state. */
 export interface Device {
   username?: string | null;
   user_type: UserType;
@@ -40,7 +39,7 @@ export interface ConnectionHistoryEntry extends Device {
 }
 export interface BlacklistEntry {
   id: PeerId;
-  type: 'ip' | 'username';
+  type: BlacklistEntryType;
   value: string;
   reason?: string | null;
   created_at: string;

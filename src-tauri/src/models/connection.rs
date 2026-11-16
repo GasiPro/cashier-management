@@ -24,7 +24,9 @@ pub fn ip_from_addr(addr: &str) -> &str {
 #[serde(rename_all = "snake_case")]
 pub enum BlacklistType {
     Ip,
-    Username,
+    #[serde(alias = "username")]
+    Account,
+    Device,
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct BlacklistEntry {
@@ -60,7 +62,7 @@ impl<'de> Deserialize<'de> for BlacklistEntry {
         let raw_value = raw.value.or(raw.addr).unwrap_or_default();
         let value = match entry_type {
             BlacklistType::Ip => ip_from_addr(&raw_value).to_string(),
-            BlacklistType::Username => raw_value.trim().to_string(),
+            BlacklistType::Account | BlacklistType::Device => raw_value.trim().to_string(),
         };
         let id = match raw.id {
             Some(id) if id > 0 => id,

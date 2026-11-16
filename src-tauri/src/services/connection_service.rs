@@ -248,7 +248,8 @@ pub async fn add_blacklist_entry(
 ) -> Result<BlacklistEntry, String> {
     let entry_type = match entry_type.as_deref().map(str::trim) {
         None | Some("") | Some("ip") => BlacklistType::Ip,
-        Some("username") => BlacklistType::Username,
+        Some("account") | Some("username") => BlacklistType::Account,
+        Some("device") => BlacklistType::Device,
         Some(other) => return Err(format!("Type de liste noire inconnu : {other}.")),
     };
     let raw_value = value
@@ -258,13 +259,14 @@ pub async fn add_blacklist_entry(
         .ok_or_else(|| "La valeur à mettre sur liste noire est obligatoire.".to_string())?;
     let value = match entry_type {
         BlacklistType::Ip => ip_from_addr(&raw_value).to_string(),
-        BlacklistType::Username => raw_value,
+        BlacklistType::Account | BlacklistType::Device => raw_value,
     };
     let mut guard = blacklist.lock().unwrap();
     if connection::value_exists(&guard, entry_type, &value) {
         return Err(match entry_type {
             BlacklistType::Ip => "Cette adresse est déjà sur liste noire.".to_string(),
-            BlacklistType::Username => "Ce nom d'utilisateur est déjà sur liste noire.".to_string(),
+            BlacklistType::Account => "Ce compte est déjà sur liste noire.".to_string(),
+            BlacklistType::Device => "Cet appareil est déjà sur liste noire.".to_string(),
         });
     }
     insert_blacklist_entry(app, &mut guard, entry_type, value, reason)

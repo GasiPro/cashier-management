@@ -1,4 +1,5 @@
 use crate::config::connection_config::{MAX_HISTORY_ENTRIES, SESSION_MAX_HOURS};
+use crate::models::account::numeric_id;
 use crate::models::connection::{
     ip_from_addr, BlacklistEntry, BlacklistType, ConnectionEvent, ConnectionHistoryEntry,
 };
@@ -35,16 +36,27 @@ pub fn is_blacklisted(entries: &[BlacklistEntry], addr: &str) -> bool {
         .iter()
         .any(|e| e.entry_type == BlacklistType::Ip && e.value == ip)
 }
-pub fn is_username_blacklisted(entries: &[BlacklistEntry], username: &str) -> bool {
+pub fn is_account_blacklisted(entries: &[BlacklistEntry], username: &str, account_id: &str) -> bool {
     let username = username.trim();
-    entries
-        .iter()
-        .any(|e| e.entry_type == BlacklistType::Username && e.value.eq_ignore_ascii_case(username))
+    entries.iter().any(|e| {
+        e.entry_type == BlacklistType::Account
+            && (e.value.eq_ignore_ascii_case(username)
+                || (!account_id.is_empty()
+                    && (e.value == account_id || e.value == numeric_id(account_id).to_string())))
+    })
+}
+pub fn is_device_blacklisted(entries: &[BlacklistEntry], device_id: &str) -> bool {
+    let device_id = device_id.trim();
+    !device_id.is_empty()
+        && entries
+            .iter()
+            .any(|e| e.entry_type == BlacklistType::Device && e.value.eq_ignore_ascii_case(device_id))
 }
 pub fn value_exists(entries: &[BlacklistEntry], entry_type: BlacklistType, value: &str) -> bool {
     match entry_type {
         BlacklistType::Ip => is_blacklisted(entries, value),
-        BlacklistType::Username => is_username_blacklisted(entries, value),
+        BlacklistType::Account => is_account_blacklisted(entries, value, ""),
+        BlacklistType::Device => is_device_blacklisted(entries, value),
     }
 }
 pub fn remove_blacklist_entry(entries: &mut Vec<BlacklistEntry>, addr: &str) -> bool {

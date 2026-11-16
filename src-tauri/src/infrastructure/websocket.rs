@@ -227,6 +227,13 @@ async fn handle_connection(ctx: &WsContext, stream: TcpStream, addr: SocketAddr)
         return;
     };
     let (machine_name, device_id) = connection::machine_identity(&query.lock().unwrap());
+    let device_blocked = {
+        let guard = ctx.blacklist.lock().unwrap();
+        connection::is_device_blacklisted(&guard, &device_id)
+    };
+    if device_blocked {
+        return;
+    }
     let machine = machine_name
         .unwrap_or_else(|| connection::describe_machine(&user_agent.lock().unwrap()));
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
@@ -531,11 +538,12 @@ async fn request_connection(ctx: &WsContext, addr: SocketAddr, username: &str, p
         send_to_addr(&ctx.peers, addr, &reply).await;
         return;
     }
-    let username_blocked = {
+    let account_id = account_service::find_account_id(&ctx.accounts, username);
+    let account_blocked = {
         let guard = ctx.blacklist.lock().unwrap();
-        connection::is_username_blacklisted(&guard, username)
+        connection::is_account_blacklisted(&guard, username, &account_id)
     };
-    if username_blocked {
+    if account_blocked {
         send_to_addr(&ctx.peers, addr, &ServerMessage::ConnectionBlocked).await;
         return;
     }
