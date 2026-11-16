@@ -27,7 +27,6 @@ export class DevicesPage implements OnInit, OnDestroy {
   private openSubscription?: Subscription;
   constructor(private ws: WsClient) {}
   ngOnInit(): void {
-    this.loadWsAddress();
     this.loadPending();
     this.loadConnected();
     this.loadHistory();
@@ -58,28 +57,6 @@ export class DevicesPage implements OnInit, OnDestroy {
   }
   displayName(item: { username?: string | null; label: string }): string {
     return item.username?.trim() || item.label;
-  }
-  wsAddress = signal('');
-  loadingWsAddress = signal(true);
-  private async loadWsAddress(): Promise<void> {
-    this.loadingWsAddress.set(true);
-    try {
-      this.wsAddress.set(await deviceApi.getServerAddress());
-    } catch (e) {
-      console.error('failed to load ws address', e);
-      this.setStatus(errorMessage(e, "Impossible de récupérer l'adresse du serveur."), true);
-    } finally {
-      this.loadingWsAddress.set(false);
-    }
-  }
-  async copyWsAddress(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(this.wsAddress());
-      this.setStatus('Adresse copiée.', false);
-    } catch (e) {
-      console.error('failed to copy ws address', e);
-      this.setStatus("Impossible de copier l'adresse.", true);
-    }
   }
   pendingConnections = signal<PendingConnection[]>([]);
   loadingPending = signal(true);

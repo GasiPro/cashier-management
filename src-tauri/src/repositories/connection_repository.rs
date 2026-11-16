@@ -4,7 +4,8 @@ use crate::models::connection::{
 };
 use tauri::AppHandle;
 const BLACKLIST_FILE_NAME: &str = "connection_blacklist.bin";
-const HISTORY_FILE_NAME: &str = "connection_history.bin";
+const HISTORY_FILE_NAME: &str = "devices.bin";
+const LEGACY_HISTORY_FILE_NAME: &str = "connection_history.bin";
 pub fn load_blacklist(app: &AppHandle) -> Vec<BlacklistEntry> {
     config_file_path(app, BLACKLIST_FILE_NAME)
         .ok()
@@ -15,6 +16,9 @@ pub fn save_blacklist(app: &AppHandle, entries: &[BlacklistEntry]) -> Result<(),
     write_json(&config_file_path(app, BLACKLIST_FILE_NAME)?, entries)
 }
 pub fn load_history(app: &AppHandle) -> Vec<ConnectionHistoryEntry> {
+    if let Ok(legacy) = config_file_path(app, LEGACY_HISTORY_FILE_NAME) {
+        let _ = std::fs::remove_file(legacy);
+    }
     let mut entries: Vec<ConnectionHistoryEntry> = config_file_path(app, HISTORY_FILE_NAME)
         .ok()
         .and_then(|path| read_json(&path))

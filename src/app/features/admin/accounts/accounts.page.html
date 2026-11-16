@@ -31,7 +31,7 @@
             class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A]
                    focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
         </div>
-        <div class="hidden sm:grid grid-cols-[3.5rem_1fr_1fr_9rem_7rem] gap-3 px-3 py-2
+        <div class="hidden sm:grid grid-cols-[minmax(0,12rem)_1fr_minmax(0,10rem)_9rem_7rem] gap-3 px-3 py-2
                     text-[11px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-100">
           <span>Id</span>
           <span>Nom d'utilisateur</span>
@@ -49,10 +49,21 @@
         <ul class="divide-y divide-gray-100" [attr.aria-label]="filteredAccounts().length + ' compte(s) affiché(s)'">
           @for (account of filteredAccounts(); track account.username) {
           <li [class.bg-gray-50]="account.status === 'suspended'">
-            <div class="grid grid-cols-[3.5rem_1fr_1fr_9rem_7rem] sm:items-center gap-3 px-3 py-3">
-              <span class="text-sm font-mono text-gray-400 tabular-nums truncate min-w-0">
-                {{ account.id.toString().padStart(3, '0') }}
-              </span>
+            <div class="grid grid-cols-[minmax(0,12rem)_1fr_minmax(0,10rem)_9rem_7rem] sm:items-center gap-3 px-3 py-3">
+              <div class="flex items-center gap-1 min-w-0">
+                <span class="text-[11px] font-mono text-gray-400 truncate min-w-0 selectable" [title]="account.id">
+                  {{ account.id }}
+                </span>
+                <button type="button" (click)="copyAccountId(account)" title="Copier l'identifiant"
+                  [attr.aria-label]="'Copier l\'identifiant du compte ' + account.username"
+                  class="flex-shrink-0 text-gray-400 hover:text-[#1E3A5F] p-1 rounded transition-colors
+                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                  </svg>
+                </button>
+              </div>
               <div class="min-w-0">
                 <p class="text-sm font-medium text-[#1A1A1A] truncate selectable"
                   [class.text-gray-400]="account.status === 'suspended'">
@@ -71,7 +82,7 @@
                 </span>
                 }
               </div>
-              <p class="min-w-0 text-sm text-gray-500 truncate selectable">
+              <p class="min-w-0 text-sm text-gray-500 truncate selectable" [title]="account.display_name">
                 {{ account.display_name || '—' }}
               </p>
               <span class="inline-flex items-center justify-center text-[10px] font-semibold uppercase tracking-wide

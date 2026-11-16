@@ -10,8 +10,11 @@ use tauri::AppHandle;
 pub type Accounts = Arc<SyncMutex<Vec<StoredAccount>>>;
 const LAST_ADMIN_ERROR: &str = "Impossible : il doit rester au moins un administrateur actif.";
 pub fn load_or_bootstrap(app: &AppHandle) -> Vec<StoredAccount> {
-    let accounts = account_repository::load(app);
+    let mut accounts = account_repository::load(app);
     if !accounts.is_empty() {
+        if account::normalize_ids(&mut accounts) {
+            let _ = account_repository::save(app, &accounts);
+        }
         return accounts;
     }
     let now = chrono::Local::now().to_rfc3339();

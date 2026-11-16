@@ -3,7 +3,6 @@ use argon2::password_hash::{
     PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
 };
 use argon2::Argon2;
-
 use crate::config::account_config::{
     MAX_DISPLAY_NAME_LEN, MAX_USERNAME_LEN, MIN_PASSWORD_LEN, MIN_USERNAME_LEN,
     SESSION_TOKEN_TTL_SECS,
@@ -12,13 +11,27 @@ use crate::models::account::{
     numeric_id, AccountActivity, AccountActivityEntry, AccountStatus, ActivityKind, SessionInfo,
     SessionRole, Sessions, StoredAccount,
 };
-
+/// Generates a random UUID (v4) used as the account identifier.
 pub fn generate_id() -> String {
     let mut bytes = [0u8; 16];
     OsRng.fill_bytes(&mut bytes);
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
+    uuid::Builder::from_random_bytes(bytes).into_uuid().to_string()
 }
-
+/// Rewrites legacy 32-character hexadecimal identifiers into the canonical UUID form.
+/// The conversion is lossless and deterministic. Returns true when something changed.
+pub fn normalize_ids(accounts: &mut [StoredAccount]) -> bool {
+    let mut changed = false;
+    for account in accounts.iter_mut() {
+        if let Ok(parsed) = uuid::Uuid::parse_str(&account.id) {
+            let canonical = parsed.to_string();
+            if canonical != account.id {
+                account.id = canonical;
+                changed = true;
+            }
+        }
+    }
+    changed
+}
 pub fn hash_password(password: &str) -> Result<String, String> {
     let salt = SaltString::generate(&mut OsRng);
     Argon2::default()
@@ -26,7 +39,6 @@ pub fn hash_password(password: &str) -> Result<String, String> {
         .map(|hash| hash.to_string())
         .map_err(|e| e.to_string())
 }
-
 pub fn verify_password(password: &str, hash: &str) -> bool {
     let Ok(parsed_hash) = PasswordHash::new(hash) else {
         return false;
@@ -35,7 +47,6 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
         .verify_password(password.as_bytes(), &parsed_hash)
         .is_ok()
 }
-
 pub fn validate_username(username: &str) -> Result<String, String> {
     let trimmed = username.trim();
     if trimmed.chars().count() < MIN_USERNAME_LEN {
@@ -50,7 +61,6 @@ pub fn validate_username(username: &str) -> Result<String, String> {
     }
     Ok(trimmed.to_string())
 }
-
 pub fn validate_password(password: &str) -> Result<(), String> {
     if password.chars().count() < MIN_PASSWORD_LEN {
         return Err(format!(
@@ -64,7 +74,6 @@ pub fn validate_password(password: &str) -> Result<(), String> {
     }
     Ok(())
 }
-
 pub fn validate_display_name(display_name: &str) -> Result<String, String> {
     let trimmed = display_name.trim();
     if trimmed.chars().count() > MAX_DISPLAY_NAME_LEN {
@@ -74,13 +83,11 @@ pub fn validate_display_name(display_name: &str) -> Result<String, String> {
     }
     Ok(trimmed.to_string())
 }
-
 pub fn username_exists(accounts: &[StoredAccount], username: &str) -> bool {
     accounts
         .iter()
         .any(|a| a.username.eq_ignore_ascii_case(username))
 }
-
 pub fn find_account_mut<'a>(
     accounts: &'a mut [StoredAccount],
     username: &str,
@@ -89,7 +96,6 @@ pub fn find_account_mut<'a>(
         .iter_mut()
         .find(|a| a.username.eq_ignore_ascii_case(username))
 }
-
 /// Appends an activity entry to an account's history.
 pub fn record_activity(account: &mut StoredAccount, kind: ActivityKind, reason: Option<String>) {
     account.history.push(AccountActivityEntry {
@@ -98,23 +104,19 @@ pub fn record_activity(account: &mut StoredAccount, kind: ActivityKind, reason: 
         reason,
     });
 }
-
 pub fn suspend(account: &mut StoredAccount, reason: Option<String>) {
     account.status = AccountStatus::Suspended;
     record_activity(account, ActivityKind::Suspended, reason);
 }
-
 pub fn reactivate(account: &mut StoredAccount) {
     account.status = AccountStatus::Active;
     record_activity(account, ActivityKind::Reactivated, None);
 }
-
 pub fn remove_account(accounts: &mut Vec<StoredAccount>, username: &str) -> bool {
     let len_before = accounts.len();
     accounts.retain(|a| !a.username.eq_ignore_ascii_case(username));
     accounts.len() != len_before
 }
-
 pub fn list_activities(accounts: &[StoredAccount]) -> Vec<AccountActivity> {
     let mut activities: Vec<AccountActivity> = accounts
         .iter()
@@ -135,13 +137,11 @@ pub fn list_activities(accounts: &[StoredAccount]) -> Vec<AccountActivity> {
     activities.sort_by(|a, b| b.at.cmp(&a.at));
     activities
 }
-
 fn generate_session_token() -> String {
     let mut bytes = [0u8; 32];
     OsRng.fill_bytes(&mut bytes);
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
-
 pub fn mint_session(sessions: &Sessions, username: &str, role: SessionRole) -> String {
     let token = generate_session_token();
     let now = chrono::Local::now().timestamp();
@@ -157,7 +157,6 @@ pub fn mint_session(sessions: &Sessions, username: &str, role: SessionRole) -> S
     );
     token
 }
-
 pub fn consume_session(
     sessions: &Sessions,
     token: &str,

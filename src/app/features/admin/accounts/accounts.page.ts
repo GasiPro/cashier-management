@@ -23,7 +23,6 @@ import {
   PeerId,
 } from '../../../data/device/device.model';
 import { isValidIp } from '../../../shared/utils/validators';
-
 interface BlacklistTypeChoice {
   value: BlacklistEntryType;
   label: string;
@@ -31,7 +30,6 @@ interface BlacklistTypeChoice {
   placeholder: string;
   emptyError: string;
 }
-
 const BLACKLIST_TYPES: BlacklistTypeChoice[] = [
   {
     value: 'ip',
@@ -107,6 +105,15 @@ export class AccountsPage implements OnInit {
       this.setAccountStatus(errorMessage(e, 'Impossible de charger la liste des comptes.'), true);
     } finally {
       this.loadingAccounts.set(false);
+    }
+  }
+  async copyAccountId(account: AccountView): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(account.id);
+      this.setAccountStatus('Identifiant copié.', false);
+    } catch (e) {
+      console.error('failed to copy account id', e);
+      this.setAccountStatus("Impossible de copier l'identifiant.", true);
     }
   }
   isExpanded(username: string): boolean {
@@ -444,7 +451,6 @@ export class AccountsPage implements OnInit {
       this.loadingActivities.set(false);
     }
   }
-
   // ── Security: blacklist ──────────────────────────────────────────────────
   blacklist = signal<BlacklistEntry[]>([]);
   loadingBlacklist = signal(true);

@@ -78,7 +78,7 @@ pub struct StoredAccount {
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct Account {
-    pub id: i64,
+    pub id: String,
     pub username: String,
     pub display_name: String,
     pub user_type: UserType,
@@ -118,7 +118,7 @@ pub type Sessions = Arc<SyncMutex<HashMap<String, SessionInfo>>>;
 impl From<&StoredAccount> for Account {
     fn from(account: &StoredAccount) -> Self {
         Self {
-            id: numeric_id(&account.id),
+            id: account.id.clone(),
             username: account.username.clone(),
             display_name: account.display_name.clone(),
             user_type: account.user_type,
@@ -133,9 +133,6 @@ impl From<&StoredAccount> for Account {
         }
     }
 }
-/// Folds an opaque string id into a stable, positive integer that survives a
-/// JSON round-trip into a JavaScript `number` (53-bit safe range). Purely
-/// derived, so it stays identical across calls and restarts.
 pub fn numeric_id(id: &str) -> i64 {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in id.as_bytes() {

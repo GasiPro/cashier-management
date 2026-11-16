@@ -36,13 +36,21 @@ pub fn is_blacklisted(entries: &[BlacklistEntry], addr: &str) -> bool {
         .iter()
         .any(|e| e.entry_type == BlacklistType::Ip && e.value == ip)
 }
+/// Numeric form under which accounts were blacklisted before ids became UUIDs.
+fn legacy_numeric_id(account_id: &str) -> String {
+    let raw = uuid::Uuid::parse_str(account_id)
+        .map(|id| id.simple().to_string())
+        .unwrap_or_else(|_| account_id.to_string());
+    numeric_id(&raw).to_string()
+}
 pub fn is_account_blacklisted(entries: &[BlacklistEntry], username: &str, account_id: &str) -> bool {
     let username = username.trim();
     entries.iter().any(|e| {
         e.entry_type == BlacklistType::Account
             && (e.value.eq_ignore_ascii_case(username)
                 || (!account_id.is_empty()
-                    && (e.value == account_id || e.value == numeric_id(account_id).to_string())))
+                    && (e.value.eq_ignore_ascii_case(account_id)
+                        || e.value == legacy_numeric_id(account_id))))
     })
 }
 pub fn is_device_blacklisted(entries: &[BlacklistEntry], device_id: &str) -> bool {
@@ -221,7 +229,11 @@ pub fn machine_identity(query: &str) -> (Option<String>, String) {
         let value: String = decoded.trim().chars().take(MAX_IDENTITY_LEN).collect();
         match key {
             "machine" if !value.is_empty() => name = Some(value),
-            "machine_id" => device_id = value,
+            "machine_id" => {
+                device_id = uuid::Uuid::parse_str(&value)
+                    .map(|id| id.to_string())
+                    .unwrap_or_default()
+            }
             _ => {}
         }
     }
