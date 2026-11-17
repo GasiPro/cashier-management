@@ -1,72 +1,149 @@
-import { Component, ElementRef, OnInit, signal, computed, ViewChild } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { errorMessage } from '../../../core/error/error-messages';
 import * as pricingApi from '../../../data/pricing/pricing.api';
-import { PricingItemType, ServiceItem } from '../../../data/pricing/pricing.model';
+import type {
+  CurrencyInfo,
+  PriceAdjustmentKind,
+  PriceHistoryEntry,
+  PricePeak,
+  PricingItemType,
+  ServiceItem,
+} from '../../../data/pricing/pricing.model';
+import { Badge, BadgeTone } from '../../../shared/ui/badge/badge';
+type PricingTab = 'price' | 'history' | 'currency';
 type TypeFilter = 'all' | PricingItemType;
 type SortKey = 'category' | 'label' | 'price-asc' | 'price-desc';
-const MAX_LABEL_LEN = 60;
-const MAX_CATEGORY_LEN = 40;
-interface TypeOption {
-  value: PricingItemType;
-  label: string;
-}
-const TYPE_OPTIONS: TypeOption[] = [
-  { value: 'service', label: 'Service' },
-  { value: 'product', label: 'Produit' },
+const KIND_BADGES: Record<PriceAdjustmentKind, { label: string; tone: BadgeTone }> = {
+  majoration: { label: 'Majoration', tone: 'warning' },
+  reduction: { label: 'Réduction', tone: 'info' },
+};
+const PEAK_BADGES: Record<PricePeak, { label: string; tone: BadgeTone }> = {
+  highest: { label: 'Pic le plus haut', tone: 'danger' },
+  lowest: { label: 'Pic le plus bas', tone: 'success' },
+};
+const TYPE_FILTERS: { value: TypeFilter; label: string }[] = [
+  { value: 'all', label: 'Tous' },
+  { value: 'service', label: 'Services' },
+  { value: 'product', label: 'Produits' },
 ];
-interface AvailabilityOption {
-  value: boolean;
-  label: string;
-}
-const AVAILABILITY_OPTIONS: AvailabilityOption[] = [
-  { value: true, label: 'Disponible' },
-  { value: false, label: 'Indisponible' },
-];
+const CURRENCY_CODE_PATTERN = /^[A-Za-z]{2,6}$/;
+const MAX_CURRENCY_NAME_LEN = 40;
+const COPIED_FEEDBACK_MS = 1500;
 @Component({
   selector: 'app-admin-pricing',
   standalone: true,
-  imports: [CommonModule, FormsModule],
-  templateUrl: './pricing.page.html'
+  imports: [FormsModule, NgTemplateOutlet, Badge],
+  templateUrl: './pricing.page.html',
 })
-export class PricingPage implements OnInit {
-  readonly maxLabelLen = MAX_LABEL_LEN;
-  readonly maxCategoryLen = MAX_CATEGORY_LEN;
-  readonly typeOptions = TYPE_OPTIONS;
-  readonly availabilityOptions = AVAILABILITY_OPTIONS;
-  @ViewChild('newItemLabelInput') private newItemLabelInput?: ElementRef<HTMLInputElement>;
+export class PricingPage implements OnInit, OnDestroy {
+  readonly typeFilters = TYPE_FILTERS;
+  readonly kindBadges = KIND_BADGES;
+  readonly peakBadges = PEAK_BADGES;
+  readonly maxCurrencyNameLen = MAX_CURRENCY_NAME_LEN;
   items = signal<ServiceItem[]>([]);
-  loadingItems = signal(true);
+  history = signal<PriceHistoryEntry[]>([]);
+  currencyInfo = signal<CurrencyInfo | null>(null);
+  loading = signal(true);
   loadError = signal('');
+  tab = signal<PricingTab>('price');
+  statusMessage = signal('');
+  statusIsError = signal(false);
+  copied = signal<string | null>(null);
+  private copiedTimer?: ReturnType<typeof setTimeout>;
+  readonly currency = computed(() => this.currencyInfo()?.selected ?? '');
+  readonly tabs = computed<{ value: PricingTab; label: string; count: string }[]>(() => [
+    { value: 'price', label: 'Prix', count: String(this.items().length) },
+    { value: 'history', label: 'Historique', count: String(this.history().length) },
+    { value: 'currency', label: 'Devise', count: this.currency() },
+  ]);
   ngOnInit(): void {
-    this.loadItems();
+    void this.load();
   }
-  private async loadItems(): Promise<void> {
-    this.loadingItems.set(true);
-    this.loadError.set('');
-    try {
-      const items = await pricingApi.getPricingMatrix();
-      this.items.set(items);
-    } catch (e) {
-      console.error('failed to load pricing matrix', e);
-      this.loadError.set(errorMessage(e, 'Impossible de charger la grille tarifaire.'));
-    } finally {
-      this.loadingItems.set(false);
-    }
+  ngOnDestroy(): void {
+    clearTimeout(this.copiedTimer);
   }
   reload(): void {
-    void this.loadItems();
+    void this.load();
+  }
+  private async load(): Promise<void> {
+    this.loading.set(true);
+    this.loadError.set('');
+    try {
+      const [items, history, currency] = await Promise.all([
+        pricingApi.getPricingMatrix(),
+        pricingApi.getPriceHistory(),
+        pricingApi.getCurrency(),
+      ]);
+      this.items.set(items);
+      this.history.set(history);
+      this.currencyInfo.set(currency);
+      this.currencyChoice.set(currency.selected);
+    } catch (e) {
+      console.error('failed to load pricing', e);
+      this.loadError.set(errorMessage(e, 'Impossible de charger la grille tarifaire.'));
+    } finally {
+      this.loading.set(false);
+    }
+  }
+  private async refreshHistory(): Promise<void> {
+    try {
+      this.history.set(await pricingApi.getPriceHistory());
+    } catch (e) {
+      console.error('failed to refresh price history', e);
+    }
+  }
+  private setStatus(message: string, isError: boolean): void {
+    this.statusMessage.set(message);
+    this.statusIsError.set(isError);
+  }
+  setTab(tab: PricingTab): void {
+    this.tab.set(tab);
+    this.editingId.set(null);
+    this.setStatus('', false);
+    if (tab === 'history') void this.refreshHistory();
+  }
+  async copy(key: string, value: string | number): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(String(value));
+      this.copied.set(key);
+      clearTimeout(this.copiedTimer);
+      this.copiedTimer = setTimeout(() => this.copied.set(null), COPIED_FEEDBACK_MS);
+    } catch (e) {
+      console.error('failed to copy id', e);
+      this.setStatus("Impossible de copier l'ID.", true);
+    }
+  }
+  money(value: number): string {
+    return value.toLocaleString('fr-FR');
+  }
+  formatAt(iso: string): string {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return iso;
+    return date.toLocaleString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  }
+  typeLabel(type: PricingItemType): string {
+    return type === 'service' ? 'Service' : 'Produit';
+  }
+  typeTone(type: PricingItemType): BadgeTone {
+    return type === 'service' ? 'brand' : 'success';
+  }
+  deltaLabel(entry: PriceHistoryEntry): string {
+    const delta = entry.applied_price - entry.normal_price;
+    return `${delta > 0 ? '+' : ''}${this.money(delta)}`;
   }
   typeFilter = signal<TypeFilter>('all');
   categoryFilter = signal<string>('all');
   searchTerm = signal('');
   sortKey = signal<SortKey>('category');
-  readonly categories = computed<string[]>(() => {
-    const set = new Set(this.items().map((i) => i.category).filter((c) => c.trim().length > 0));
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'fr'));
-  });
-  /** Categories of the items matching the active type filter ("Tous" shows every category). */
   readonly visibleCategories = computed<string[]>(() => {
     const type = this.typeFilter();
     const set = new Set(
@@ -77,7 +154,6 @@ export class PricingPage implements OnInit {
     );
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'fr'));
   });
-  /** The selected category, or 'all' when it no longer exists under the active type. */
   private readonly effectiveCategory = computed<string>(() => {
     const category = this.categoryFilter();
     return category === 'all' || this.visibleCategories().includes(category) ? category : 'all';
@@ -132,267 +208,112 @@ export class PricingPage implements OnInit {
       }
     });
   });
-  async copyId(id: string): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(id);
-      this.setItemStatus(`ID « ${id} » copié.`, false);
-    } catch (e) {
-      console.error('copy id failed', e);
-      this.setItemStatus("Impossible de copier l'ID.", true);
-    }
-  }
-  typeLabel(type: PricingItemType): string {
-    return type === 'service' ? 'Service' : 'Produit';
-  }
-  typeBadgeClass(type: PricingItemType): string {
-    const base = 'inline-flex items-center text-[10px] font-semibold uppercase tracking-wide' +
-      ' border rounded-full px-1.5 py-0.5 flex-shrink-0';
-    return type === 'service'
-      ? `${base} text-[#1E3A5F] bg-[#EFF4FA] border-[#1E3A5F]/20`
-      : `${base} text-emerald-700 bg-emerald-50 border-emerald-200`;
-  }
-  newItemLabel = signal('');
-  newItemCategory = signal('');
-  newItemPrice = signal<number | null>(null);
-  newItemType = signal<PricingItemType>('service');
-  creatingItem = signal(false);
-  newItemFormError = signal('');
-  showCreatePanel = signal(false);
-  /** Result feedback (success or server error) for catalogue actions, announced via aria-live. */
-  itemStatusMessage = signal('');
-  itemStatusIsError = signal(false);
-  setNewItemType(type: PricingItemType): void {
-    this.newItemType.set(type);
-  }
-  openCreatePanel(): void {
-    this.showCreatePanel.set(true);
-    this.newItemFormError.set('');
-    setTimeout(() => this.newItemLabelInput?.nativeElement.focus());
-  }
-  closeCreatePanel(): void {
-    this.showCreatePanel.set(false);
-    this.resetNewItemForm();
-  }
-  private readonly trimmedNewItemLabel = computed(() => this.newItemLabel().trim());
-  private readonly trimmedNewItemCategory = computed(() => this.newItemCategory().trim());
-  /** Client-side shape check only — the server remains the source of truth, so the
-   *  button stays enabled even if this passes; the real rejection (if any) comes
-   *  back from `create_pricing_item`. */
-  canSubmitNewItem = computed(() => {
-    const price = this.newItemPrice();
-    return (
-      this.trimmedNewItemLabel().length > 0 &&
-      this.trimmedNewItemLabel().length <= this.maxLabelLen &&
-      this.trimmedNewItemCategory().length > 0 &&
-      this.trimmedNewItemCategory().length <= this.maxCategoryLen &&
-      price !== null &&
-      price >= 0 &&
-      !this.creatingItem()
-    );
-  });
-  private validateItemForm(label: string, category: string, price: number | null, excludeId: string | null): string {
-    if (label.length === 0) return 'Le libellé est obligatoire.';
-    if (label.length > this.maxLabelLen) return `Le libellé ne peut pas dépasser ${this.maxLabelLen} caractères.`;
-    if (category.length === 0) return 'La catégorie est obligatoire.';
-    if (category.length > this.maxCategoryLen) {
-      return `La catégorie ne peut pas dépasser ${this.maxCategoryLen} caractères.`;
-    }
-    if (price === null || Number.isNaN(price)) return 'Le prix est obligatoire.';
-    if (price < 0) return 'Le prix ne peut pas être négatif.';
-    if (!Number.isInteger(price)) return 'Le prix doit être un nombre entier.';
-    if (
-      this.items().some(
-        (i) =>
-          i.id !== excludeId &&
-          i.label.toLowerCase() === label.toLowerCase() &&
-          i.category.toLowerCase() === category.toLowerCase(),
-      )
-    ) {
-      return 'Un tarif avec ce libellé existe déjà dans cette catégorie.';
-    }
-    return '';
-  }
-  async createItem(): Promise<void> {
-    if (this.creatingItem()) return;
-    const label = this.trimmedNewItemLabel();
-    const category = this.trimmedNewItemCategory();
-    const price = this.newItemPrice();
-    const formError = this.validateItemForm(label, category, price, null);
-    if (formError || price === null) {
-      this.newItemFormError.set(formError);
-      this.setItemStatus('', false);
-      return;
-    }
-    this.newItemFormError.set('');
-    this.creatingItem.set(true);
-    this.setItemStatus('', false);
-    try {
-      const created = await pricingApi.createPricingItem({
-        label,
-        category,
-        price,
-        item_type: this.newItemType(),
-      });
-      this.items.update((list) => [created, ...list]);
-      this.setItemStatus(`Tarif « ${created.label} » ajouté.`, false);
-      this.closeCreatePanel();
-    } catch (e) {
-      console.error('create_pricing_item failed', e);
-      const message = errorMessage(e, "Échec de l'ajout du tarif. Réessayez.");
-      this.newItemFormError.set(message);
-    } finally {
-      this.creatingItem.set(false);
-    }
-  }
-  private resetNewItemForm(): void {
-    this.newItemLabel.set('');
-    this.newItemCategory.set('');
-    this.newItemPrice.set(null);
-    this.newItemType.set('service');
-    this.newItemFormError.set('');
-  }
-  private setItemStatus(message: string, isError: boolean): void {
-    this.itemStatusMessage.set(message);
-    this.itemStatusIsError.set(isError);
-  }
   editingId = signal<string | null>(null);
-  editLabel = signal('');
-  editCategory = signal('');
   editPrice = signal<number | null>(null);
-  editType = signal<PricingItemType>('service');
-  editAvailable = signal(true);
-  savingItem = signal(false);
-  editItemError = signal('');
-  startEditItem(item: ServiceItem): void {
-    this.confirmingDeleteId.set(null);
+  editMajoration = signal(true);
+  editReduction = signal(true);
+  editPriceEditable = signal(true);
+  savingId = signal<string | null>(null);
+  editError = signal('');
+  startEdit(item: ServiceItem): void {
     this.editingId.set(item.id);
-    this.editLabel.set(item.label);
-    this.editCategory.set(item.category);
     this.editPrice.set(item.price);
-    this.editType.set(item.type);
-    this.editAvailable.set(item.available);
-    this.editItemError.set('');
-    // Move focus into the panel once it's rendered, so keyboard/screen-reader
-    setTimeout(() => {
-      document.getElementById(`edit-item-label-${item.id}`)?.focus();
-    });
+    this.editMajoration.set(item.allow_majoration);
+    this.editReduction.set(item.allow_reduction);
+    this.editPriceEditable.set(item.price_editable);
+    this.editError.set('');
+    setTimeout(() => document.getElementById(`pricing-price-${item.id}`)?.focus());
   }
-  cancelEditItem(): void {
+  toggleEdit(key: 'majoration' | 'reduction' | 'editable'): void {
+    const target =
+      key === 'majoration' ? this.editMajoration : key === 'reduction' ? this.editReduction : this.editPriceEditable;
+    target.update((value) => !value);
+  }
+  cancelEdit(): void {
     const id = this.editingId();
     this.editingId.set(null);
-    if (id) {
-      document.getElementById(`item-edit-btn-${id}`)?.focus();
-    }
+    this.editError.set('');
+    if (id) document.getElementById(`pricing-edit-btn-${id}`)?.focus();
   }
-  setEditType(type: PricingItemType): void {
-    this.editType.set(type);
-  }
-  setEditAvailable(available: boolean): void {
-    this.editAvailable.set(available);
-  }
-  canSubmitEditItem = computed(() => {
-    if (this.savingItem()) return false;
+  async saveEdit(item: ServiceItem): Promise<void> {
+    if (this.savingId()) return;
     const price = this.editPrice();
-    return (
-      this.editLabel().trim().length > 0 &&
-      this.editLabel().trim().length <= this.maxLabelLen &&
-      this.editCategory().trim().length > 0 &&
-      this.editCategory().trim().length <= this.maxCategoryLen &&
-      price !== null &&
-      price >= 0
-    );
-  });
-  async saveEditItem(item: ServiceItem): Promise<void> {
-    if (this.savingItem()) return;
-    const label = this.editLabel().trim();
-    const category = this.editCategory().trim();
-    const price = this.editPrice();
-    const formError = this.validateItemForm(label, category, price, item.id);
-    if (formError || price === null) {
-      this.editItemError.set(formError);
+    if (price === null || Number.isNaN(price)) {
+      this.editError.set('Le prix est obligatoire.');
       return;
     }
-    this.editItemError.set('');
-    this.savingItem.set(true);
+    if (price < 0) {
+      this.editError.set('Le prix ne peut pas être négatif.');
+      return;
+    }
+    if (!Number.isInteger(price)) {
+      this.editError.set('Le prix doit être un nombre entier.');
+      return;
+    }
+    this.editError.set('');
+    this.savingId.set(item.id);
+    this.setStatus('', false);
     try {
       const updated = await pricingApi.updatePricingItem(item.id, {
-        label,
-        category,
         price,
-        item_type: this.editType(),
-        available: this.editAvailable(),
+        allow_majoration: this.editMajoration(),
+        allow_reduction: this.editReduction(),
+        price_editable: this.editPriceEditable(),
       });
       this.items.update((list) => list.map((i) => (i.id === updated.id ? updated : i)));
       this.editingId.set(null);
-      this.setItemStatus(`Tarif « ${updated.label} » mis à jour.`, false);
-      document.getElementById(`item-edit-btn-${updated.id}`)?.focus();
+      this.setStatus(`Tarif « ${updated.label} » mis à jour.`, false);
+      document.getElementById(`pricing-edit-btn-${updated.id}`)?.focus();
     } catch (e) {
-      console.error('update_pricing_item failed', e);
-      const message = errorMessage(e, 'Échec de la mise à jour du tarif. Réessayez.');
-      this.editItemError.set(message);
+      console.error('item_update failed', e);
+      this.editError.set(errorMessage(e, 'Échec de la mise à jour du tarif. Réessayez.'));
     } finally {
-      this.savingItem.set(false);
+      this.savingId.set(null);
     }
   }
-  duplicatingId = signal<string | null>(null);
-  async duplicateItem(item: ServiceItem): Promise<void> {
-    if (this.duplicatingId()) return;
-    this.duplicatingId.set(item.id);
-    this.setItemStatus('', false);
+  currencyChoice = signal('');
+  customCode = signal('');
+  customName = signal('');
+  savingCurrency = signal(false);
+  currencyError = signal('');
+  async saveCurrency(): Promise<void> {
+    const code = this.currencyChoice();
+    if (!code || code === this.currency()) return;
+    await this.applyCurrency(code, null);
+  }
+  async addCustomCurrency(): Promise<void> {
+    const code = this.customCode().trim();
+    const name = this.customName().trim();
+    if (!CURRENCY_CODE_PATTERN.test(code)) {
+      this.currencyError.set('Code invalide : 2 à 6 lettres attendues (ex. : USD, EUR, MGA).');
+      return;
+    }
+    if (name.length > MAX_CURRENCY_NAME_LEN) {
+      this.currencyError.set('Le nom de la devise est trop long.');
+      return;
+    }
+    if (await this.applyCurrency(code.toUpperCase(), name || null)) {
+      this.customCode.set('');
+      this.customName.set('');
+    }
+  }
+  private async applyCurrency(code: string, name: string | null): Promise<boolean> {
+    if (this.savingCurrency()) return false;
+    this.currencyError.set('');
+    this.savingCurrency.set(true);
+    this.setStatus('', false);
     try {
-      const created = await pricingApi.createPricingItem({
-        label: `${item.label} (copie)`,
-        category: item.category,
-        price: item.price,
-        item_type: item.type,
-      });
-      this.items.update((list) => [created, ...list]);
-      this.setItemStatus(`Tarif « ${created.label} » créé à partir de « ${item.label} ».`, false);
-      this.startEditItem(created);
+      const info = await pricingApi.setCurrency(code, name);
+      this.currencyInfo.set(info);
+      this.currencyChoice.set(info.selected);
+      this.setStatus(`Devise « ${info.selected} » enregistrée.`, false);
+      return true;
     } catch (e) {
-      console.error('create_pricing_item (duplicate) failed', e);
-      const message = errorMessage(e, 'Échec de la duplication du tarif. Réessayez.');
-      this.setItemStatus(message, true);
+      console.error('currency_set failed', e);
+      this.currencyError.set(errorMessage(e, 'Échec de l\'enregistrement de la devise. Réessayez.'));
+      return false;
     } finally {
-      this.duplicatingId.set(null);
-    }
-  }
-  confirmingDeleteId = signal<string | null>(null);
-  deletingItem = signal(false);
-  deleteItemError = signal('');
-  requestDeleteItem(item: ServiceItem): void {
-    this.editingId.set(null);
-    this.confirmingDeleteId.set(item.id);
-    this.deleteItemError.set('');
-    setTimeout(() => {
-      document.getElementById(`item-delete-confirm-btn-${item.id}`)?.focus();
-    });
-  }
-  /** Closes the confirmation step and returns focus to the row's delete button. */
-  cancelDeleteItem(): void {
-    const id = this.confirmingDeleteId();
-    this.confirmingDeleteId.set(null);
-    this.deleteItemError.set('');
-    if (id) {
-      document.getElementById(`item-delete-btn-${id}`)?.focus();
-    }
-  }
-  async confirmDeleteItem(item: ServiceItem): Promise<void> {
-    if (this.deletingItem()) return;
-    this.deletingItem.set(true);
-    this.deleteItemError.set('');
-    try {
-      await pricingApi.deletePricingItem(item.id);
-      this.items.update((list) => list.filter((i) => i.id !== item.id));
-      this.confirmingDeleteId.set(null);
-      this.setItemStatus(`Tarif « ${item.label} » supprimé.`, false);
-      document.getElementById('pricing-add-btn')?.focus();
-    } catch (e) {
-      console.error('delete_pricing_item failed', e);
-      const message = errorMessage(e, 'Échec de la suppression du tarif. Réessayez.');
-      this.deleteItemError.set(message);
-    } finally {
-      this.deletingItem.set(false);
+      this.savingCurrency.set(false);
     }
   }
 }

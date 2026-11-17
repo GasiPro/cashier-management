@@ -1,6 +1,9 @@
 use crate::config::default::{DEFAULT_NEXT_GROUP_ID, DEFAULT_NEXT_ORDER_ID};
+use crate::domain::pricing::{check_price_change, find_item_by_service_type, push_history_entry};
 use crate::models::order::{CartItem, Order, OrderStatus};
+use crate::models::pricing::{PriceAdjustment, ServiceItem};
 use crate::repositories::order_repository::OrderApi;
+use crate::repositories::{account_repository, pricing_repository};
 use chrono::{Local, Utc};
 use std::sync::Mutex;
 use tauri::AppHandle;
@@ -66,9 +69,11 @@ impl OrderService {
         target_group_id: Option<i64>,
     ) -> Result<i64, String> {
         validate_cart(cart)?;
+        let catalog = self.catalog();
         let time = Local::now().format("%H:%M").to_string();
         let created_at = Utc::now().to_rfc3339();
         let mut created_group_id = 0;
+        let mut adjustments = Vec::new();
         self.modify(|state| {
             let group_id = match target_group_id {
                 Some(id) => {
@@ -91,6 +96,9 @@ impl OrderService {
             created_group_id = group_id;
             for item in cart {
                 let service_type = format!("{} — {}", item.service.category, item.label);
+                let listed = catalog.iter().find(|s| s.id == item.service.id);
+                let normal_price = listed.map_or(item.service.price, |s| s.price);
+                let adjustment = check_price_change(listed, normal_price, item.unit_price)?;
                 if target_group_id.is_some() {
                     let same_line = state.orders.iter_mut().find(|o| {
                         o.group_id == group_id
@@ -105,12 +113,20 @@ impl OrderService {
                         continue;
                     }
                 }
+                adjustments.extend(adjustment.map(|kind| PriceAdjustment {
+                    order_id: state.next_id,
+                    item_id: item.service.id.clone(),
+                    service_type: service_type.clone(),
+                    kind,
+                    normal_price,
+                    applied_price: item.unit_price,
+                }));
                 state.orders.push(Order {
                     id: state.next_id,
                     group_id,
                     service_type,
                     unit_price: item.unit_price,
-                    original_unit_price: item.service.price,
+                    original_unit_price: normal_price,
                     quantity: item.qty,
                     status: OrderStatus::EnAttente,
                     time: time.clone(),
@@ -125,6 +141,7 @@ impl OrderService {
             }
             Ok(())
         })?;
+        self.record_adjustments(counter_username, adjustments);
         Ok(created_group_id)
     }
     pub fn mark_group_as_paid(
@@ -161,18 +178,41 @@ impl OrderService {
         owner: Option<&str>,
     ) -> Result<i64, String> {
         validate_amounts(quantity, unit_price)?;
+        let catalog = self.catalog();
         let mut group_id = 0;
+        let mut adjustment = None;
+        let mut counter_username = String::new();
         self.modify(|state| {
             let order = state
                 .orders
                 .iter_mut()
                 .find(|o| o.id == id && o.status == OrderStatus::EnAttente && is_owned_by(o, owner))
                 .ok_or_else(|| ORDER_NOT_FOUND.to_string())?;
+            if unit_price != order.unit_price {
+                let listed = find_item_by_service_type(&catalog, &order.service_type);
+                let normal_price = if order.original_unit_price > 0 {
+                    order.original_unit_price
+                } else {
+                    listed.map_or(order.unit_price, |s| s.price)
+                };
+                adjustment = check_price_change(listed, normal_price, unit_price)?.map(|kind| {
+                    PriceAdjustment {
+                        order_id: order.id,
+                        item_id: listed.map(|s| s.id.clone()).unwrap_or_default(),
+                        service_type: order.service_type.clone(),
+                        kind,
+                        normal_price,
+                        applied_price: unit_price,
+                    }
+                });
+            }
             order.quantity = quantity;
             order.unit_price = unit_price;
             group_id = order.group_id;
+            counter_username = order.counter_username.clone();
             Ok(())
         })?;
+        self.record_adjustments(&counter_username, adjustment.into_iter().collect());
         Ok(group_id)
     }
     pub fn delete_order(&self, id: i64, owner: Option<&str>) -> Result<i64, String> {
@@ -182,6 +222,34 @@ impl OrderService {
         self.remove_pending(GROUP_NOT_FOUND, |o| {
             o.group_id == group_id && is_owned_by(o, owner)
         })
+    }
+    fn catalog(&self) -> Vec<ServiceItem> {
+        let app_handle = self.app_handle.lock().unwrap().clone();
+        app_handle
+            .and_then(|app| pricing_repository::load(&app))
+            .unwrap_or_default()
+    }
+    fn record_adjustments(&self, counter_username: &str, adjustments: Vec<PriceAdjustment>) {
+        if adjustments.is_empty() {
+            return;
+        }
+        let Some(app_handle) = self.app_handle.lock().unwrap().clone() else {
+            return;
+        };
+        let counter_id = account_repository::load(&app_handle)
+            .into_iter()
+            .find(|a| a.username.eq_ignore_ascii_case(counter_username))
+            .map(|a| a.id)
+            .unwrap_or_default();
+        let at = Utc::now().to_rfc3339();
+        let recorded = pricing_repository::update_history(&app_handle, |history| {
+            for adjustment in adjustments {
+                push_history_entry(history, adjustment, counter_username, &counter_id, &at);
+            }
+        });
+        if let Err(err) = recorded {
+            log::warn!("Historique des prix non enregistré : {err}");
+        }
     }
     fn orders_with_status(&self, status: OrderStatus) -> Vec<Order> {
         self.state

@@ -1,7 +1,6 @@
 use crate::app::AppState;
 use crate::infrastructure::websocket::broadcast_to_approved;
 use crate::models::connection::ServerMessage;
-use crate::models::pricing::ServiceItemType;
 use crate::services::pricing_service;
 use serde::Deserialize;
 use tauri::State;
@@ -9,22 +8,18 @@ use tauri::State;
 #[serde(tag = "method", rename_all = "snake_case")]
 pub enum PricingCommand {
     GetMatrix,
-    ItemCreate {
-        category: String,
-        label: String,
-        price: u32,
-        item_type: ServiceItemType,
-    },
     ItemUpdate {
         id: String,
-        category: Option<String>,
-        label: Option<String>,
         price: Option<u32>,
-        item_type: Option<ServiceItemType>,
-        available: Option<bool>,
+        allow_majoration: Option<bool>,
+        allow_reduction: Option<bool>,
+        price_editable: Option<bool>,
     },
-    ItemDelete {
-        id: String,
+    HistoryGet,
+    CurrencyGet,
+    CurrencySet {
+        code: String,
+        name: Option<String>,
     },
 }
 #[tauri::command]
@@ -37,50 +32,32 @@ pub async fn pricing(
         PricingCommand::GetMatrix => Ok(serde_json::json!(pricing_service::get_pricing_matrix(
             &state.pricing
         ))),
-        PricingCommand::ItemCreate {
-            category,
-            label,
-            price,
-            item_type,
-        } => {
-            let (item, snapshot) = pricing_service::create_pricing_item(
-                &app,
-                &state.pricing,
-                category,
-                label,
-                price,
-                item_type,
-            )
-            .await?;
-            broadcast_to_approved(&state.peers, &ServerMessage::Pricing { data: snapshot }).await;
-            Ok(serde_json::json!(item))
-        }
         PricingCommand::ItemUpdate {
             id,
-            category,
-            label,
             price,
-            item_type,
-            available,
+            allow_majoration,
+            allow_reduction,
+            price_editable,
         } => {
             let (updated, snapshot) = pricing_service::update_pricing_item(
                 &app,
                 &state.pricing,
                 id,
-                category,
-                label,
                 price,
-                item_type,
-                available,
+                allow_majoration,
+                allow_reduction,
+                price_editable,
             )
             .await?;
             broadcast_to_approved(&state.peers, &ServerMessage::Pricing { data: snapshot }).await;
             Ok(serde_json::json!(updated))
         }
-        PricingCommand::ItemDelete { id } => {
-            let snapshot = pricing_service::delete_pricing_item(&app, &state.pricing, id).await?;
-            broadcast_to_approved(&state.peers, &ServerMessage::Pricing { data: snapshot }).await;
-            Ok(serde_json::Value::Null)
-        }
+        PricingCommand::HistoryGet => Ok(serde_json::json!(pricing_service::get_price_history(
+            &app
+        ))),
+        PricingCommand::CurrencyGet => Ok(serde_json::json!(pricing_service::get_currency(&app))),
+        PricingCommand::CurrencySet { code, name } => Ok(serde_json::json!(
+            pricing_service::set_currency(&app, code, name)?
+        )),
     }
 }

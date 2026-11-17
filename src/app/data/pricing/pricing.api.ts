@@ -1,37 +1,30 @@
 import { ipcInvoke } from '../../core/ipc/tauri-ipc';
-import type { PricingItemType, ServiceItem } from './pricing.model';
-export interface PricingItemInput {
-  label: string;
-  category: string;
+import type { CurrencyInfo, PriceHistoryEntry, ServiceItem } from './pricing.model';
+export interface PricingItemUpdateInput {
   price: number;
-  item_type: PricingItemType;
-}
-export interface PricingItemUpdateInput extends PricingItemInput {
-  available: boolean;
+  allow_majoration: boolean;
+  allow_reduction: boolean;
+  price_editable: boolean;
 }
 export function getPricingMatrix(): Promise<ServiceItem[]> {
   return ipcInvoke<ServiceItem[]>('pricing', { method: 'get_matrix' });
-}
-export function createPricingItem(input: PricingItemInput): Promise<ServiceItem> {
-  return ipcInvoke<ServiceItem>('pricing', {
-    method: 'item_create',
-    label: input.label,
-    category: input.category,
-    price: input.price,
-    item_type: input.item_type,
-  });
 }
 export function updatePricingItem(id: string, input: PricingItemUpdateInput): Promise<ServiceItem> {
   return ipcInvoke<ServiceItem>('pricing', {
     method: 'item_update',
     id,
-    label: input.label,
-    category: input.category,
     price: input.price,
-    item_type: input.item_type,
-    available: input.available,
+    allow_majoration: input.allow_majoration,
+    allow_reduction: input.allow_reduction,
+    price_editable: input.price_editable,
   });
 }
-export function deletePricingItem(id: string): Promise<void> {
-  return ipcInvoke<void>('pricing', { method: 'item_delete', id });
+export function getPriceHistory(): Promise<PriceHistoryEntry[]> {
+  return ipcInvoke<PriceHistoryEntry[]>('pricing', { method: 'history_get' });
+}
+export function getCurrency(): Promise<CurrencyInfo> {
+  return ipcInvoke<CurrencyInfo>('pricing', { method: 'currency_get' });
+}
+export function setCurrency(code: string, name: string | null): Promise<CurrencyInfo> {
+  return ipcInvoke<CurrencyInfo>('pricing', { method: 'currency_set', code, name });
 }
