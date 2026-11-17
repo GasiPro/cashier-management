@@ -78,6 +78,20 @@ const SEARCH_PAGES: SearchPage[] = [
     ],
   },
   {
+    label: 'Stocks',
+    route: 'stocks',
+    items: [
+      'Historique des stocks',
+      'Produits',
+      'Services',
+      'Disponibilité',
+      'Quantité en stock',
+      'Limite',
+      'Illimité',
+      'Rupture de stock',
+    ],
+  },
+  {
     label: 'Commandes',
     route: 'commandes',
     items: [

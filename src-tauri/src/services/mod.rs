@@ -5,3 +5,4 @@ pub mod order_service;
 pub mod pricing_service;
 pub mod report_service;
 pub mod setting_service;
+pub mod stock_service;

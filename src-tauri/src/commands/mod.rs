@@ -7,3 +7,4 @@ pub mod report_command;
 pub mod server_command;
 pub mod setting_command;
 pub mod splash_command;
+pub mod stock_command;

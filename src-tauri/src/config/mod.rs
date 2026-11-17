@@ -4,3 +4,4 @@ pub mod default;
 pub mod pricing_matrix;
 pub mod rate_limit;
 pub mod setting_config;
+pub mod stock_config;

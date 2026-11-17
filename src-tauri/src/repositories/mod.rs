@@ -4,3 +4,4 @@ pub mod order_repository;
 pub mod pricing_repository;
 pub mod report_repository;
 pub mod setting_repository;
+pub mod stock_repository;

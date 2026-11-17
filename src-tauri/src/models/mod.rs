@@ -4,3 +4,4 @@ pub mod order;
 pub mod pricing;
 pub mod report;
 pub mod setting;
+pub mod stock;

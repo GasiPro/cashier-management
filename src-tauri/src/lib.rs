@@ -6,20 +6,22 @@ pub mod infrastructure;
 pub mod models;
 pub mod repositories;
 pub mod services;
-
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tokio::sync::Mutex;
-
 use app::AppState;
 use config::rate_limit;
 use config::setting_config::DEFAULT_MAX_CONNECTED_DEVICES;
 use infrastructure::splash;
 use infrastructure::websocket::{self, WsContext};
+use models::stock::StockData;
 use services::order_service::OrderService;
 use services::report_service::ReportStore;
-use services::{account_service, connection_service, pricing_service, report_service, setting_service};
-
+use services::stock_service::StockStore;
+use services::{
+    account_service, connection_service, pricing_service, report_service, setting_service,
+    stock_service,
+};
 pub fn run() {
     let ctx = WsContext {
         order_service: Arc::new(OrderService::new()),
@@ -34,6 +36,7 @@ pub fn run() {
         connection_attempts: rate_limit::new_tracker(),
     };
     let reports: ReportStore = Arc::new(SyncMutex::new(Vec::new()));
+    let stock: StockStore = Arc::new(SyncMutex::new(StockData::default()));
     let state = AppState {
         order_service: ctx.order_service.clone(),
         peers: ctx.peers.clone(),
@@ -43,10 +46,10 @@ pub fn run() {
         connection_history: ctx.connection_history.clone(),
         pricing: ctx.pricing.clone(),
         reports: reports.clone(),
+        stock: stock.clone(),
         sessions: ctx.sessions.clone(),
         auth_attempts: rate_limit::new_tracker(),
     };
-
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -68,6 +71,7 @@ pub fn run() {
             *ctx.connection_history.lock().unwrap() = connection_service::load_history(handle);
             *ctx.pricing.lock().unwrap() = pricing_service::load_or_bootstrap(handle);
             *reports.lock().unwrap() = report_service::load(handle);
+            *stock.lock().unwrap() = stock_service::load(handle);
             ctx.order_service.load(handle);
             *ctx.app_handle.lock().unwrap() = Some(handle.clone());
             websocket::start_clock(ctx.peers.clone());
@@ -85,6 +89,7 @@ pub fn run() {
             commands::account_command::account,
             commands::file_command::file,
             commands::splash_command::splash,
+            commands::stock_command::stock,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
