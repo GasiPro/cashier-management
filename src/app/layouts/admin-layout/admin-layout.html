@@ -1,5 +1,5 @@
 <div class="fixed inset-0 bg-[#FAFAFA] flex overflow-hidden">
-    <aside class="w-64 shrink-0 bg-white border-r border-gray-200 h-full flex flex-col justify-between overflow-y-auto">
+    <aside class="w-64 shrink-0 bg-white border-r border-gray-200 h-full flex flex-col justify-between overflow-y-auto overflow-x-hidden">
       <div>
         <nav class="px-4 pt-6 pb-3">
           <a [routerLink]="homeRoute" [class]="navItemClass(homeRoute)">
@@ -98,7 +98,7 @@
           }
         </div>
       </header>
-      <main class="flex-1 p-8 overflow-y-auto">
+      <main class="flex-1 p-8 overflow-y-auto overflow-x-hidden">
         @if (searching()) {
         <section aria-label="Résultats de recherche" class="max-w-3xl mx-auto">
           @if (searchResults().length > 0) {

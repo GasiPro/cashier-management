@@ -1,7 +1,5 @@
 import type { PricingItemType } from '../pricing/pricing.model';
-
 export type StockAction = 'availability' | 'quantity' | 'empty';
-
 export interface StockItem {
   id: string;
   label: string;
@@ -10,7 +8,6 @@ export interface StockItem {
   available: boolean;
   quantity: number | null;
 }
-
 export interface StockHistoryEntry {
   id: number;
   at: string;
@@ -23,4 +20,9 @@ export interface StockHistoryEntry {
   action: StockAction;
   before: string;
   after: string;
+}
+export interface StockItemFields {
+  type: PricingItemType;
+  category: string;
+  label: string;
 }
