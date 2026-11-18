@@ -4,6 +4,10 @@ pub const MAX_CURRENCY_CODE_LEN: usize = 6;
 pub const MAX_CURRENCY_NAME_LEN: usize = 40;
 pub const MAX_CUSTOM_CURRENCIES: usize = 50;
 pub const MAX_PRICE_HISTORY_ENTRIES: usize = 2000;
+pub const MIN_RATE_PERCENT: u32 = 1;
+pub const MAX_RATE_PERCENT: u32 = 100;
+pub const MAX_MOR_DAYS: u32 = 3650;
+pub const MAX_MOR_ORDERS: u32 = 1_000_000;
 pub const PRESET_CURRENCIES: &[(&str, &str)] = &[
     ("MGA", "Ariary malgache"),
     ("ZAR", "Rand sud-africain"),

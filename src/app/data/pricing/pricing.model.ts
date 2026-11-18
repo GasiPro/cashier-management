@@ -1,4 +1,18 @@
 export type PricingItemType = 'service' | 'product';
+export type PriceAdjustmentKind = 'majoration' | 'reduction';
+export interface PriceRule {
+  id: string;
+  rate: number;
+  days: number | null;
+  max_orders: number | null;
+  created_at: string;
+  used_orders: number;
+}
+export interface MorInput {
+  rate: number;
+  days: number | null;
+  max_orders: number | null;
+}
 export interface ServiceItem {
   id: string;
   label: string;
@@ -6,11 +20,10 @@ export interface ServiceItem {
   category: string;
   type: PricingItemType;
   available: boolean;
-  allow_majoration: boolean;
-  allow_reduction: boolean;
+  majoration: PriceRule | null;
+  reduction: PriceRule | null;
   price_editable: boolean;
 }
-export type PriceAdjustmentKind = 'majoration' | 'reduction';
 export type PricePeak = 'highest' | 'lowest';
 export interface PriceHistoryEntry {
   id: string;
@@ -24,6 +37,19 @@ export interface PriceHistoryEntry {
   normal_price: number;
   applied_price: number;
   peak?: PricePeak | null;
+}
+export type PriceLogAction = 'mor_added' | 'price_changed';
+export interface PriceLogEntry {
+  id: string;
+  at: string;
+  admin_username: string;
+  admin_id: string;
+  item_id: string;
+  service_type: string;
+  action: PriceLogAction;
+  kind: PriceAdjustmentKind | null;
+  before: number | null;
+  after: number | null;
 }
 export interface Currency {
   code: string;

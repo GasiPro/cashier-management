@@ -349,9 +349,9 @@ pub fn default_items() -> Vec<PricingItem> {
             label: item.label.to_string(),
             price: item.price,
             available: true,
-            allow_majoration: true,
-            allow_reduction: true,
-            price_editable: true,
+            majoration: None,
+            reduction: None,
+            price_editable: false,
         })
         .collect()
 }

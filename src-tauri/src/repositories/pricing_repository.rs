@@ -1,6 +1,6 @@
 use crate::config::pricing_config::DEFAULT_CURRENCY;
 use crate::infrastructure::filesystem::{config_file_path, read_json, write_json};
-use crate::models::pricing::{Currency, PriceHistoryEntry, ServiceItem};
+use crate::models::pricing::{Currency, PriceHistoryEntry, PriceLogEntry, ServiceItem};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::AppHandle;
@@ -13,6 +13,7 @@ struct PricingFile {
     currency: String,
     custom_currencies: Vec<Currency>,
     history: Vec<PriceHistoryEntry>,
+    log: Vec<PriceLogEntry>,
 }
 impl Default for PricingFile {
     fn default() -> Self {
@@ -21,6 +22,7 @@ impl Default for PricingFile {
             currency: DEFAULT_CURRENCY.to_string(),
             custom_currencies: Vec::new(),
             history: Vec::new(),
+            log: Vec::new(),
         }
     }
 }
@@ -71,6 +73,16 @@ pub fn update_history(
     change: impl FnOnce(&mut Vec<PriceHistoryEntry>),
 ) -> Result<(), String> {
     modify(app, |file| change(&mut file.history))
+}
+pub fn load_log(app: &AppHandle) -> Vec<PriceLogEntry> {
+    let _guard = lock();
+    read(app).map(|file| file.log).unwrap_or_default()
+}
+pub fn update_log(
+    app: &AppHandle,
+    change: impl FnOnce(&mut Vec<PriceLogEntry>),
+) -> Result<(), String> {
+    modify(app, |file| change(&mut file.log))
 }
 pub fn load_currency(app: &AppHandle) -> (String, Vec<Currency>) {
     let _guard = lock();

@@ -16,14 +16,14 @@ use tauri::AppHandle;
 pub type StockStore = Arc<SyncMutex<StockData>>;
 const ITEM_NOT_FOUND: &str = "Article introuvable.";
 const ADMIN_NOT_FOUND: &str = "Compte administrateur introuvable ou inactif.";
-struct Admin {
-    username: String,
-    id: String,
+pub(crate) struct Admin {
+    pub(crate) username: String,
+    pub(crate) id: String,
 }
 pub fn load(app: &AppHandle) -> StockData {
     stock_repository::load(app)
 }
-fn resolve_admin(accounts: &Accounts, username: &str) -> Result<Admin, String> {
+pub(crate) fn resolve_admin(accounts: &Accounts, username: &str) -> Result<Admin, String> {
     let username = username.trim();
     accounts
         .lock()
@@ -278,9 +278,9 @@ pub fn create_item(
         label: fields.label,
         price,
         available: true,
-        allow_majoration: true,
-        allow_reduction: true,
-        price_editable: true,
+        majoration: None,
+        reduction: None,
+        price_editable: false,
     };
     items.push(item.clone());
     if let Err(err) = pricing_repository::save(app, &items) {
