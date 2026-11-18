@@ -81,9 +81,9 @@ const SEARCH_PAGES: SearchPage[] = [
     label: 'Stocks',
     route: 'stocks',
     items: [
-      'Historique des stocks',
-      'Produits',
-      'Services',
+      'Produit',
+      'Service',
+      'Journal',
       'Disponibilité',
       'Quantité en stock',
       'Limite',
