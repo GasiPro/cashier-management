@@ -85,99 +85,107 @@
         Réessayer
       </button>
     </div>
-    } @else if (tab() === 'history') {
-    @if (history().length === 0) {
-    <p class="text-sm text-gray-400 py-4">Aucune majoration ou réduction enregistrée pour le moment.</p>
+    } @else if (tab() === 'journal') {
+    @if (journal().length === 0) {
+    <p class="text-sm text-gray-400 py-4">Aucune entrée dans le journal pour le moment.</p>
     } @else {
     <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg"
-      [attr.aria-label]="history().length + ' ajustement(s) de prix'">
-      @for (entry of history(); track entry.id) {
-      <li class="px-3 py-3 space-y-1.5">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div class="flex flex-wrap items-center gap-2 min-w-0">
-            <app-badge [tone]="kindBadges[entry.kind].tone">{{ kindBadges[entry.kind].label }}</app-badge>
-            @if (entry.peak) {
-            <app-badge [tone]="peakBadges[entry.peak].tone">{{ peakBadges[entry.peak].label }}</app-badge>
-            }
-            <p class="text-sm font-medium text-[#1A1A1A] truncate">{{ entry.service_type }}</p>
+      [attr.aria-label]="journal().length + ' entrée(s) dans le journal'">
+      @for (entry of journal(); track entry.key) {
+      <li>
+        <button type="button" (click)="toggleEntry(entry.key)" [attr.aria-expanded]="expandedKey() === entry.key"
+          class="w-full text-left px-3 py-3 space-y-1.5 hover:bg-gray-50 transition-colors
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex flex-wrap items-center gap-2 min-w-0">
+              @if (entry.kind; as kind) {
+              <app-badge [tone]="kindBadges[kind].tone">{{ kindBadges[kind].label }}</app-badge>
+              } @else {
+              <app-badge tone="brand">Prix</app-badge>
+              }
+              @if (entry.history?.peak; as peak) {
+              <app-badge [tone]="peakBadges[peak].tone">{{ peakBadges[peak].label }}</app-badge>
+              }
+              @if (ruleStatus(entry); as status) {
+              <app-badge [tone]="status.tone">{{ status.label }}</app-badge>
+              }
+              <p class="text-sm font-medium text-[#1A1A1A] truncate">{{ entry.service_type }}</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <time class="text-xs text-gray-400 tabular-nums" [attr.datetime]="entry.at">{{ formatAt(entry.at) }}</time>
+              <svg class="w-4 h-4 text-gray-400 transition-transform" [class.rotate-180]="expandedKey() === entry.key"
+                fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
           </div>
-          <time class="text-xs text-gray-400 tabular-nums" [attr.datetime]="entry.at">{{ formatAt(entry.at) }}</time>
-        </div>
-        <p class="text-xs text-gray-500 tabular-nums">
-          <span class="text-gray-400">{{ money(entry.normal_price) }}</span>
-          vs
-          <span class="font-medium text-gray-700">{{ money(entry.applied_price) }} {{ currency() }}</span>
-          <span class="text-gray-400"> ({{ deltaLabel(entry) }})</span>
-        </p>
-        <div class="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-gray-400">
-          <span class="flex items-center gap-1.5 min-w-0">
-            Comptoir
-            <span class="font-medium text-gray-600">{{ entry.counter_username }}</span>
-            @if (entry.counter_id) {
-            <ng-container [ngTemplateOutlet]="copyId"
-              [ngTemplateOutletContext]="{ key: 'h' + entry.id + '-counter', value: entry.counter_id, label: entry.counter_username }" />
+          @if (entry.history; as h) {
+          <p class="text-xs text-gray-500 tabular-nums">
+            <span class="text-gray-400">{{ money(h.normal_price) }}</span>
+            vs
+            <span class="font-medium text-gray-700">{{ money(h.applied_price) }} {{ currency() }}</span>
+            <span class="text-gray-400"> ({{ deltaLabel(h) }})</span>
+            <span class="text-gray-400"> · Comptoir {{ h.counter_username }}</span>
+          </p>
+          } @else if (entry.log; as l) {
+          <p class="text-xs text-gray-500 tabular-nums">
+            {{ logLabel(l) }}
+            <span class="text-gray-400"> · Admin {{ l.admin_username }}</span>
+          </p>
+          }
+        </button>
+        @if (expandedKey() === entry.key) {
+        <div class="px-3 pb-3 pt-1 space-y-2 bg-[#FAFAFA]">
+          @if (entry.kind) {
+          @if (morDetails(entry); as d) {
+          <dl class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs">
+            <div><dt class="text-gray-400">Taux</dt><dd class="font-medium text-gray-700 tabular-nums">{{ d.rate }}</dd></div>
+            <div><dt class="text-gray-400">Début</dt><dd class="font-medium text-gray-700 tabular-nums">{{ d.start }}</dd></div>
+            <div><dt class="text-gray-400">Fin</dt><dd class="font-medium text-gray-700 tabular-nums">{{ d.end }}</dd></div>
+            <div><dt class="text-gray-400">Commandes utilisées / max</dt><dd class="font-medium text-gray-700 tabular-nums">{{ d.orders }}</dd></div>
+          </dl>
+          } @else {
+          <p class="text-xs text-gray-400">Règle terminée ou remplacée : les détails de durée et de commandes ne sont plus disponibles.</p>
+          }
+          }
+          <div class="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-gray-400">
+            @if (entry.history; as h) {
+            <span class="flex items-center gap-1.5 min-w-0">
+              Comptoir
+              <span class="font-medium text-gray-600">{{ h.counter_username }}</span>
+              @if (h.counter_id) {
+              <ng-container [ngTemplateOutlet]="copyId"
+                [ngTemplateOutletContext]="{ key: entry.key + '-counter', value: h.counter_id, label: h.counter_username }" />
+              }
+            </span>
+            <span class="flex items-center gap-1.5 min-w-0">
+              Commande
+              <ng-container [ngTemplateOutlet]="copyId"
+                [ngTemplateOutletContext]="{ key: entry.key + '-order', value: h.order_id, label: 'la commande ' + h.order_id }" />
+            </span>
+            } @else if (entry.log; as l) {
+            <span class="flex items-center gap-1.5 min-w-0">
+              Admin
+              <span class="font-medium text-gray-600">{{ l.admin_username }}</span>
+              @if (l.admin_id) {
+              <ng-container [ngTemplateOutlet]="copyId"
+                [ngTemplateOutletContext]="{ key: entry.key + '-admin', value: l.admin_id, label: l.admin_username }" />
+              }
+            </span>
             }
-          </span>
-          <span class="flex items-center gap-1.5 min-w-0">
-            Commande
-            <ng-container [ngTemplateOutlet]="copyId"
-              [ngTemplateOutletContext]="{ key: 'h' + entry.id + '-order', value: entry.order_id, label: 'la commande ' + entry.order_id }" />
-          </span>
-          <span class="flex items-center gap-1.5 min-w-0">
-            Article
-            <ng-container [ngTemplateOutlet]="copyId"
-              [ngTemplateOutletContext]="{ key: 'h' + entry.id + '-item', value: entry.item_id, label: entry.service_type }" />
-          </span>
-          <span class="flex items-center gap-1.5 min-w-0">
-            Entrée
-            <ng-container [ngTemplateOutlet]="copyId"
-              [ngTemplateOutletContext]="{ key: 'h' + entry.id, value: entry.id, label: 'cette entrée' }" />
-          </span>
-        </div>
-      </li>
-      }
-    </ul>
-    }
-    } @else if (tab() === 'log') {
-    @if (log().length === 0) {
-    <p class="text-sm text-gray-400 py-4">Aucune modification de prix ou de majoration/réduction enregistrée.</p>
-    } @else {
-    <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg"
-      [attr.aria-label]="log().length + ' modification(s) de tarif'">
-      @for (entry of log(); track entry.id) {
-      <li class="px-3 py-3 space-y-1.5">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div class="flex flex-wrap items-center gap-2 min-w-0">
-            @if (entry.kind) {
-            <app-badge [tone]="kindBadges[entry.kind].tone">{{ kindBadges[entry.kind].label }}</app-badge>
-            } @else {
-            <app-badge tone="brand">Prix</app-badge>
-            }
-            <p class="text-sm font-medium text-[#1A1A1A] truncate">{{ entry.service_type }}</p>
+            <span class="flex items-center gap-1.5 min-w-0">
+              Article
+              <ng-container [ngTemplateOutlet]="copyId"
+                [ngTemplateOutletContext]="{ key: entry.key + '-item', value: entry.item_id, label: entry.service_type }" />
+            </span>
+            <span class="flex items-center gap-1.5 min-w-0">
+              Entrée
+              <ng-container [ngTemplateOutlet]="copyId"
+                [ngTemplateOutletContext]="{ key: entry.key, value: entry.key.slice(1), label: 'cette entrée' }" />
+            </span>
           </div>
-          <time class="text-xs text-gray-400 tabular-nums" [attr.datetime]="entry.at">{{ formatAt(entry.at) }}</time>
         </div>
-        <p class="text-xs text-gray-500 tabular-nums">{{ logLabel(entry) }}</p>
-        <div class="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-gray-400">
-          <span class="flex items-center gap-1.5 min-w-0">
-            Admin
-            <span class="font-medium text-gray-600">{{ entry.admin_username }}</span>
-            @if (entry.admin_id) {
-            <ng-container [ngTemplateOutlet]="copyId"
-              [ngTemplateOutletContext]="{ key: 'l' + entry.id + '-admin', value: entry.admin_id, label: entry.admin_username }" />
-            }
-          </span>
-          <span class="flex items-center gap-1.5 min-w-0">
-            Article
-            <ng-container [ngTemplateOutlet]="copyId"
-              [ngTemplateOutletContext]="{ key: 'l' + entry.id + '-item', value: entry.item_id, label: entry.service_type }" />
-          </span>
-          <span class="flex items-center gap-1.5 min-w-0">
-            Entrée
-            <ng-container [ngTemplateOutlet]="copyId"
-              [ngTemplateOutletContext]="{ key: 'l' + entry.id, value: entry.id, label: 'cette entrée' }" />
-          </span>
-        </div>
+        }
       </li>
       }
     </ul>

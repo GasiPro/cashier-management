@@ -15,7 +15,22 @@ import type {
   ServiceItem,
 } from '../../../data/pricing/pricing.model';
 import { Badge, BadgeTone } from '../../../shared/ui/badge/badge';
-type PricingTab = 'price' | 'history' | 'log' | 'currency';
+type PricingTab = 'price' | 'currency' | 'journal';
+interface JournalEntry {
+  key: string;
+  at: string;
+  item_id: string;
+  service_type: string;
+  kind: PriceAdjustmentKind | null;
+  history: PriceHistoryEntry | null;
+  log: PriceLogEntry | null;
+}
+interface MorDetails {
+  rate: string;
+  start: string;
+  end: string;
+  orders: string;
+}
 interface MorDraft {
   rate: number | null;
   days: number | null;
@@ -38,6 +53,15 @@ const PEAK_BADGES: Record<PricePeak, { label: string; tone: BadgeTone }> = {
   highest: { label: 'Pic le plus haut', tone: 'danger' },
   lowest: { label: 'Pic le plus bas', tone: 'success' },
 };
+const RULE_STATUS = {
+  active: { label: 'En cours', tone: 'success' },
+  expired: { label: 'Expirée', tone: 'danger' },
+} as const satisfies Record<string, { label: string; tone: BadgeTone }>;
+const RULE_MATCH_TOLERANCE_MS = 5000;
+function timeOf(iso: string): number {
+  const time = new Date(iso).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
 const TYPE_FILTERS: { value: TypeFilter; label: string }[] = [
   { value: 'all', label: 'Tous' },
   { value: 'service', label: 'Services' },
@@ -73,10 +97,31 @@ export class PricingPage implements OnInit, OnDestroy {
   readonly currency = computed(() => this.currencyInfo()?.selected ?? '');
   readonly tabs = computed<{ value: PricingTab; label: string; count: string }[]>(() => [
     { value: 'price', label: 'Prix', count: String(this.items().length) },
-    { value: 'history', label: 'Historique', count: String(this.history().length) },
-    { value: 'log', label: 'Journal', count: String(this.log().length) },
     { value: 'currency', label: 'Devise', count: this.currency() },
+    { value: 'journal', label: 'Journal', count: String(this.journal().length) },
   ]);
+  readonly journal = computed<JournalEntry[]>(() => {
+    const fromHistory: JournalEntry[] = this.history().map((h) => ({
+      key: 'h' + h.id,
+      at: h.at,
+      item_id: h.item_id,
+      service_type: h.service_type,
+      kind: h.kind,
+      history: h,
+      log: null,
+    }));
+    const fromLog: JournalEntry[] = this.log().map((l) => ({
+      key: 'l' + l.id,
+      at: l.at,
+      item_id: l.item_id,
+      service_type: l.service_type,
+      kind: l.kind,
+      history: null,
+      log: l,
+    }));
+    return [...fromHistory, ...fromLog].sort((a, b) => timeOf(b.at) - timeOf(a.at));
+  });
+  expandedKey = signal<string | null>(null);
   ngOnInit(): void {
     void this.load();
   }
@@ -108,18 +153,18 @@ export class PricingPage implements OnInit, OnDestroy {
       this.loading.set(false);
     }
   }
-  private async refreshHistory(): Promise<void> {
+  private async refreshJournal(): Promise<void> {
     try {
-      this.history.set(await pricingApi.getPriceHistory());
+      const [items, history, log] = await Promise.all([
+        pricingApi.getPricingMatrix(),
+        pricingApi.getPriceHistory(),
+        pricingApi.getPriceLog(),
+      ]);
+      this.items.set(items);
+      this.history.set(history);
+      this.log.set(log);
     } catch (e) {
-      console.error('failed to refresh price history', e);
-    }
-  }
-  private async refreshLog(): Promise<void> {
-    try {
-      this.log.set(await pricingApi.getPriceLog());
-    } catch (e) {
-      console.error('failed to refresh price log', e);
+      console.error('failed to refresh journal', e);
     }
   }
   private setStatus(message: string, isError: boolean): void {
@@ -129,9 +174,12 @@ export class PricingPage implements OnInit, OnDestroy {
   setTab(tab: PricingTab): void {
     this.tab.set(tab);
     this.editingId.set(null);
+    this.expandedKey.set(null);
     this.setStatus('', false);
-    if (tab === 'history') void this.refreshHistory();
-    if (tab === 'log') void this.refreshLog();
+    if (tab === 'journal') void this.refreshJournal();
+  }
+  toggleEntry(key: string): void {
+    this.expandedKey.update((current) => (current === key ? null : key));
   }
   async copy(key: string, value: string | number): Promise<void> {
     try {
@@ -172,14 +220,45 @@ export class PricingPage implements OnInit, OnDestroy {
     const delta = Math.round((price * rate) / 100);
     return kind === 'majoration' ? price + delta : Math.max(0, price - delta);
   }
+  private ruleEnd(rule: PriceRule): Date | null {
+    if (rule.days === null) return null;
+    const end = new Date(new Date(rule.created_at).getTime() + rule.days * DAY_MS);
+    return Number.isNaN(end.getTime()) ? null : end;
+  }
   ruleInfo(rule: PriceRule): string {
     const parts: string[] = [];
     if (rule.max_orders !== null) parts.push(`${rule.used_orders}/${rule.max_orders} commande(s)`);
     if (rule.days !== null) {
-      const end = new Date(new Date(rule.created_at).getTime() + rule.days * DAY_MS);
-      parts.push(`jusqu'au ${Number.isNaN(end.getTime()) ? '—' : end.toLocaleDateString('fr-FR')}`);
+      const end = this.ruleEnd(rule);
+      parts.push(`jusqu'au ${end ? end.toLocaleDateString('fr-FR') : '—'}`);
     }
     return parts.length ? parts.join(' · ') : 'Sans limite';
+  }
+  private matchingRule(entry: JournalEntry): PriceRule | null {
+    if (!entry.kind) return null;
+    const rule = this.items().find((i) => i.id === entry.item_id)?.[entry.kind] ?? null;
+    if (!rule) return null;
+    return timeOf(rule.created_at) > timeOf(entry.at) + RULE_MATCH_TOLERANCE_MS ? null : rule;
+  }
+  ruleStatus(entry: JournalEntry): { label: string; tone: BadgeTone } | null {
+    if (!entry.kind) return null;
+    const rule = this.matchingRule(entry);
+    if (!rule) return RULE_STATUS.expired;
+    const byOrders = rule.max_orders !== null && rule.used_orders >= rule.max_orders;
+    const end = this.ruleEnd(rule);
+    const byDays = end !== null && Date.now() >= end.getTime();
+    return byOrders || byDays ? RULE_STATUS.expired : RULE_STATUS.active;
+  }
+  morDetails(entry: JournalEntry): MorDetails | null {
+    const rule = this.matchingRule(entry);
+    if (!rule) return null;
+    const end = this.ruleEnd(rule);
+    return {
+      rate: `${rule.rate} %`,
+      start: this.formatAt(rule.created_at),
+      end: end ? this.formatAt(end.toISOString()) : 'Sans limite',
+      orders: rule.max_orders !== null ? `${rule.used_orders}/${rule.max_orders}` : 'Illimitées',
+    };
   }
   typeLabel(type: PricingItemType): string {
     return type === 'service' ? 'Service' : 'Produit';
@@ -381,7 +460,7 @@ export class PricingPage implements OnInit, OnDestroy {
       this.items.update((list) => list.map((i) => (i.id === updated.id ? updated : i)));
       this.editingId.set(null);
       this.setStatus(`Tarif « ${updated.label} » mis à jour.`, false);
-      void this.refreshLog();
+      void this.refreshJournal();
       document.getElementById(`pricing-edit-btn-${updated.id}`)?.focus();
     } catch (e) {
       console.error('item_update failed', e);

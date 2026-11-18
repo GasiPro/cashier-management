@@ -14,8 +14,11 @@ use crate::services::stock_service::{resolve_admin, Admin};
 use chrono::Utc;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
+
 pub type PricingStore = Arc<SyncMutex<Vec<ServiceItem>>>;
+
 const ITEM_NOT_FOUND: &str = "Article introuvable.";
+
 pub fn load_or_bootstrap(app: &AppHandle) -> Vec<ServiceItem> {
     if let Some(mut items) = pricing_repository::load(app) {
         if remove_expired_rules(&mut items, Utc::now().timestamp()) {
@@ -27,9 +30,18 @@ pub fn load_or_bootstrap(app: &AppHandle) -> Vec<ServiceItem> {
     let _ = pricing_repository::save(app, &items);
     items
 }
+
 pub fn get_pricing_matrix(pricing: &PricingStore) -> Vec<ServiceItem> {
     pricing.lock().unwrap().clone()
 }
+
+/// "Prix modifiable" only makes sense with at least one MOR: without any, it goes back to off.
+fn reset_editable_without_rules(item: &mut ServiceItem) {
+    if item.majoration.is_none() && item.reduction.is_none() {
+        item.price_editable = false;
+    }
+}
+
 fn edit_item(
     app: &AppHandle,
     pricing: &PricingStore,
@@ -53,6 +65,7 @@ fn edit_item(
     }
     Ok((previous, updated, guard.clone()))
 }
+
 fn record_log(
     app: &AppHandle,
     admin: &Admin,
@@ -78,6 +91,7 @@ fn record_log(
         log::warn!("Historique des tarifs non enregistré : {err}");
     }
 }
+
 fn apply_mor(
     item: &mut ServiceItem,
     kind: PriceAdjustmentKind,
@@ -102,6 +116,7 @@ fn apply_mor(
     });
     Ok(())
 }
+
 fn log_added_mors(
     app: &AppHandle,
     admin: &Admin,
@@ -125,6 +140,7 @@ fn log_added_mors(
         }
     }
 }
+
 #[allow(clippy::too_many_arguments)]
 pub fn update_pricing_item(
     app: &AppHandle,
@@ -160,6 +176,7 @@ pub fn update_pricing_item(
                 apply_mor(item, kind, input, &created_at)?;
             }
         }
+        reset_editable_without_rules(item);
         Ok(())
     })?;
     if updated.price != previous.price {
@@ -176,6 +193,7 @@ pub fn update_pricing_item(
     log_added_mors(app, &admin, &previous, &updated, &mors);
     Ok((updated, snapshot))
 }
+
 pub fn set_mor(
     app: &AppHandle,
     accounts: &Accounts,
@@ -193,6 +211,7 @@ pub fn set_mor(
     log_added_mors(app, &admin, &previous, &updated, &[(kind, Some(input))]);
     Ok((updated, snapshot))
 }
+
 pub fn delete_mor(
     app: &AppHandle,
     pricing: &PricingStore,
@@ -201,10 +220,12 @@ pub fn delete_mor(
 ) -> Result<(ServiceItem, Vec<ServiceItem>), String> {
     let (_, updated, snapshot) = edit_item(app, pricing, &id, |item| {
         *rule_slot(item, kind) = None;
+        reset_editable_without_rules(item);
         Ok(())
     })?;
     Ok((updated, snapshot))
 }
+
 pub fn consume_uses(
     app: &AppHandle,
     pricing: &PricingStore,
@@ -227,19 +248,23 @@ pub fn consume_uses(
     }
     Some(guard.clone())
 }
+
 pub fn purge_expired(app: &AppHandle, pricing: &PricingStore) -> Option<Vec<ServiceItem>> {
     consume_uses(app, pricing, &[])
 }
+
 pub fn get_price_history(app: &AppHandle) -> Vec<PriceHistoryEntry> {
     let mut history = pricing_repository::load_history(app);
     history.reverse();
     history
 }
+
 pub fn get_price_log(app: &AppHandle) -> Vec<PriceLogEntry> {
     let mut entries = pricing_repository::load_log(app);
     entries.reverse();
     entries
 }
+
 fn currency_info(selected: String, custom: Vec<Currency>) -> CurrencyInfo {
     let mut currencies: Vec<Currency> = PRESET_CURRENCIES
         .iter()
@@ -254,10 +279,12 @@ fn currency_info(selected: String, custom: Vec<Currency>) -> CurrencyInfo {
         currencies,
     }
 }
+
 pub fn get_currency(app: &AppHandle) -> CurrencyInfo {
     let (selected, custom) = pricing_repository::load_currency(app);
     currency_info(selected, custom)
 }
+
 pub fn set_currency(
     app: &AppHandle,
     code: String,
