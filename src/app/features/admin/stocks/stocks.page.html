@@ -45,8 +45,8 @@
     <div class="mb-4">
       <h2 id="stocks-heading" class="text-base font-semibold text-[#1A1A1A]">Stocks</h2>
       <p class="text-xs text-gray-400 mt-0.5">
-        Gérez la disponibilité et les quantités des produits et services. Chaque modification est
-        enregistrée dans l'historique avec le compte administrateur concerné.
+        Gérez la disponibilité et les quantités des produits et services. Chaque modification et chaque
+        commande payée est enregistrée dans le journal.
       </p>
     </div>
     <div class="mb-4 flex gap-2" role="group" aria-label="Sections du stock">
@@ -85,41 +85,91 @@
         Réessayer
       </button>
     </div>
-    } @else if (tab() === 'history') {
+    } @else if (tab() === 'journal') {
     @if (history().length === 0) {
     <p class="text-sm text-gray-400 py-4">Aucune modification de stock enregistrée pour le moment.</p>
     } @else {
-    <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg"
-      [attr.aria-label]="history().length + ' modification(s) de stock'">
+    <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden"
+      [attr.aria-label]="history().length + ' ligne(s) dans le journal'">
       @for (entry of history(); track entry.id) {
-      <li class="px-3 py-3 space-y-1.5">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div class="flex flex-wrap items-center gap-2 min-w-0">
-            <app-badge [tone]="actionBadges[entry.action].tone">{{ actionBadges[entry.action].label }}</app-badge>
-            <p class="text-sm font-medium text-[#1A1A1A] truncate">{{ entry.item_label }}</p>
-            <app-badge [tone]="typeTone(entry.item_type)">{{ typeLabel(entry.item_type) }}</app-badge>
+      <li>
+        <button type="button" (click)="toggleEntry(entry.id)" [attr.aria-expanded]="expandedId() === entry.id"
+          class="w-full text-left px-3 py-3 space-y-1.5 hover:bg-gray-50 transition-colors
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex flex-wrap items-center gap-2 min-w-0">
+              <app-badge [tone]="actionBadges[entry.action].tone">{{ actionBadges[entry.action].label }}</app-badge>
+              <app-badge [tone]="entry.order_group_id === null ? 'info' : 'warning'">
+                {{ entry.order_group_id === null ? 'Manuel' : 'Commande' }}
+              </app-badge>
+              <p class="text-sm font-medium text-[#1A1A1A] truncate">{{ entry.item_label }}</p>
+              <app-badge [tone]="typeTone(entry.item_type)">{{ typeLabel(entry.item_type) }}</app-badge>
+            </div>
+            <div class="flex items-center gap-2">
+              <time class="text-xs text-gray-400 tabular-nums" [attr.datetime]="entry.at">{{ formatAt(entry.at) }}</time>
+              <svg class="w-4 h-4 text-gray-400 transition-transform motion-reduce:transition-none"
+                [class.rotate-180]="expandedId() === entry.id"
+                fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
           </div>
-          <time class="text-xs text-gray-400 tabular-nums" [attr.datetime]="entry.at">{{ formatAt(entry.at) }}</time>
-        </div>
-        <p class="text-xs text-gray-500">
-          {{ entry.item_category }} ·
-          <span class="text-gray-400">{{ entry.before }}</span>
-          →
-          <span class="font-medium text-gray-700">{{ entry.after }}</span>
-        </p>
-        <div class="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-gray-400">
-          <span class="flex items-center gap-1.5 min-w-0">
-            Article
-            <ng-container [ngTemplateOutlet]="copyId"
-              [ngTemplateOutletContext]="{ key: 'h' + entry.id + '-item', value: entry.item_id, label: entry.item_label }" />
-          </span>
-          <span class="flex items-center gap-1.5 min-w-0">
-            Admin
-            <span class="font-medium text-gray-600">{{ entry.admin_username }}</span>
-            <ng-container [ngTemplateOutlet]="copyId"
-              [ngTemplateOutletContext]="{ key: 'h' + entry.id + '-admin', value: entry.admin_id, label: entry.admin_username }" />
-          </span>
-        </div>
+          <p class="text-xs text-gray-500">
+            {{ entry.item_category }} ·
+            <span class="text-gray-400">{{ entry.before }}</span>
+            →
+            <span class="font-medium text-gray-700">{{ entry.after }}</span>
+          </p>
+        </button>
+        @if (expandedId() === entry.id) {
+        <dl class="px-3 pb-3 grid gap-x-6 gap-y-2 text-xs sm:grid-cols-2">
+          <div>
+            <dt class="text-gray-400">Origine</dt>
+            <dd class="font-medium text-gray-700">
+              @if (entry.action === 'empty') {
+              {{ entry.order_group_id === null
+                ? 'Rupture de stock définie manuellement (quantité mise à 0)'
+                : 'Rupture de stock causée par la commande ' + formatGroupId(entry.order_group_id) }}
+              } @else {
+              {{ sourceLabel(entry) }}
+              }
+            </dd>
+          </div>
+          <div>
+            <dt class="text-gray-400">Date et heure</dt>
+            <dd class="font-medium text-gray-700 tabular-nums">{{ formatAt(entry.at) }}</dd>
+          </div>
+          <div>
+            <dt class="text-gray-400">Article</dt>
+            <dd class="flex items-center gap-1.5 min-w-0">
+              <span class="font-medium text-gray-700 truncate">{{ entry.item_label }}</span>
+              <span class="text-gray-400 truncate">· {{ typeLabel(entry.item_type) }} · {{ entry.item_category }}</span>
+            </dd>
+            <dd class="mt-1">
+              <ng-container [ngTemplateOutlet]="copyId"
+                [ngTemplateOutletContext]="{ key: 'h' + entry.id + '-item', value: entry.item_id, label: entry.item_label }" />
+            </dd>
+          </div>
+          <div>
+            <dt class="text-gray-400">{{ entry.order_group_id === null ? 'Administrateur' : 'Commande validée par' }}</dt>
+            <dd class="font-medium text-gray-700">{{ entry.admin_username || 'Inconnu' }}</dd>
+            @if (entry.admin_id) {
+            <dd class="mt-1">
+              <ng-container [ngTemplateOutlet]="copyId"
+                [ngTemplateOutletContext]="{ key: 'h' + entry.id + '-admin', value: entry.admin_id, label: entry.admin_username }" />
+            </dd>
+            }
+          </div>
+          <div>
+            <dt class="text-gray-400">Avant</dt>
+            <dd class="font-medium text-gray-700">{{ entry.before }}</dd>
+          </div>
+          <div>
+            <dt class="text-gray-400">Après</dt>
+            <dd class="font-medium text-gray-700">{{ entry.after }}</dd>
+          </div>
+        </dl>
+        }
       </li>
       }
     </ul>

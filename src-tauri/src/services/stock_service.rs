@@ -2,7 +2,8 @@ use crate::config::stock_config::{
     MAX_ITEM_CATEGORY_LEN, MAX_ITEM_LABEL_LEN, MAX_ITEM_PRICE, MAX_QUANTITY,
     MAX_STOCK_HISTORY_ENTRIES,
 };
-use crate::domain::pricing::{find_item_mut, generate_id};
+use crate::domain::account::generate_id;
+use crate::domain::pricing::{find_item_by_service_type, find_item_mut};
 use crate::models::account::{AccountStatus, UserType};
 use crate::models::pricing::{ServiceItem, ServiceItemType};
 use crate::models::stock::{
@@ -11,8 +12,10 @@ use crate::models::stock::{
 use crate::repositories::{pricing_repository, stock_repository};
 use crate::services::account_service::Accounts;
 use crate::services::pricing_service::PricingStore;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
+use uuid::Uuid;
 pub type StockStore = Arc<SyncMutex<StockData>>;
 const ITEM_NOT_FOUND: &str = "Article introuvable.";
 const ADMIN_NOT_FOUND: &str = "Compte administrateur introuvable ou inactif.";
@@ -21,7 +24,80 @@ pub(crate) struct Admin {
     pub(crate) id: String,
 }
 pub fn load(app: &AppHandle) -> StockData {
-    stock_repository::load(app)
+    let mut data = stock_repository::load(app);
+    if merge_legacy_empty_entries(&mut data.history) {
+        persist_history(app, &data);
+    }
+    data
+}
+fn merge_legacy_empty_entries(history: &mut Vec<StockHistoryEntry>) -> bool {
+    let merged: Vec<StockHistoryEntry> = history
+        .iter()
+        .enumerate()
+        .filter(|(index, entry)| {
+            let followed_by_empty = history.get(index + 1).is_some_and(|next| {
+                next.action == StockAction::Empty
+                    && next.item_id == entry.item_id
+                    && next.before == entry.before
+                    && next.after == entry.after
+            });
+            !(entry.action == StockAction::Quantity && followed_by_empty)
+        })
+        .map(|(_, entry)| entry.clone())
+        .collect();
+    if merged.len() == history.len() {
+        return false;
+    }
+    *history = merged;
+    true
+}
+pub fn migrate_item_ids(app: &AppHandle, pricing: &PricingStore) {
+    let mut items = pricing.lock().unwrap();
+    let new_ids: HashMap<String, String> = items
+        .iter()
+        .filter(|item| Uuid::parse_str(&item.id).is_err())
+        .map(|item| {
+            let uuid = Uuid::new_v5(&Uuid::NAMESPACE_OID, item.id.as_bytes());
+            (item.id.clone(), uuid.to_string())
+        })
+        .collect();
+    if new_ids.is_empty() {
+        return;
+    }
+    let remap = |id: &mut String| {
+        if let Some(new_id) = new_ids.get(id.as_str()) {
+            *id = new_id.clone();
+        }
+    };
+    let mut data = stock_repository::load(app);
+    data.quantities = std::mem::take(&mut data.quantities)
+        .into_iter()
+        .map(|(mut id, quantity)| {
+            remap(&mut id);
+            (id, quantity)
+        })
+        .collect();
+    data.history
+        .iter_mut()
+        .for_each(|entry| remap(&mut entry.item_id));
+    let mut migrated = items.clone();
+    migrated.iter_mut().for_each(|item| remap(&mut item.id));
+    let saved = stock_repository::save(app, &data)
+        .and_then(|()| {
+            pricing_repository::update_history(app, |history| {
+                history.iter_mut().for_each(|entry| remap(&mut entry.item_id));
+            })
+        })
+        .and_then(|()| {
+            pricing_repository::update_log(app, |log| {
+                log.iter_mut().for_each(|entry| remap(&mut entry.item_id));
+            })
+        })
+        .and_then(|()| pricing_repository::save(app, &migrated));
+    match saved {
+        Ok(()) => *items = migrated,
+        Err(err) => log::error!("Migration des identifiants d'articles impossible : {err}"),
+    }
 }
 pub(crate) fn resolve_admin(accounts: &Accounts, username: &str) -> Result<Admin, String> {
     let username = username.trim();
@@ -63,6 +139,22 @@ fn to_view(item: &ServiceItem, quantity: Option<u32>) -> StockItemView {
         quantity,
     }
 }
+fn order_actor(accounts: &Accounts, handled_by: Option<&str>) -> Admin {
+    let name = handled_by.unwrap_or_default();
+    accounts
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|a| a.username.eq_ignore_ascii_case(name))
+        .map(|a| Admin {
+            username: a.username.clone(),
+            id: a.id.clone(),
+        })
+        .unwrap_or_else(|| Admin {
+            username: name.to_string(),
+            id: String::new(),
+        })
+}
 fn push_history(
     data: &mut StockData,
     admin: &Admin,
@@ -70,6 +162,7 @@ fn push_history(
     action: StockAction,
     before: String,
     after: String,
+    order_group_id: Option<i64>,
 ) {
     let id = data.history.iter().map(|e| e.id).max().unwrap_or(0) + 1;
     data.history.push(StockHistoryEntry {
@@ -84,6 +177,7 @@ fn push_history(
         action,
         before,
         after,
+        order_group_id,
     });
     if data.history.len() > MAX_STOCK_HISTORY_ENTRIES {
         let overflow = data.history.len() - MAX_STOCK_HISTORY_ENTRIES;
@@ -101,20 +195,22 @@ fn push_quantity_history(
     item: &ServiceItem,
     previous: Option<u32>,
     quantity: Option<u32>,
+    order_group_id: Option<i64>,
 ) {
-    let before = format_quantity(item.item_type, previous);
-    let after = format_quantity(item.item_type, quantity);
+    let action = if quantity == Some(0) {
+        StockAction::Empty
+    } else {
+        StockAction::Quantity
+    };
     push_history(
         data,
         admin,
         item,
-        StockAction::Quantity,
-        before.clone(),
-        after.clone(),
+        action,
+        format_quantity(item.item_type, previous),
+        format_quantity(item.item_type, quantity),
+        order_group_id,
     );
-    if quantity == Some(0) {
-        push_history(data, admin, item, StockAction::Empty, before, after);
-    }
 }
 fn check_quantity(quantity: Option<u32>) -> Result<(), String> {
     if quantity.is_some_and(|value| value > MAX_QUANTITY) {
@@ -208,6 +304,7 @@ pub fn set_availability(
             StockAction::Availability,
             format_availability(previous.available),
             format_availability(available),
+            None,
         );
         persist_history(app, &data);
     }
@@ -242,7 +339,7 @@ pub fn set_quantity(
                 data.quantities.remove(&id);
             }
         }
-        push_quantity_history(&mut data, &admin, item, previous, quantity);
+        push_quantity_history(&mut data, &admin, item, previous, quantity, None);
         if let Err(err) = stock_repository::save(app, &data) {
             *data = snapshot;
             return Err(format!("Échec de l'enregistrement du stock : {err}"));
@@ -291,7 +388,7 @@ pub fn create_item(
         let mut data = stock.lock().unwrap();
         let snapshot = data.clone();
         data.quantities.insert(item.id.clone(), quantity);
-        push_quantity_history(&mut data, &admin, &item, None, Some(quantity));
+        push_quantity_history(&mut data, &admin, &item, None, Some(quantity), None);
         if let Err(err) = stock_repository::save(app, &data) {
             *data = snapshot;
             items.pop();
@@ -305,6 +402,57 @@ pub fn create_item(
         }
     }
     Ok((to_view(&item, new.quantity), items.clone()))
+}
+pub fn consume_order(
+    app: &AppHandle,
+    accounts: &Accounts,
+    pricing: &PricingStore,
+    stock: &StockStore,
+    group_id: i64,
+    lines: &[(String, u32)],
+    handled_by: Option<&str>,
+) {
+    let actor = order_actor(accounts, handled_by);
+    let items = pricing.lock().unwrap();
+    let mut totals: Vec<(&ServiceItem, u32)> = Vec::new();
+    for (service_type, quantity) in lines {
+        let Some(item) = find_item_by_service_type(&items, service_type) else {
+            continue;
+        };
+        if let Some(entry) = totals.iter_mut().find(|entry| entry.0.id == item.id) {
+            entry.1 = entry.1.saturating_add(*quantity);
+        } else {
+            totals.push((item, *quantity));
+        }
+    }
+    let mut data = stock.lock().unwrap();
+    let snapshot = data.clone();
+    let mut changed = false;
+    for (item, quantity) in totals {
+        let Some(previous) = data.quantities.get(&item.id).copied() else {
+            continue;
+        };
+        let remaining = previous.saturating_sub(quantity);
+        if remaining == previous {
+            continue;
+        }
+        data.quantities.insert(item.id.clone(), remaining);
+        push_quantity_history(
+            &mut data,
+            &actor,
+            item,
+            Some(previous),
+            Some(remaining),
+            Some(group_id),
+        );
+        changed = true;
+    }
+    if changed {
+        if let Err(err) = stock_repository::save(app, &data) {
+            *data = snapshot;
+            log::error!("Échec de la mise à jour du stock après commande : {err}");
+        }
+    }
 }
 pub fn update_item(
     app: &AppHandle,

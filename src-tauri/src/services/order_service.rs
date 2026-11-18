@@ -9,7 +9,7 @@ use crate::models::order::{CartItem, Order, OrderStatus};
 use crate::models::pricing::{PriceAdjustment, PriceAdjustmentKind, ServiceItem};
 use crate::repositories::order_repository::OrderApi;
 use crate::repositories::{account_repository, pricing_repository};
-use crate::services::pricing_service;
+use crate::services::{pricing_service, stock_service};
 use chrono::{Local, Utc};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
@@ -168,7 +168,9 @@ impl OrderService {
             order.status = OrderStatus::Paye;
             order.paid_at = Some(paid_at.clone());
             order.handled_by = handled_by.clone();
-        })
+        })?;
+        self.consume_stock(group_id, handled_by.as_deref());
+        Ok(())
     }
     pub fn reject_group(
         &self,
@@ -243,6 +245,32 @@ impl OrderService {
         app_handle
             .and_then(|app| pricing_repository::load(&app))
             .unwrap_or_default()
+    }
+    fn consume_stock(&self, group_id: i64, handled_by: Option<&str>) {
+        let Some(app_handle) = self.app_handle.lock().unwrap().clone() else {
+            return;
+        };
+        let Some(state) = app_handle.try_state::<AppState>() else {
+            return;
+        };
+        let lines: Vec<(String, u32)> = self
+            .state
+            .lock()
+            .unwrap()
+            .orders
+            .iter()
+            .filter(|o| o.group_id == group_id && o.status == OrderStatus::Paye)
+            .map(|o| (o.service_type.clone(), o.quantity))
+            .collect();
+        stock_service::consume_order(
+            &app_handle,
+            &state.accounts,
+            &state.pricing,
+            &state.stock,
+            group_id,
+            &lines,
+            handled_by,
+        );
     }
     fn record_adjustments(&self, counter_username: &str, adjustments: Vec<PriceAdjustment>) {
         if adjustments.is_empty() {

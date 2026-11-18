@@ -3,11 +3,12 @@ import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { errorMessage } from '../../../core/error/error-messages';
 import { getStoredUsername } from '../../../core/storage/local-storage';
+import { formatGroupId } from '../../../data/order/order.utils';
 import type { PricingItemType } from '../../../data/pricing/pricing.model';
 import * as stockApi from '../../../data/stock/stock.api';
 import type { StockAction, StockHistoryEntry, StockItem, StockItemFields } from '../../../data/stock/stock.model';
 import { Badge, BadgeTone } from '../../../shared/ui/badge/badge';
-type StockTab = 'history' | 'product' | 'service';
+type StockTab = 'product' | 'service' | 'journal';
 const ACTION_BADGES: Record<StockAction, { label: string; tone: BadgeTone }> = {
   availability: { label: 'Disponibilité', tone: 'info' },
   quantity: { label: 'Quantité', tone: 'brand' },
@@ -31,12 +32,13 @@ export class StocksPage implements OnInit, OnDestroy {
   readonly typeOptions = TYPE_OPTIONS;
   readonly maxLabelLen = MAX_LABEL_LEN;
   readonly maxCategoryLen = MAX_CATEGORY_LEN;
+  readonly formatGroupId = formatGroupId;
   private readonly username = getStoredUsername() ?? '';
   items = signal<StockItem[]>([]);
   history = signal<StockHistoryEntry[]>([]);
   loading = signal(true);
   loadError = signal('');
-  tab = signal<StockTab>('history');
+  tab = signal<StockTab>('product');
   searchTerm = signal('');
   statusMessage = signal('');
   statusIsError = signal(false);
@@ -60,15 +62,16 @@ export class StocksPage implements OnInit, OnDestroy {
   editCategory = signal('');
   editType = signal<PricingItemType>('product');
   copied = signal<string | null>(null);
+  expandedId = signal<number | null>(null);
   private copiedTimer?: ReturnType<typeof setTimeout>;
   readonly tabs = computed<{ value: StockTab; label: string; count: number }[]>(() => [
-    { value: 'history', label: 'Historique', count: this.history().length },
-    { value: 'product', label: 'Produits', count: this.items().filter((i) => i.type === 'product').length },
-    { value: 'service', label: 'Services', count: this.items().filter((i) => i.type === 'service').length },
+    { value: 'product', label: 'Produit', count: this.items().filter((i) => i.type === 'product').length },
+    { value: 'service', label: 'Service', count: this.items().filter((i) => i.type === 'service').length },
+    { value: 'journal', label: 'Journal', count: this.history().length },
   ]);
   readonly visibleItems = computed<StockItem[]>(() => {
     const tab = this.tab();
-    if (tab === 'history') return [];
+    if (tab === 'journal') return [];
     const term = this.searchTerm().trim().toLowerCase();
     return this.items()
       .filter(
@@ -90,18 +93,20 @@ export class StocksPage implements OnInit, OnDestroy {
   reload(): void {
     void this.load();
   }
-  private async load(): Promise<void> {
-    this.loading.set(true);
-    this.loadError.set('');
+  private async load(silent = false): Promise<void> {
+    if (!silent) {
+      this.loading.set(true);
+      this.loadError.set('');
+    }
     try {
       const [items, history] = await Promise.all([stockApi.getStockItems(), stockApi.getStockHistory()]);
       this.items.set(items);
       this.history.set(history);
     } catch (e) {
       console.error('failed to load stocks', e);
-      this.loadError.set(errorMessage(e, 'Impossible de charger les stocks.'));
+      if (!silent) this.loadError.set(errorMessage(e, 'Impossible de charger les stocks.'));
     } finally {
-      this.loading.set(false);
+      if (!silent) this.loading.set(false);
     }
   }
   private async refreshHistory(): Promise<void> {
@@ -123,6 +128,13 @@ export class StocksPage implements OnInit, OnDestroy {
     this.editingId.set(null);
     this.itemEditingId.set(null);
     this.searchTerm.set('');
+    void this.load(true);
+  }
+  toggleEntry(id: number): void {
+    this.expandedId.update((current) => (current === id ? null : id));
+  }
+  sourceLabel(entry: StockHistoryEntry): string {
+    return entry.order_group_id === null ? 'Réglage manuel' : `Commande ${formatGroupId(entry.order_group_id)}`;
   }
   typeLabel(type: PricingItemType): string {
     return type === 'service' ? 'Service' : 'Produit';

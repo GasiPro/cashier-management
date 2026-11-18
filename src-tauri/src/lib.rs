@@ -71,6 +71,7 @@ pub fn run() {
             *ctx.connection_history.lock().unwrap() = connection_service::load_history(handle);
             *ctx.pricing.lock().unwrap() = pricing_service::load_or_bootstrap(handle);
             *reports.lock().unwrap() = report_service::load(handle);
+            stock_service::migrate_item_ids(handle, &ctx.pricing);
             *stock.lock().unwrap() = stock_service::load(handle);
             ctx.order_service.load(handle);
             *ctx.app_handle.lock().unwrap() = Some(handle.clone());

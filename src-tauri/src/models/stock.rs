@@ -21,6 +21,8 @@ pub struct StockHistoryEntry {
     pub action: StockAction,
     pub before: String,
     pub after: String,
+    #[serde(default)]
+    pub order_group_id: Option<i64>,
 }
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]

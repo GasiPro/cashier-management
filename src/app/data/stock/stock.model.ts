@@ -20,6 +20,7 @@ export interface StockHistoryEntry {
   action: StockAction;
   before: string;
   after: string;
+  order_group_id: number | null;
 }
 export interface StockItemFields {
   type: PricingItemType;
