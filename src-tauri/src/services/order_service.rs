@@ -1,12 +1,18 @@
 use crate::config::default::{DEFAULT_NEXT_GROUP_ID, DEFAULT_NEXT_ORDER_ID};
-use crate::domain::pricing::{check_price_change, find_item_by_service_type, push_history_entry};
+use crate::app::AppState;
+use crate::domain::pricing::{
+    check_price_change, find_item_by_service_type, price_kind, push_history_entry,
+};
+use crate::infrastructure::websocket::broadcast_to_approved;
+use crate::models::connection::ServerMessage;
 use crate::models::order::{CartItem, Order, OrderStatus};
-use crate::models::pricing::{PriceAdjustment, ServiceItem};
+use crate::models::pricing::{PriceAdjustment, PriceAdjustmentKind, ServiceItem};
 use crate::repositories::order_repository::OrderApi;
 use crate::repositories::{account_repository, pricing_repository};
+use crate::services::pricing_service;
 use chrono::{Local, Utc};
 use std::sync::Mutex;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 const ORDER_NOT_FOUND: &str = "Commande introuvable ou déjà traitée.";
 const GROUP_NOT_FOUND: &str = "Aucune commande en attente trouvée pour ce groupe.";
 const MAX_CART_LINES: usize = 200;
@@ -72,8 +78,9 @@ impl OrderService {
         let catalog = self.catalog();
         let time = Local::now().format("%H:%M").to_string();
         let created_at = Utc::now().to_rfc3339();
+        let now = Utc::now().timestamp();
         let mut created_group_id = 0;
-        let mut adjustments = Vec::new();
+        let mut adjustments: Vec<PriceAdjustment> = Vec::new();
         self.modify(|state| {
             let group_id = match target_group_id {
                 Some(id) => {
@@ -98,7 +105,12 @@ impl OrderService {
                 let service_type = format!("{} — {}", item.service.category, item.label);
                 let listed = catalog.iter().find(|s| s.id == item.service.id);
                 let normal_price = listed.map_or(item.service.price, |s| s.price);
-                let adjustment = check_price_change(listed, normal_price, item.unit_price)?;
+                let pending_uses = price_kind(normal_price, item.unit_price).map_or(0, |kind| {
+                    let same = |a: &&PriceAdjustment| a.item_id == item.service.id && a.kind == kind;
+                    adjustments.iter().filter(same).count() as u32
+                });
+                let adjustment =
+                    check_price_change(listed, normal_price, item.unit_price, pending_uses, now)?;
                 if target_group_id.is_some() {
                     let same_line = state.orders.iter_mut().find(|o| {
                         o.group_id == group_id
@@ -120,6 +132,7 @@ impl OrderService {
                     kind,
                     normal_price,
                     applied_price: item.unit_price,
+                    new_use: true,
                 }));
                 state.orders.push(Order {
                     id: state.next_id,
@@ -179,6 +192,7 @@ impl OrderService {
     ) -> Result<i64, String> {
         validate_amounts(quantity, unit_price)?;
         let catalog = self.catalog();
+        let now = Utc::now().timestamp();
         let mut group_id = 0;
         let mut adjustment = None;
         let mut counter_username = String::new();
@@ -195,15 +209,16 @@ impl OrderService {
                 } else {
                     listed.map_or(order.unit_price, |s| s.price)
                 };
-                adjustment = check_price_change(listed, normal_price, unit_price)?.map(|kind| {
-                    PriceAdjustment {
-                        order_id: order.id,
-                        item_id: listed.map(|s| s.id.clone()).unwrap_or_default(),
-                        service_type: order.service_type.clone(),
-                        kind,
-                        normal_price,
-                        applied_price: unit_price,
-                    }
+                let previous_kind = price_kind(normal_price, order.unit_price);
+                let checked = check_price_change(listed, normal_price, unit_price, 0, now)?;
+                adjustment = checked.map(|kind| PriceAdjustment {
+                    order_id: order.id,
+                    item_id: listed.map(|s| s.id.clone()).unwrap_or_default(),
+                    service_type: order.service_type.clone(),
+                    kind,
+                    normal_price,
+                    applied_price: unit_price,
+                    new_use: previous_kind != Some(kind),
                 });
             }
             order.quantity = quantity;
@@ -242,6 +257,11 @@ impl OrderService {
             .map(|a| a.id)
             .unwrap_or_default();
         let at = Utc::now().to_rfc3339();
+        let uses: Vec<(String, PriceAdjustmentKind)> = adjustments
+            .iter()
+            .filter(|a| a.new_use)
+            .map(|a| (a.item_id.clone(), a.kind))
+            .collect();
         let recorded = pricing_repository::update_history(&app_handle, |history| {
             for adjustment in adjustments {
                 push_history_entry(history, adjustment, counter_username, &counter_id, &at);
@@ -250,6 +270,19 @@ impl OrderService {
         if let Err(err) = recorded {
             log::warn!("Historique des prix non enregistré : {err}");
         }
+        Self::consume_uses(&app_handle, &uses);
+    }
+    fn consume_uses(app: &AppHandle, uses: &[(String, PriceAdjustmentKind)]) {
+        let Some(state) = app.try_state::<AppState>() else {
+            return;
+        };
+        let Some(snapshot) = pricing_service::consume_uses(app, &state.pricing, uses) else {
+            return;
+        };
+        let peers = state.peers.clone();
+        tauri::async_runtime::spawn(async move {
+            broadcast_to_approved(&peers, &ServerMessage::Pricing { data: snapshot }).await;
+        });
     }
     fn orders_with_status(&self, status: OrderStatus) -> Vec<Order> {
         self.state

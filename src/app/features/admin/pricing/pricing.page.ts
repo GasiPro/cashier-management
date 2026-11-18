@@ -5,14 +5,44 @@ import { errorMessage } from '../../../core/error/error-messages';
 import * as pricingApi from '../../../data/pricing/pricing.api';
 import type {
   CurrencyInfo,
+  MorInput,
   PriceAdjustmentKind,
   PriceHistoryEntry,
+  PriceLogEntry,
   PricePeak,
+  PriceRule,
   PricingItemType,
   ServiceItem,
 } from '../../../data/pricing/pricing.model';
 import { Badge, BadgeTone } from '../../../shared/ui/badge/badge';
-type PricingTab = 'price' | 'history' | 'currency';
+type PricingTab = 'price' | 'currency' | 'journal';
+interface JournalEntry {
+  key: string;
+  at: string;
+  item_id: string;
+  service_type: string;
+  kind: PriceAdjustmentKind | null;
+  history: PriceHistoryEntry | null;
+  log: PriceLogEntry | null;
+}
+interface MorDetails {
+  rate: string;
+  start: string;
+  end: string;
+  orders: string;
+}
+interface MorDraft {
+  rate: number | null;
+  days: number | null;
+  max_orders: number | null;
+}
+type MorDrafts = Record<PriceAdjustmentKind, MorDraft | null>;
+const MOR_KINDS: PriceAdjustmentKind[] = ['majoration', 'reduction'];
+const MOR_LABELS: Record<PriceAdjustmentKind, string> = { majoration: 'majoration', reduction: 'réduction' };
+const MAX_RATE = 100;
+const MAX_DAYS = 3650;
+const MAX_ORDERS = 1_000_000;
+const DAY_MS = 86_400_000;
 type TypeFilter = 'all' | PricingItemType;
 type SortKey = 'category' | 'label' | 'price-asc' | 'price-desc';
 const KIND_BADGES: Record<PriceAdjustmentKind, { label: string; tone: BadgeTone }> = {
@@ -23,6 +53,15 @@ const PEAK_BADGES: Record<PricePeak, { label: string; tone: BadgeTone }> = {
   highest: { label: 'Pic le plus haut', tone: 'danger' },
   lowest: { label: 'Pic le plus bas', tone: 'success' },
 };
+const RULE_STATUS = {
+  active: { label: 'En cours', tone: 'success' },
+  expired: { label: 'Expirée', tone: 'danger' },
+} as const satisfies Record<string, { label: string; tone: BadgeTone }>;
+const RULE_MATCH_TOLERANCE_MS = 5000;
+function timeOf(iso: string): number {
+  const time = new Date(iso).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
 const TYPE_FILTERS: { value: TypeFilter; label: string }[] = [
   { value: 'all', label: 'Tous' },
   { value: 'service', label: 'Services' },
@@ -41,9 +80,12 @@ export class PricingPage implements OnInit, OnDestroy {
   readonly typeFilters = TYPE_FILTERS;
   readonly kindBadges = KIND_BADGES;
   readonly peakBadges = PEAK_BADGES;
+  readonly morKinds = MOR_KINDS;
+  readonly morLabels = MOR_LABELS;
   readonly maxCurrencyNameLen = MAX_CURRENCY_NAME_LEN;
   items = signal<ServiceItem[]>([]);
   history = signal<PriceHistoryEntry[]>([]);
+  log = signal<PriceLogEntry[]>([]);
   currencyInfo = signal<CurrencyInfo | null>(null);
   loading = signal(true);
   loadError = signal('');
@@ -55,9 +97,31 @@ export class PricingPage implements OnInit, OnDestroy {
   readonly currency = computed(() => this.currencyInfo()?.selected ?? '');
   readonly tabs = computed<{ value: PricingTab; label: string; count: string }[]>(() => [
     { value: 'price', label: 'Prix', count: String(this.items().length) },
-    { value: 'history', label: 'Historique', count: String(this.history().length) },
     { value: 'currency', label: 'Devise', count: this.currency() },
+    { value: 'journal', label: 'Journal', count: String(this.journal().length) },
   ]);
+  readonly journal = computed<JournalEntry[]>(() => {
+    const fromHistory: JournalEntry[] = this.history().map((h) => ({
+      key: 'h' + h.id,
+      at: h.at,
+      item_id: h.item_id,
+      service_type: h.service_type,
+      kind: h.kind,
+      history: h,
+      log: null,
+    }));
+    const fromLog: JournalEntry[] = this.log().map((l) => ({
+      key: 'l' + l.id,
+      at: l.at,
+      item_id: l.item_id,
+      service_type: l.service_type,
+      kind: l.kind,
+      history: null,
+      log: l,
+    }));
+    return [...fromHistory, ...fromLog].sort((a, b) => timeOf(b.at) - timeOf(a.at));
+  });
+  expandedKey = signal<string | null>(null);
   ngOnInit(): void {
     void this.load();
   }
@@ -71,13 +135,15 @@ export class PricingPage implements OnInit, OnDestroy {
     this.loading.set(true);
     this.loadError.set('');
     try {
-      const [items, history, currency] = await Promise.all([
+      const [items, history, log, currency] = await Promise.all([
         pricingApi.getPricingMatrix(),
         pricingApi.getPriceHistory(),
+        pricingApi.getPriceLog(),
         pricingApi.getCurrency(),
       ]);
       this.items.set(items);
       this.history.set(history);
+      this.log.set(log);
       this.currencyInfo.set(currency);
       this.currencyChoice.set(currency.selected);
     } catch (e) {
@@ -87,11 +153,18 @@ export class PricingPage implements OnInit, OnDestroy {
       this.loading.set(false);
     }
   }
-  private async refreshHistory(): Promise<void> {
+  private async refreshJournal(): Promise<void> {
     try {
-      this.history.set(await pricingApi.getPriceHistory());
+      const [items, history, log] = await Promise.all([
+        pricingApi.getPricingMatrix(),
+        pricingApi.getPriceHistory(),
+        pricingApi.getPriceLog(),
+      ]);
+      this.items.set(items);
+      this.history.set(history);
+      this.log.set(log);
     } catch (e) {
-      console.error('failed to refresh price history', e);
+      console.error('failed to refresh journal', e);
     }
   }
   private setStatus(message: string, isError: boolean): void {
@@ -101,8 +174,12 @@ export class PricingPage implements OnInit, OnDestroy {
   setTab(tab: PricingTab): void {
     this.tab.set(tab);
     this.editingId.set(null);
+    this.expandedKey.set(null);
     this.setStatus('', false);
-    if (tab === 'history') void this.refreshHistory();
+    if (tab === 'journal') void this.refreshJournal();
+  }
+  toggleEntry(key: string): void {
+    this.expandedKey.update((current) => (current === key ? null : key));
   }
   async copy(key: string, value: string | number): Promise<void> {
     try {
@@ -129,6 +206,59 @@ export class PricingPage implements OnInit, OnDestroy {
       minute: '2-digit',
       second: '2-digit',
     });
+  }
+  logLabel(entry: PriceLogEntry): string {
+    if (entry.action === 'price_changed') {
+      return `Prix : ${this.money(entry.before ?? 0)} → ${this.money(entry.after ?? 0)} ${this.currency()}`;
+    }
+    const kind = entry.kind ? MOR_LABELS[entry.kind] : 'MOR';
+    return entry.before === null
+      ? `Ajout ${kind} : ${entry.after} %`
+      : `Modification ${kind} : ${entry.before} % → ${entry.after} %`;
+  }
+  limitPrice(price: number, rate: number, kind: PriceAdjustmentKind): number {
+    const delta = Math.round((price * rate) / 100);
+    return kind === 'majoration' ? price + delta : Math.max(0, price - delta);
+  }
+  private ruleEnd(rule: PriceRule): Date | null {
+    if (rule.days === null) return null;
+    const end = new Date(new Date(rule.created_at).getTime() + rule.days * DAY_MS);
+    return Number.isNaN(end.getTime()) ? null : end;
+  }
+  ruleInfo(rule: PriceRule): string {
+    const parts: string[] = [];
+    if (rule.max_orders !== null) parts.push(`${rule.used_orders}/${rule.max_orders} commande(s)`);
+    if (rule.days !== null) {
+      const end = this.ruleEnd(rule);
+      parts.push(`jusqu'au ${end ? end.toLocaleDateString('fr-FR') : '—'}`);
+    }
+    return parts.length ? parts.join(' · ') : 'Sans limite';
+  }
+  private matchingRule(entry: JournalEntry): PriceRule | null {
+    if (!entry.kind) return null;
+    const rule = this.items().find((i) => i.id === entry.item_id)?.[entry.kind] ?? null;
+    if (!rule) return null;
+    return timeOf(rule.created_at) > timeOf(entry.at) + RULE_MATCH_TOLERANCE_MS ? null : rule;
+  }
+  ruleStatus(entry: JournalEntry): { label: string; tone: BadgeTone } | null {
+    if (!entry.kind) return null;
+    const rule = this.matchingRule(entry);
+    if (!rule) return RULE_STATUS.expired;
+    const byOrders = rule.max_orders !== null && rule.used_orders >= rule.max_orders;
+    const end = this.ruleEnd(rule);
+    const byDays = end !== null && Date.now() >= end.getTime();
+    return byOrders || byDays ? RULE_STATUS.expired : RULE_STATUS.active;
+  }
+  morDetails(entry: JournalEntry): MorDetails | null {
+    const rule = this.matchingRule(entry);
+    if (!rule) return null;
+    const end = this.ruleEnd(rule);
+    return {
+      rate: `${rule.rate} %`,
+      start: this.formatAt(rule.created_at),
+      end: end ? this.formatAt(end.toISOString()) : 'Sans limite',
+      orders: rule.max_orders !== null ? `${rule.used_orders}/${rule.max_orders}` : 'Illimitées',
+    };
   }
   typeLabel(type: PricingItemType): string {
     return type === 'service' ? 'Service' : 'Produit';
@@ -210,24 +340,69 @@ export class PricingPage implements OnInit, OnDestroy {
   });
   editingId = signal<string | null>(null);
   editPrice = signal<number | null>(null);
-  editMajoration = signal(true);
-  editReduction = signal(true);
-  editPriceEditable = signal(true);
+  editPriceEditable = signal(false);
+  drafts = signal<MorDrafts>({ majoration: null, reduction: null });
   savingId = signal<string | null>(null);
   editError = signal('');
   startEdit(item: ServiceItem): void {
     this.editingId.set(item.id);
     this.editPrice.set(item.price);
-    this.editMajoration.set(item.allow_majoration);
-    this.editReduction.set(item.allow_reduction);
     this.editPriceEditable.set(item.price_editable);
+    this.drafts.set({ majoration: this.draftOf(item.majoration), reduction: this.draftOf(item.reduction) });
     this.editError.set('');
     setTimeout(() => document.getElementById(`pricing-price-${item.id}`)?.focus());
   }
-  toggleEdit(key: 'majoration' | 'reduction' | 'editable'): void {
-    const target =
-      key === 'majoration' ? this.editMajoration : key === 'reduction' ? this.editReduction : this.editPriceEditable;
-    target.update((value) => !value);
+  private draftOf(rule: PriceRule | null): MorDraft | null {
+    return rule ? { rate: rule.rate, days: rule.days, max_orders: rule.max_orders } : null;
+  }
+  toggleEditable(): void {
+    this.editPriceEditable.update((value) => !value);
+  }
+  addDraft(kind: PriceAdjustmentKind): void {
+    this.drafts.update((d) => ({ ...d, [kind]: { rate: null, days: null, max_orders: null } }));
+    setTimeout(() => document.getElementById(`pricing-${kind}-rate`)?.focus());
+  }
+  removeDraft(kind: PriceAdjustmentKind): void {
+    this.drafts.update((d) => ({ ...d, [kind]: null }));
+  }
+  setDraft(kind: PriceAdjustmentKind, field: keyof MorDraft, value: number | null): void {
+    this.drafts.update((d) => {
+      const current = d[kind];
+      return current ? { ...d, [kind]: { ...current, [field]: value ?? null } } : d;
+    });
+  }
+  private draftError(kind: PriceAdjustmentKind, draft: MorDraft): string {
+    const label = MOR_LABELS[kind];
+    const { rate, days, max_orders } = draft;
+    if (rate === null || !Number.isInteger(rate) || rate < 1 || rate > MAX_RATE) {
+      return `Taux de ${label} : entier entre 1 et ${MAX_RATE} %.`;
+    }
+    if (days !== null && (!Number.isInteger(days) || days < 1 || days > MAX_DAYS)) {
+      return `Durée de ${label} : entier entre 1 et ${MAX_DAYS} jours, ou vide.`;
+    }
+    if (max_orders !== null && (!Number.isInteger(max_orders) || max_orders < 1 || max_orders > MAX_ORDERS)) {
+      return `Commandes de ${label} : entier entre 1 et ${MAX_ORDERS.toLocaleString('fr-FR')}, ou vide.`;
+    }
+    return '';
+  }
+  private sameRule(rule: PriceRule | null, draft: MorDraft): boolean {
+    return !!rule && rule.rate === draft.rate && rule.days === draft.days && rule.max_orders === draft.max_orders;
+  }
+  async deleteRule(item: ServiceItem, kind: PriceAdjustmentKind): Promise<void> {
+    if (this.savingId()) return;
+    this.savingId.set(item.id);
+    this.setStatus('', false);
+    try {
+      const updated = await pricingApi.deleteMor(item.id, kind);
+      this.items.update((list) => list.map((i) => (i.id === updated.id ? updated : i)));
+      this.drafts.update((d) => ({ ...d, [kind]: null }));
+      this.setStatus(`Tarif « ${updated.label} » : ${MOR_LABELS[kind]} supprimée.`, false);
+    } catch (e) {
+      console.error('mor_delete failed', e);
+      this.editError.set(errorMessage(e, 'Échec de la suppression. Réessayez.'));
+    } finally {
+      this.savingId.set(null);
+    }
   }
   cancelEdit(): void {
     const id = this.editingId();
@@ -250,19 +425,42 @@ export class PricingPage implements OnInit, OnDestroy {
       this.editError.set('Le prix doit être un nombre entier.');
       return;
     }
+    const editable = this.editPriceEditable();
+    const drafts = this.drafts();
+    const inputs: Record<PriceAdjustmentKind, MorInput | null> = { majoration: null, reduction: null };
+    if (editable) {
+      for (const kind of MOR_KINDS) {
+        const draft = drafts[kind];
+        if (!draft) continue;
+        const error = this.draftError(kind, draft);
+        if (error) {
+          this.editError.set(error);
+          return;
+        }
+        if (!this.sameRule(item[kind], draft)) {
+          inputs[kind] = { rate: draft.rate as number, days: draft.days, max_orders: draft.max_orders };
+        }
+      }
+    }
     this.editError.set('');
     this.savingId.set(item.id);
     this.setStatus('', false);
     try {
-      const updated = await pricingApi.updatePricingItem(item.id, {
+      let updated = await pricingApi.updatePricingItem(item.id, {
         price,
-        allow_majoration: this.editMajoration(),
-        allow_reduction: this.editReduction(),
-        price_editable: this.editPriceEditable(),
+        price_editable: editable,
+        majoration: inputs.majoration,
+        reduction: inputs.reduction,
       });
+      if (editable) {
+        for (const kind of MOR_KINDS) {
+          if (!drafts[kind] && updated[kind]) updated = await pricingApi.deleteMor(item.id, kind);
+        }
+      }
       this.items.update((list) => list.map((i) => (i.id === updated.id ? updated : i)));
       this.editingId.set(null);
       this.setStatus(`Tarif « ${updated.label} » mis à jour.`, false);
+      void this.refreshJournal();
       document.getElementById(`pricing-edit-btn-${updated.id}`)?.focus();
     } catch (e) {
       console.error('item_update failed', e);

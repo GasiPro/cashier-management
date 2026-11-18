@@ -9,6 +9,22 @@ fn default_true() -> bool {
     true
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PriceRule {
+    pub id: String,
+    pub rate: u32,
+    pub days: Option<u32>,
+    pub max_orders: Option<u32>,
+    pub created_at: String,
+    #[serde(default)]
+    pub used_orders: u32,
+}
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct MorInput {
+    pub rate: u32,
+    pub days: Option<u32>,
+    pub max_orders: Option<u32>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ServiceItem {
     pub id: String,
     #[serde(rename = "type")]
@@ -18,11 +34,11 @@ pub struct ServiceItem {
     pub price: u32,
     #[serde(default = "default_true")]
     pub available: bool,
-    #[serde(default = "default_true")]
-    pub allow_majoration: bool,
-    #[serde(default = "default_true")]
-    pub allow_reduction: bool,
-    #[serde(default = "default_true")]
+    #[serde(default)]
+    pub majoration: Option<PriceRule>,
+    #[serde(default)]
+    pub reduction: Option<PriceRule>,
+    #[serde(default)]
     pub price_editable: bool,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,6 +61,7 @@ pub struct PriceAdjustment {
     pub kind: PriceAdjustmentKind,
     pub normal_price: u32,
     pub applied_price: u32,
+    pub new_use: bool,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PriceHistoryEntry {
@@ -60,6 +77,25 @@ pub struct PriceHistoryEntry {
     pub applied_price: u32,
     #[serde(default)]
     pub peak: Option<PricePeak>,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PriceLogAction {
+    MorAdded,
+    PriceChanged,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PriceLogEntry {
+    pub id: String,
+    pub at: String,
+    pub admin_username: String,
+    pub admin_id: String,
+    pub item_id: String,
+    pub service_type: String,
+    pub action: PriceLogAction,
+    pub kind: Option<PriceAdjustmentKind>,
+    pub before: Option<u32>,
+    pub after: Option<u32>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Currency {

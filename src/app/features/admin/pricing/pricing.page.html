@@ -17,9 +17,9 @@
     }
   </button>
 </ng-template>
-<ng-template #editSwitch let-key="key" let-label="label" let-hint="hint" let-checked="checked" let-disabled="disabled">
+<ng-template #editSwitch let-label="label" let-hint="hint" let-checked="checked" let-disabled="disabled">
   <button type="button" role="switch" [attr.aria-checked]="checked" [disabled]="disabled"
-    (click)="toggleEdit(key)"
+    (click)="toggleEditable()"
     class="w-full flex items-center justify-between gap-3 text-left disabled:opacity-40
            focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
     <span class="min-w-0">
@@ -39,7 +39,7 @@
       <div>
         <h2 id="pricing-heading" class="text-base font-semibold text-[#1A1A1A]">Grille tarifaire</h2>
         <p class="text-xs text-gray-400 mt-0.5">
-          Gérez les prix, les majorations et réductions autorisées au comptoir, ainsi que la devise.
+          Gérez les prix, les majorations et réductions (MOR) autorisées au comptoir, ainsi que la devise.
           Les modifications s'appliquent immédiatement aux postes caisse connectés.
         </p>
       </div>
@@ -85,55 +85,107 @@
         Réessayer
       </button>
     </div>
-    } @else if (tab() === 'history') {
-    @if (history().length === 0) {
-    <p class="text-sm text-gray-400 py-4">Aucune majoration ou réduction enregistrée pour le moment.</p>
+    } @else if (tab() === 'journal') {
+    @if (journal().length === 0) {
+    <p class="text-sm text-gray-400 py-4">Aucune entrée dans le journal pour le moment.</p>
     } @else {
     <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg"
-      [attr.aria-label]="history().length + ' ajustement(s) de prix'">
-      @for (entry of history(); track entry.id) {
-      <li class="px-3 py-3 space-y-1.5">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div class="flex flex-wrap items-center gap-2 min-w-0">
-            <app-badge [tone]="kindBadges[entry.kind].tone">{{ kindBadges[entry.kind].label }}</app-badge>
-            @if (entry.peak) {
-            <app-badge [tone]="peakBadges[entry.peak].tone">{{ peakBadges[entry.peak].label }}</app-badge>
-            }
-            <p class="text-sm font-medium text-[#1A1A1A] truncate">{{ entry.service_type }}</p>
+      [attr.aria-label]="journal().length + ' entrée(s) dans le journal'">
+      @for (entry of journal(); track entry.key) {
+      <li>
+        <button type="button" (click)="toggleEntry(entry.key)" [attr.aria-expanded]="expandedKey() === entry.key"
+          class="w-full text-left px-3 py-3 space-y-1.5 hover:bg-gray-50 transition-colors
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] focus-visible:-outline-offset-2">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex flex-wrap items-center gap-2 min-w-0">
+              @if (entry.kind; as kind) {
+              <app-badge [tone]="kindBadges[kind].tone">{{ kindBadges[kind].label }}</app-badge>
+              } @else {
+              <app-badge tone="brand">Prix</app-badge>
+              }
+              @if (entry.history?.peak; as peak) {
+              <app-badge [tone]="peakBadges[peak].tone">{{ peakBadges[peak].label }}</app-badge>
+              }
+              @if (ruleStatus(entry); as status) {
+              <app-badge [tone]="status.tone">{{ status.label }}</app-badge>
+              }
+              <p class="text-sm font-medium text-[#1A1A1A] truncate">{{ entry.service_type }}</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <time class="text-xs text-gray-400 tabular-nums" [attr.datetime]="entry.at">{{ formatAt(entry.at) }}</time>
+              <svg class="w-4 h-4 text-gray-400 transition-transform" [class.rotate-180]="expandedKey() === entry.key"
+                fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
           </div>
-          <time class="text-xs text-gray-400 tabular-nums" [attr.datetime]="entry.at">{{ formatAt(entry.at) }}</time>
-        </div>
-        <p class="text-xs text-gray-500 tabular-nums">
-          <span class="text-gray-400">{{ money(entry.normal_price) }}</span>
-          vs
-          <span class="font-medium text-gray-700">{{ money(entry.applied_price) }} {{ currency() }}</span>
-          <span class="text-gray-400"> ({{ deltaLabel(entry) }})</span>
-        </p>
-        <div class="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-gray-400">
-          <span class="flex items-center gap-1.5 min-w-0">
-            Comptoir
-            <span class="font-medium text-gray-600">{{ entry.counter_username }}</span>
-            @if (entry.counter_id) {
-            <ng-container [ngTemplateOutlet]="copyId"
-              [ngTemplateOutletContext]="{ key: 'h' + entry.id + '-counter', value: entry.counter_id, label: entry.counter_username }" />
+          @if (entry.history; as h) {
+          <p class="text-xs text-gray-500 tabular-nums">
+            <span class="text-gray-400">{{ money(h.normal_price) }}</span>
+            vs
+            <span class="font-medium text-gray-700">{{ money(h.applied_price) }} {{ currency() }}</span>
+            <span class="text-gray-400"> ({{ deltaLabel(h) }})</span>
+            <span class="text-gray-400"> · Comptoir {{ h.counter_username }}</span>
+          </p>
+          } @else if (entry.log; as l) {
+          <p class="text-xs text-gray-500 tabular-nums">
+            {{ logLabel(l) }}
+            <span class="text-gray-400"> · Admin {{ l.admin_username }}</span>
+          </p>
+          }
+        </button>
+        @if (expandedKey() === entry.key) {
+        <div class="px-3 pb-3 pt-1 space-y-2 bg-[#FAFAFA]">
+          @if (entry.kind) {
+          @if (morDetails(entry); as d) {
+          <dl class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs">
+            <div><dt class="text-gray-400">Taux</dt><dd class="font-medium text-gray-700 tabular-nums">{{ d.rate }}</dd></div>
+            <div><dt class="text-gray-400">Début</dt><dd class="font-medium text-gray-700 tabular-nums">{{ d.start }}</dd></div>
+            <div><dt class="text-gray-400">Fin</dt><dd class="font-medium text-gray-700 tabular-nums">{{ d.end }}</dd></div>
+            <div><dt class="text-gray-400">Commandes utilisées / max</dt><dd class="font-medium text-gray-700 tabular-nums">{{ d.orders }}</dd></div>
+          </dl>
+          } @else {
+          <p class="text-xs text-gray-400">Règle terminée ou remplacée : les détails de durée et de commandes ne sont plus disponibles.</p>
+          }
+          }
+          <div class="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-gray-400">
+            @if (entry.history; as h) {
+            <span class="flex items-center gap-1.5 min-w-0">
+              Comptoir
+              <span class="font-medium text-gray-600">{{ h.counter_username }}</span>
+              @if (h.counter_id) {
+              <ng-container [ngTemplateOutlet]="copyId"
+                [ngTemplateOutletContext]="{ key: entry.key + '-counter', value: h.counter_id, label: h.counter_username }" />
+              }
+            </span>
+            <span class="flex items-center gap-1.5 min-w-0">
+              Commande
+              <ng-container [ngTemplateOutlet]="copyId"
+                [ngTemplateOutletContext]="{ key: entry.key + '-order', value: h.order_id, label: 'la commande ' + h.order_id }" />
+            </span>
+            } @else if (entry.log; as l) {
+            <span class="flex items-center gap-1.5 min-w-0">
+              Admin
+              <span class="font-medium text-gray-600">{{ l.admin_username }}</span>
+              @if (l.admin_id) {
+              <ng-container [ngTemplateOutlet]="copyId"
+                [ngTemplateOutletContext]="{ key: entry.key + '-admin', value: l.admin_id, label: l.admin_username }" />
+              }
+            </span>
             }
-          </span>
-          <span class="flex items-center gap-1.5 min-w-0">
-            Commande
-            <ng-container [ngTemplateOutlet]="copyId"
-              [ngTemplateOutletContext]="{ key: 'h' + entry.id + '-order', value: entry.order_id, label: 'la commande ' + entry.order_id }" />
-          </span>
-          <span class="flex items-center gap-1.5 min-w-0">
-            Article
-            <ng-container [ngTemplateOutlet]="copyId"
-              [ngTemplateOutletContext]="{ key: 'h' + entry.id + '-item', value: entry.item_id, label: entry.service_type }" />
-          </span>
-          <span class="flex items-center gap-1.5 min-w-0">
-            Entrée
-            <ng-container [ngTemplateOutlet]="copyId"
-              [ngTemplateOutletContext]="{ key: 'h' + entry.id, value: entry.id, label: 'cette entrée' }" />
-          </span>
+            <span class="flex items-center gap-1.5 min-w-0">
+              Article
+              <ng-container [ngTemplateOutlet]="copyId"
+                [ngTemplateOutletContext]="{ key: entry.key + '-item', value: entry.item_id, label: entry.service_type }" />
+            </span>
+            <span class="flex items-center gap-1.5 min-w-0">
+              Entrée
+              <ng-container [ngTemplateOutlet]="copyId"
+                [ngTemplateOutletContext]="{ key: entry.key, value: entry.key.slice(1), label: 'cette entrée' }" />
+            </span>
+          </div>
         </div>
+        }
       </li>
       }
     </ul>
@@ -297,11 +349,12 @@
               @if (!item.price_editable) {
               <app-badge tone="danger">Prix verrouillé</app-badge>
               } @else {
-              @if (!item.allow_majoration) {
-              <app-badge tone="warning">Sans majoration</app-badge>
+              @for (kind of morKinds; track kind) {
+              @if (item[kind]; as rule) {
+              <app-badge [tone]="kindBadges[kind].tone">
+                {{ kindBadges[kind].label }} {{ kind === 'majoration' ? '+' : '−' }}{{ rule.rate }} %
+              </app-badge>
               }
-              @if (!item.allow_reduction) {
-              <app-badge tone="warning">Sans réduction</app-badge>
               }
               }
             </div>
@@ -344,12 +397,72 @@
           </div>
           <div class="space-y-3">
             <ng-container [ngTemplateOutlet]="editSwitch"
-              [ngTemplateOutletContext]="{ key: 'editable', label: 'Prix modifiable au comptoir', hint: 'Si désactivé, le comptoir ne peut ni majorer ni réduire ce prix.', checked: editPriceEditable(), disabled: false }" />
-            <ng-container [ngTemplateOutlet]="editSwitch"
-              [ngTemplateOutletContext]="{ key: 'majoration', label: 'Majoration autorisée', hint: 'Le comptoir peut appliquer un prix supérieur.', checked: editMajoration(), disabled: !editPriceEditable() }" />
-            <ng-container [ngTemplateOutlet]="editSwitch"
-              [ngTemplateOutletContext]="{ key: 'reduction', label: 'Réduction autorisée', hint: 'Le comptoir peut appliquer un prix inférieur.', checked: editReduction(), disabled: !editPriceEditable() }" />
+              [ngTemplateOutletContext]="{ label: 'Prix modifiable au comptoir', hint: 'Désactivé par défaut. Activé : le comptoir peut appliquer la majoration et/ou la réduction définies ci-dessous. Désactivé : elles sont supprimées.', checked: editPriceEditable(), disabled: false }" />
           </div>
+          @if (editPriceEditable()) {
+          <div class="space-y-3">
+            @for (kind of morKinds; track kind) {
+            <div class="border border-gray-200 rounded-lg bg-white p-3">
+              @if (drafts()[kind]; as draft) {
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <p class="text-sm font-medium text-[#1A1A1A]">
+                  {{ kind === 'majoration' ? 'Majoration (+)' : 'Réduction (−)' }}
+                </p>
+                <button type="button"
+                  (click)="item[kind] ? deleteRule(item, kind) : removeDraft(kind)"
+                  [disabled]="savingId() === item.id"
+                  class="text-xs font-semibold text-red-600 border border-red-200 rounded-md px-3 py-1
+                         hover:bg-red-50 transition-colors disabled:opacity-40
+                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                  {{ item[kind] ? 'Supprimer' : 'Retirer' }}
+                </button>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label [for]="'pricing-' + kind + '-rate'" class="block text-xs font-semibold text-gray-500 mb-1">Taux (%)</label>
+                  <input [id]="'pricing-' + kind + '-rate'" type="number" min="1" max="100" step="1" inputmode="numeric"
+                    [name]="'pricingRate-' + kind + item.id"
+                    [ngModel]="draft.rate" (ngModelChange)="setDraft(kind, 'rate', $event)"
+                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A] bg-white
+                           focus:outline-none focus:border-[#1E3A5F] transition-colors" />
+                </div>
+                <div>
+                  <label [for]="'pricing-' + kind + '-days'" class="block text-xs font-semibold text-gray-500 mb-1">Jours (facultatif)</label>
+                  <input [id]="'pricing-' + kind + '-days'" type="number" min="1" max="3650" step="1" inputmode="numeric"
+                    [name]="'pricingDays-' + kind + item.id" placeholder="Illimité"
+                    [ngModel]="draft.days" (ngModelChange)="setDraft(kind, 'days', $event)"
+                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A] bg-white
+                           focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+                </div>
+                <div>
+                  <label [for]="'pricing-' + kind + '-orders'" class="block text-xs font-semibold text-gray-500 mb-1">Commandes (facultatif)</label>
+                  <input [id]="'pricing-' + kind + '-orders'" type="number" min="1" max="1000000" step="1" inputmode="numeric"
+                    [name]="'pricingOrders-' + kind + item.id" placeholder="Toutes"
+                    [ngModel]="draft.max_orders" (ngModelChange)="setDraft(kind, 'max_orders', $event)"
+                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A] bg-white
+                           focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+                </div>
+              </div>
+              @if (draft.rate && draft.rate >= 1 && draft.rate <= 100 && editPrice() !== null) {
+              <p class="text-xs text-gray-500 mt-2 tabular-nums">
+                Prix limite : <span class="font-semibold text-gray-700">{{ money(limitPrice(editPrice() ?? 0, draft.rate, kind)) }} {{ currency() }}</span>
+              </p>
+              }
+              @if (item[kind]; as rule) {
+              <p class="text-[11px] text-gray-400 mt-1">En cours : {{ ruleInfo(rule) }}. Modifier la règle remet le compteur à zéro.</p>
+              }
+              } @else {
+              <button type="button" (click)="addDraft(kind)"
+                class="text-sm font-semibold text-[#1E3A5F] border border-[#1E3A5F]/30 rounded-md px-3 py-1.5
+                       hover:bg-[#EFF4FA] transition-colors
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+                {{ kind === 'majoration' ? 'Ajouter une majoration' : 'Ajouter une réduction' }}
+              </button>
+              }
+            </div>
+            }
+          </div>
+          }
           @if (editError()) {
           <p role="alert" aria-live="assertive" class="text-xs text-red-600 font-medium">{{ editError() }}</p>
           }
