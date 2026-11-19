@@ -41,7 +41,7 @@
   }
 </datalist>
 <div class="max-w-4xl mx-auto pb-24">
-  <app-pending-bar (applied)="onApplied()" />
+  <app-pending-fab [slot]="2" (applied)="onApplied()" />
   <section aria-labelledby="stocks-heading" class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
     <div class="mb-4">
       <h2 id="stocks-heading" class="text-base font-semibold text-[#1A1A1A]">Stocks</h2>

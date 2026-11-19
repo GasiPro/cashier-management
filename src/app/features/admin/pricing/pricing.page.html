@@ -34,7 +34,7 @@
   </button>
 </ng-template>
 <div class="max-w-4xl mx-auto pb-24">
-  <app-pending-bar (applied)="onApplied()" />
+  <app-pending-fab [slot]="1" (applied)="onApplied()" />
   <section aria-labelledby="pricing-heading" class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
     <div class="mb-4 flex items-start justify-between gap-3">
       <div>

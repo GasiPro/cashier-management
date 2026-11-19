@@ -9,7 +9,7 @@ import type { PricingItemType } from '../../../data/pricing/pricing.model';
 import * as stockApi from '../../../data/stock/stock.api';
 import type { StockAction, StockHistoryEntry, StockItem, StockItemFields } from '../../../data/stock/stock.model';
 import { Badge, BadgeTone } from '../../../shared/ui/badge/badge';
-import { PendingBar } from '../../../shared/ui/pending-bar/pending-bar';
+import { PendingFab } from '../../../shared/ui/pending-fab/pending-fab';
 type StockTab = 'product' | 'service' | 'journal';
 const ACTION_BADGES: Record<StockAction, { label: string; tone: BadgeTone }> = {
   availability: { label: 'Disponibilité', tone: 'info' },
@@ -26,7 +26,7 @@ const TYPE_OPTIONS: { value: PricingItemType; label: string }[] = [
 @Component({
   selector: 'app-admin-stocks',
   standalone: true,
-  imports: [FormsModule, NgTemplateOutlet, Badge, PendingBar],
+  imports: [FormsModule, NgTemplateOutlet, Badge, PendingFab],
   templateUrl: './stocks.page.html',
 })
 export class StocksPage implements OnInit, OnDestroy {
