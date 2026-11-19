@@ -52,5 +52,10 @@ export function getCurrency(): Promise<CurrencyInfo> {
   return ipcInvoke<CurrencyInfo>('pricing', { method: 'currency_get' });
 }
 export function setCurrency(code: string, name: string | null): Promise<CurrencyInfo> {
-  return ipcInvoke<CurrencyInfo>('pricing', { method: 'currency_set', code, name });
+  return ipcInvoke<CurrencyInfo>('pricing', {
+    method: 'currency_set',
+    code,
+    name,
+    username: getStoredUsername() ?? '',
+  });
 }

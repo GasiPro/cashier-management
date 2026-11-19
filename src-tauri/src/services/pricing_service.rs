@@ -14,11 +14,9 @@ use crate::services::stock_service::{resolve_admin, Admin};
 use chrono::Utc;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
-
 pub type PricingStore = Arc<SyncMutex<Vec<ServiceItem>>>;
-
 const ITEM_NOT_FOUND: &str = "Article introuvable.";
-
+const CURRENCY_LOG_LABEL: &str = "Devise";
 pub fn load_or_bootstrap(app: &AppHandle) -> Vec<ServiceItem> {
     if let Some(mut items) = pricing_repository::load(app) {
         if remove_expired_rules(&mut items, Utc::now().timestamp()) {
@@ -30,18 +28,14 @@ pub fn load_or_bootstrap(app: &AppHandle) -> Vec<ServiceItem> {
     let _ = pricing_repository::save(app, &items);
     items
 }
-
 pub fn get_pricing_matrix(pricing: &PricingStore) -> Vec<ServiceItem> {
     pricing.lock().unwrap().clone()
 }
-
-/// "Prix modifiable" only makes sense with at least one MOR: without any, it goes back to off.
 fn reset_editable_without_rules(item: &mut ServiceItem) {
     if item.majoration.is_none() && item.reduction.is_none() {
         item.price_editable = false;
     }
 }
-
 fn edit_item(
     app: &AppHandle,
     pricing: &PricingStore,
@@ -65,7 +59,11 @@ fn edit_item(
     }
     Ok((previous, updated, guard.clone()))
 }
-
+fn push_log(app: &AppHandle, entry: PriceLogEntry) {
+    if let Err(err) = pricing_repository::update_log(app, |entries| push_capped(entries, entry)) {
+        log::warn!("Historique des tarifs non enregistré : {err}");
+    }
+}
 fn record_log(
     app: &AppHandle,
     admin: &Admin,
@@ -75,23 +73,43 @@ fn record_log(
     before: Option<u32>,
     after: Option<u32>,
 ) {
-    let entry = PriceLogEntry {
-        id: generate_id(),
-        at: Utc::now().to_rfc3339(),
-        admin_username: admin.username.clone(),
-        admin_id: admin.id.clone(),
-        item_id: item.id.clone(),
-        service_type: format!("{} — {}", item.category, item.label),
-        action,
-        kind,
-        before,
-        after,
-    };
-    if let Err(err) = pricing_repository::update_log(app, |entries| push_capped(entries, entry)) {
-        log::warn!("Historique des tarifs non enregistré : {err}");
-    }
+    push_log(
+        app,
+        PriceLogEntry {
+            id: generate_id(),
+            at: Utc::now().to_rfc3339(),
+            admin_username: admin.username.clone(),
+            admin_id: admin.id.clone(),
+            item_id: item.id.clone(),
+            service_type: format!("{} — {}", item.category, item.label),
+            action,
+            kind,
+            before,
+            after,
+            before_code: None,
+            after_code: None,
+        },
+    );
 }
-
+fn record_currency_log(app: &AppHandle, admin: &Admin, before: String, after: String) {
+    push_log(
+        app,
+        PriceLogEntry {
+            id: generate_id(),
+            at: Utc::now().to_rfc3339(),
+            admin_username: admin.username.clone(),
+            admin_id: admin.id.clone(),
+            item_id: String::new(),
+            service_type: CURRENCY_LOG_LABEL.to_string(),
+            action: PriceLogAction::CurrencyChanged,
+            kind: None,
+            before: None,
+            after: None,
+            before_code: Some(before),
+            after_code: Some(after),
+        },
+    );
+}
 fn apply_mor(
     item: &mut ServiceItem,
     kind: PriceAdjustmentKind,
@@ -116,7 +134,6 @@ fn apply_mor(
     });
     Ok(())
 }
-
 fn log_added_mors(
     app: &AppHandle,
     admin: &Admin,
@@ -140,7 +157,6 @@ fn log_added_mors(
         }
     }
 }
-
 #[allow(clippy::too_many_arguments)]
 pub fn update_pricing_item(
     app: &AppHandle,
@@ -193,7 +209,6 @@ pub fn update_pricing_item(
     log_added_mors(app, &admin, &previous, &updated, &mors);
     Ok((updated, snapshot))
 }
-
 pub fn set_mor(
     app: &AppHandle,
     accounts: &Accounts,
@@ -211,7 +226,6 @@ pub fn set_mor(
     log_added_mors(app, &admin, &previous, &updated, &[(kind, Some(input))]);
     Ok((updated, snapshot))
 }
-
 pub fn delete_mor(
     app: &AppHandle,
     pricing: &PricingStore,
@@ -225,7 +239,6 @@ pub fn delete_mor(
     })?;
     Ok((updated, snapshot))
 }
-
 pub fn consume_uses(
     app: &AppHandle,
     pricing: &PricingStore,
@@ -248,23 +261,19 @@ pub fn consume_uses(
     }
     Some(guard.clone())
 }
-
 pub fn purge_expired(app: &AppHandle, pricing: &PricingStore) -> Option<Vec<ServiceItem>> {
     consume_uses(app, pricing, &[])
 }
-
 pub fn get_price_history(app: &AppHandle) -> Vec<PriceHistoryEntry> {
     let mut history = pricing_repository::load_history(app);
     history.reverse();
     history
 }
-
 pub fn get_price_log(app: &AppHandle) -> Vec<PriceLogEntry> {
     let mut entries = pricing_repository::load_log(app);
     entries.reverse();
     entries
 }
-
 fn currency_info(selected: String, custom: Vec<Currency>) -> CurrencyInfo {
     let mut currencies: Vec<Currency> = PRESET_CURRENCIES
         .iter()
@@ -279,19 +288,20 @@ fn currency_info(selected: String, custom: Vec<Currency>) -> CurrencyInfo {
         currencies,
     }
 }
-
 pub fn get_currency(app: &AppHandle) -> CurrencyInfo {
     let (selected, custom) = pricing_repository::load_currency(app);
     currency_info(selected, custom)
 }
-
 pub fn set_currency(
     app: &AppHandle,
+    accounts: &Accounts,
     code: String,
     name: Option<String>,
+    username: &str,
 ) -> Result<CurrencyInfo, String> {
+    let admin = resolve_admin(accounts, username)?;
     let code = validate_currency_code(&code)?;
-    let (_, mut custom) = pricing_repository::load_currency(app);
+    let (previous, mut custom) = pricing_repository::load_currency(app);
     let is_known =
         PRESET_CURRENCIES.iter().any(|(c, _)| *c == code) || custom.iter().any(|c| c.code == code);
     if !is_known {
@@ -305,5 +315,8 @@ pub fn set_currency(
     }
     pricing_repository::save_currency(app, code.clone(), custom.clone())
         .map_err(|err| format!("Échec de l'enregistrement de la devise : {err}"))?;
+    if previous != code {
+        record_currency_log(app, &admin, previous, code.clone());
+    }
     Ok(currency_info(code, custom))
 }

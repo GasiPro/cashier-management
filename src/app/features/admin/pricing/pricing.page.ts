@@ -39,6 +39,10 @@ interface MorDraft {
   max_orders: number | null;
 }
 type MorDrafts = Record<PriceAdjustmentKind, MorDraft | null>;
+interface CurrencyPatch {
+  code: string;
+  name: string | null;
+}
 interface PricePatch {
   price: number;
   price_editable: boolean;
@@ -76,6 +80,7 @@ const TYPE_FILTERS: { value: TypeFilter; label: string }[] = [
   { value: 'service', label: 'Services' },
   { value: 'product', label: 'Produits' },
 ];
+const CURRENCY_KEY = 'currency';
 const CURRENCY_CODE_PATTERN = /^[A-Za-z]{2,6}$/;
 const MAX_CURRENCY_NAME_LEN = 40;
 const COPIED_FEEDBACK_MS = 1500;
@@ -179,6 +184,15 @@ export class PricingPage implements OnInit, OnDestroy {
       console.error('failed to refresh journal', e);
     }
   }
+  private async refreshCurrency(): Promise<void> {
+    try {
+      const info = await pricingApi.getCurrency();
+      this.currencyInfo.set(info);
+      this.currencyChoice.set(info.selected);
+    } catch (e) {
+      console.error('failed to refresh currency', e);
+    }
+  }
   private setStatus(message: string, isError: boolean): void {
     this.statusMessage.set(message);
     this.statusIsError.set(isError);
@@ -220,6 +234,9 @@ export class PricingPage implements OnInit, OnDestroy {
     });
   }
   logLabel(entry: PriceLogEntry): string {
+    if (entry.action === 'currency_changed') {
+      return `Devise : ${entry.before_code ?? '—'} → ${entry.after_code ?? '—'}`;
+    }
     if (entry.action === 'price_changed') {
       return `Prix : ${this.money(entry.before ?? 0)} → ${this.money(entry.after ?? 0)} ${this.currency()}`;
     }
@@ -422,6 +439,7 @@ export class PricingPage implements OnInit, OnDestroy {
   onApplied(): void {
     this.editingId.set(null);
     void this.refreshJournal();
+    void this.refreshCurrency();
     this.setStatus('Modifications appliquées.', false);
   }
   cancelEdit(): void {
@@ -519,14 +537,14 @@ export class PricingPage implements OnInit, OnDestroy {
   currencyChoice = signal('');
   customCode = signal('');
   customName = signal('');
-  savingCurrency = signal(false);
   currencyError = signal('');
-  async saveCurrency(): Promise<void> {
+  readonly pendingCurrency = computed(() => this.pending.get<CurrencyPatch>(CURRENCY_KEY)?.payload ?? null);
+  validateCurrency(): void {
     const code = this.currencyChoice();
-    if (!code || code === this.currency()) return;
-    await this.applyCurrency(code, null);
+    if (!code) return;
+    this.stageCurrency(code, null);
   }
-  async addCustomCurrency(): Promise<void> {
+  addCustomCurrency(): void {
     const code = this.customCode().trim();
     const name = this.customName().trim();
     if (!CURRENCY_CODE_PATTERN.test(code)) {
@@ -537,28 +555,28 @@ export class PricingPage implements OnInit, OnDestroy {
       this.currencyError.set('Le nom de la devise est trop long.');
       return;
     }
-    if (await this.applyCurrency(code.toUpperCase(), name || null)) {
-      this.customCode.set('');
-      this.customName.set('');
-    }
+    this.stageCurrency(code.toUpperCase(), name || null);
+    this.customCode.set('');
+    this.customName.set('');
   }
-  private async applyCurrency(code: string, name: string | null): Promise<boolean> {
-    if (this.savingCurrency()) return false;
+  private stageCurrency(code: string, name: string | null): void {
     this.currencyError.set('');
-    this.savingCurrency.set(true);
     this.setStatus('', false);
-    try {
-      const info = await pricingApi.setCurrency(code, name);
-      this.currencyInfo.set(info);
-      this.currencyChoice.set(info.selected);
-      this.setStatus(`Devise « ${info.selected} » enregistrée.`, false);
-      return true;
-    } catch (e) {
-      console.error('currency_set failed', e);
-      this.currencyError.set(errorMessage(e, 'Échec de l\'enregistrement de la devise. Réessayez.'));
-      return false;
-    } finally {
-      this.savingCurrency.set(false);
+    const from = this.currency();
+    if (code === from) {
+      this.pending.unstage(CURRENCY_KEY);
+      return;
     }
+    const line = `Devise : ${from} → ${code}`;
+    const patch: CurrencyPatch = { code, name };
+    this.pending.stage({
+      key: CURRENCY_KEY,
+      payload: patch,
+      counter: [line],
+      cashier: [line],
+      apply: async () => {
+        await pricingApi.setCurrency(code, name);
+      },
+    });
   }
 }
