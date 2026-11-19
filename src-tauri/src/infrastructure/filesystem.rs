@@ -12,6 +12,7 @@ use uuid::Uuid;
 use std::arch::x86::__cpuid;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::__cpuid;
+
 const READ_ATTEMPTS: u32 = 3;
 const READ_RETRY_DELAY: Duration = Duration::from_millis(100);
 const KEYRING_SERVICE: &str = "gasipro";
@@ -20,9 +21,11 @@ const KEY_LEN: usize = 32;
 const NONCE_LEN: usize = 12;
 const MAGIC: &[u8] = b"GSP2";
 const LEGACY_MAGIC: &[u8] = b"GSP1";
+
 static CIPHER: Mutex<Option<Aes256Gcm>> = Mutex::new(None);
 static FINGERPRINT: OnceLock<String> = OnceLock::new();
 static MACHINE_NAME: OnceLock<String> = OnceLock::new();
+
 const PLACEHOLDER_MODELS: [&str; 5] = [
     "o.e.m",
     "system manufacturer",
@@ -30,17 +33,21 @@ const PLACEHOLDER_MODELS: [&str; 5] = [
     "default string",
     "not specified",
 ];
+
 pub(crate) fn save_binary_file(path: String, data: Vec<u8>) -> Result<(), String> {
     std::fs::write(&path, data).map_err(|e| e.to_string())
 }
+
 pub(crate) fn load_binary_file(path: String) -> Result<Vec<u8>, String> {
     std::fs::read(&path).map_err(|e| e.to_string())
 }
+
 pub(crate) fn config_file_path(app: &AppHandle, file_name: &str) -> Result<PathBuf, String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.join(file_name))
 }
+
 #[cfg(any(windows, target_os = "macos"))]
 fn run(program: &str, args: &[&str]) -> Result<String, String> {
     let mut command = std::process::Command::new(program);
@@ -56,9 +63,11 @@ fn run(program: &str, args: &[&str]) -> Result<String, String> {
     }
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
+
 fn normalize_mac(mac: &str) -> String {
     mac.trim().replace('-', ":").to_uppercase()
 }
+
 #[cfg(windows)]
 fn board_uuid_and_mac() -> Result<(String, String), String> {
     const SCRIPT: &str = "(Get-CimInstance Win32_ComputerSystemProduct).UUID; \
@@ -75,6 +84,7 @@ fn board_uuid_and_mac() -> Result<(String, String), String> {
     let mac = lines.next().unwrap_or_default();
     Ok((uuid.to_uppercase(), normalize_mac(mac)))
 }
+
 #[cfg(target_os = "linux")]
 fn board_uuid_and_mac() -> Result<(String, String), String> {
     let uuid = std::fs::read_to_string("/sys/class/dmi/id/product_uuid")
@@ -102,6 +112,7 @@ fn board_uuid_and_mac() -> Result<(String, String), String> {
         macs.into_iter().next().unwrap_or_default(),
     ))
 }
+
 #[cfg(target_os = "linux")]
 fn board_identity() -> String {
     ["sys_vendor", "board_vendor", "board_name", "product_name"]
@@ -111,6 +122,7 @@ fn board_identity() -> String {
         .collect::<Vec<_>>()
         .join("|")
 }
+
 #[cfg(target_os = "macos")]
 fn board_uuid_and_mac() -> Result<(String, String), String> {
     let registry = run("ioreg", &["-rd1", "-c", "IOPlatformExpertDevice"])?;
@@ -126,10 +138,12 @@ fn board_uuid_and_mac() -> Result<(String, String), String> {
         .unwrap_or_default();
     Ok((uuid.to_uppercase(), normalize_mac(mac)))
 }
+
 #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
 fn board_uuid_and_mac() -> Result<(String, String), String> {
     Err("Système non pris en charge pour la signature matérielle.".to_string())
 }
+
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 #[allow(unused_unsafe)]
 fn cpu_id() -> String {
@@ -154,10 +168,12 @@ fn cpu_id() -> String {
         )
     }
 }
+
 #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
 fn cpu_id() -> String {
     std::env::consts::ARCH.to_string()
 }
+
 fn fingerprint() -> Result<String, String> {
     if let Some(value) = FINGERPRINT.get() {
         return Ok(value.clone());
@@ -170,13 +186,16 @@ fn fingerprint() -> Result<String, String> {
     let _ = FINGERPRINT.set(value.clone());
     Ok(value)
 }
+
 pub(crate) fn machine_id() -> Result<Uuid, String> {
     Ok(Uuid::new_v5(&Uuid::NAMESPACE_OID, fingerprint()?.as_bytes()))
 }
+
 fn is_placeholder(value: &str) -> bool {
     let value = value.to_lowercase();
     value.is_empty() || PLACEHOLDER_MODELS.iter().any(|marker| value.contains(marker))
 }
+
 const OS_FAMILY: &str = if cfg!(windows) {
     "Windows"
 } else if cfg!(target_os = "macos") {
@@ -186,6 +205,7 @@ const OS_FAMILY: &str = if cfg!(windows) {
 } else {
     std::env::consts::OS
 };
+
 fn friendly_model(vendor: &str, product: &str, version: &str) -> String {
     if vendor.to_lowercase().contains("lenovo") && !is_placeholder(version) {
         return version.to_string();
@@ -196,6 +216,7 @@ fn friendly_model(vendor: &str, product: &str, version: &str) -> String {
         .collect::<Vec<_>>()
         .join(" ")
 }
+
 #[cfg(windows)]
 fn system_details() -> (String, String) {
     const SCRIPT: &str = "$c = Get-CimInstance Win32_ComputerSystem; \
@@ -217,12 +238,14 @@ fn system_details() -> (String, String) {
     let version = parts.next().unwrap_or_default();
     (variant, friendly_model(vendor, product, version))
 }
+
 #[cfg(target_os = "linux")]
 fn dmi_value(name: &str) -> String {
     std::fs::read_to_string(format!("/sys/class/dmi/id/{name}"))
         .map(|value| value.trim().to_string())
         .unwrap_or_default()
 }
+
 #[cfg(target_os = "linux")]
 fn linux_variant() -> String {
     const FLAVOURS: [(&str, &str); 3] = [
@@ -246,6 +269,7 @@ fn linux_variant() -> String {
         })
         .unwrap_or_default()
 }
+
 #[cfg(target_os = "linux")]
 fn system_details() -> (String, String) {
     (
@@ -257,6 +281,7 @@ fn system_details() -> (String, String) {
         ),
     )
 }
+
 #[cfg(target_os = "macos")]
 fn system_details() -> (String, String) {
     let variant = run("sw_vers", &["-productVersion"])
@@ -265,10 +290,12 @@ fn system_details() -> (String, String) {
     let model = run("sysctl", &["-n", "hw.model"]).unwrap_or_default();
     (variant, friendly_model("Apple", model.trim(), ""))
 }
+
 #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
 fn system_details() -> (String, String) {
     (String::new(), String::new())
 }
+
 fn compute_machine_name() -> String {
     let (variant, model) = system_details();
     [OS_FAMILY.to_string(), variant, model]
@@ -277,9 +304,11 @@ fn compute_machine_name() -> String {
         .collect::<Vec<_>>()
         .join(" · ")
 }
+
 pub(crate) fn machine_name() -> String {
     MACHINE_NAME.get_or_init(compute_machine_name).clone()
 }
+
 fn load_or_create_key() -> Result<Key<Aes256Gcm>, String> {
     let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| e.to_string())?;
     match entry.get_secret() {
@@ -295,6 +324,7 @@ fn load_or_create_key() -> Result<Key<Aes256Gcm>, String> {
         Err(err) => Err(err.to_string()),
     }
 }
+
 fn cipher() -> Result<Aes256Gcm, String> {
     let mut guard = CIPHER.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(cipher) = guard.as_ref() {
@@ -304,6 +334,7 @@ fn cipher() -> Result<Aes256Gcm, String> {
     *guard = Some(cipher.clone());
     Ok(cipher)
 }
+
 fn encrypt(plain: &[u8]) -> Result<Vec<u8>, String> {
     let cipher = cipher()?;
     let signature = fingerprint()?;
@@ -323,6 +354,7 @@ fn encrypt(plain: &[u8]) -> Result<Vec<u8>, String> {
     out.extend_from_slice(&sealed);
     Ok(out)
 }
+
 fn decrypt(cipher: &Aes256Gcm, data: &[u8], aad: &[u8]) -> Option<Vec<u8>> {
     if data.len() < NONCE_LEN {
         return None;
@@ -332,6 +364,7 @@ fn decrypt(cipher: &Aes256Gcm, data: &[u8], aad: &[u8]) -> Option<Vec<u8>> {
         .decrypt(Nonce::from_slice(nonce), Payload { msg: sealed, aad })
         .ok()
 }
+
 fn write_bytes_atomic(path: &Path, contents: &[u8]) -> Result<(), String> {
     let mut tmp_name = path.as_os_str().to_owned();
     tmp_name.push(".tmp");
@@ -347,10 +380,27 @@ fn write_bytes_atomic(path: &Path, contents: &[u8]) -> Result<(), String> {
         e.to_string()
     })
 }
+
+fn backup_path(path: &Path) -> PathBuf {
+    path.with_extension("bak")
+}
+
+fn keep_backup(path: &Path) {
+    if !path.exists() {
+        return;
+    }
+    if let Err(err) = std::fs::copy(path, backup_path(path)) {
+        log::warn!("Sauvegarde de {} impossible : {err}", path.display());
+    }
+}
+
 pub(crate) fn write_json<T: Serialize + ?Sized>(path: &Path, value: &T) -> Result<(), String> {
     let plain = serde_json::to_vec(value).map_err(|e| e.to_string())?;
-    write_bytes_atomic(path, &encrypt(&plain)?)
+    let sealed = encrypt(&plain)?;
+    keep_backup(path);
+    write_bytes_atomic(path, &sealed)
 }
+
 fn read_bytes(path: &Path) -> Option<Vec<u8>> {
     for attempt in 1..=READ_ATTEMPTS {
         match std::fs::read(path) {
@@ -369,10 +419,12 @@ fn read_bytes(path: &Path) -> Option<Vec<u8>> {
     }
     None
 }
+
 fn quarantine(path: &Path, reason: &str) {
     log::error!("Fichier illisible {} : {reason}", path.display());
     let _ = std::fs::rename(path, path.with_extension("corrupt"));
 }
+
 fn migrate_to_encrypted(path: &Path, plain: &[u8]) {
     let result = encrypt(plain).and_then(|sealed| write_bytes_atomic(path, &sealed));
     if let Err(err) = result {
@@ -382,7 +434,21 @@ fn migrate_to_encrypted(path: &Path, plain: &[u8]) {
         );
     }
 }
+
 pub(crate) fn read_json<T: DeserializeOwned>(path: &Path) -> Option<T> {
+    if let Some(value) = read_file(path, true) {
+        return Some(value);
+    }
+    let backup = backup_path(path);
+    let value = read_file(&backup, false)?;
+    log::warn!("Fichier {} restauré depuis sa sauvegarde.", path.display());
+    if let Err(err) = std::fs::copy(&backup, path) {
+        log::error!("Restauration de {} impossible : {err}", path.display());
+    }
+    Some(value)
+}
+
+fn read_file<T: DeserializeOwned>(path: &Path, isolate_bad: bool) -> Option<T> {
     let bytes = read_bytes(path)?;
     let signed = bytes.starts_with(MAGIC);
     let plain = if signed || bytes.starts_with(LEGACY_MAGIC) {
@@ -413,7 +479,9 @@ pub(crate) fn read_json<T: DeserializeOwned>(path: &Path) -> Option<T> {
         match decrypt(&cipher, &bytes[MAGIC.len()..], &aad) {
             Some(plain) => plain,
             None => {
-                quarantine(path, "signature ou déchiffrement invalide");
+                if isolate_bad {
+                    quarantine(path, "signature ou déchiffrement invalide");
+                }
                 return None;
             }
         }
@@ -428,7 +496,9 @@ pub(crate) fn read_json<T: DeserializeOwned>(path: &Path) -> Option<T> {
             Some(value)
         }
         Err(err) => {
-            quarantine(path, &err.to_string());
+            if isolate_bad {
+                quarantine(path, &err.to_string());
+            }
             None
         }
     }
