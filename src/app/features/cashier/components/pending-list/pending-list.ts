@@ -9,10 +9,11 @@ import {
   groupHasDiscount,
   groupHasIncrease,
 } from '../../../../data/order/order.utils';
+import { MoneyPipe } from '../../../../shared/pipes/money.pipe';
 @Component({
   selector: 'app-pending-list',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, MoneyPipe],
   templateUrl: './pending-list.html',
   host: { class: 'block' },
 })

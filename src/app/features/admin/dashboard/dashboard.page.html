@@ -5,11 +5,11 @@
         <section class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
           <div class="bg-white border border-gray-200 rounded-lg p-4 flex flex-col justify-between">
             <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Total des ventes (cette année)</p>
-            <p class="text-2xl font-bold text-[#1A1A1A] tabular-nums mt-2">{{ totalSalesYear() | number:'1.0-0' }} Ar</p>
+            <p class="text-2xl font-bold text-[#1A1A1A] tabular-nums mt-2">{{ totalSalesYear() | money }}</p>
           </div>
           <div class="bg-white border border-gray-200 rounded-lg p-4 flex flex-col justify-between">
             <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Total des ventes (aujourd'hui)</p>
-            <p class="text-2xl font-bold text-[#1A1A1A] tabular-nums mt-2">{{ totalSalesToday() | number:'1.0-0' }} Ar</p>
+            <p class="text-2xl font-bold text-[#1A1A1A] tabular-nums mt-2">{{ totalSalesToday() | money }}</p>
           </div>
           <div class="bg-white border border-gray-200 rounded-lg p-4 flex flex-col justify-between">
             <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Total des transactions (aujourd'hui)</p>
@@ -101,7 +101,7 @@
                   <td class="px-3 sm:px-4 py-3 font-mono font-semibold text-gray-700 whitespace-nowrap">{{ order.groupId }}</td>
                   <td class="px-3 sm:px-4 py-3 text-gray-600 max-w-[140px] xs:max-w-xs md:max-w-md truncate">{{ order.summary }}</td>
                   <td class="px-3 sm:px-4 py-3 text-gray-500 hidden sm:table-cell whitespace-nowrap">{{ order.counterUsername }}</td>
-                  <td class="px-3 sm:px-4 py-3 text-right font-semibold text-[#1A1A1A] tabular-nums whitespace-nowrap">{{ order.totalAmount | number:'1.0-0' }} Ar</td>
+                  <td class="px-3 sm:px-4 py-3 text-right font-semibold text-[#1A1A1A] tabular-nums whitespace-nowrap">{{ order.totalAmount | money }}</td>
                   <td class="px-3 sm:px-4 py-3 text-right text-gray-400 hidden sm:table-cell whitespace-nowrap">{{ order.paidLabel }}</td>
                 </tr>
                 }

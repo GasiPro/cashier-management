@@ -49,7 +49,7 @@
     @if (groups().length > 0) {
     <div class="mx-6 mt-4 flex items-center justify-between bg-[#F7F9FC] border border-gray-100 rounded-lg px-4 py-2.5">
       <span class="text-xs font-medium text-gray-500">Total encaissé</span>
-      <span class="text-sm font-bold text-[#1A1A1A] tabular-nums">{{ totalAmount() | number:'1.0-0' }} Ar</span>
+      <span class="text-sm font-bold text-[#1A1A1A] tabular-nums">{{ totalAmount() | money }}</span>
     </div>
     }
     <div class="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-2">
@@ -68,7 +68,7 @@
           <div class="sticky top-0 z-10 flex items-baseline justify-between bg-white/95 backdrop-blur-sm -mx-2 px-2 py-1.5">
             <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{{ day.dayLabel }}</p>
             <p class="text-[11px] text-gray-400 tabular-nums">
-              {{ day.count }} · {{ day.totalAmount | number:'1.0-0' }} Ar
+              {{ day.count }} · {{ day.totalAmount | money }}
             </p>
           </div>
           <div class="space-y-0">
@@ -88,7 +88,7 @@
                     {{ historiqueItemCount(group) }} article{{ historiqueItemCount(group) > 1 ? 's' : '' }}
                   </span>
                 </div>
-                <span class="font-semibold text-[#1A1A1A] tabular-nums text-sm whitespace-nowrap">{{ group.totalAmount | number:'1.0-0' }} Ar</span>
+                <span class="font-semibold text-[#1A1A1A] tabular-nums text-sm whitespace-nowrap">{{ group.totalAmount | money }}</span>
               </div>
               <p class="text-xs text-gray-500 line-clamp-2 mb-1">{{ getGroupItemsSummary(group) }}</p>
               @for (note of getGroupObservations(group); track $index) {

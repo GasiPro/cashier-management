@@ -288,6 +288,9 @@ fn currency_info(selected: String, custom: Vec<Currency>) -> CurrencyInfo {
         currencies,
     }
 }
+pub fn get_currency_code(app: &AppHandle) -> String {
+    pricing_repository::load_currency(app).0
+}
 pub fn get_currency(app: &AppHandle) -> CurrencyInfo {
     let (selected, custom) = pricing_repository::load_currency(app);
     currency_info(selected, custom)

@@ -14,6 +14,7 @@ export type WsMessage =
   | { type: 'orders'; data: OrderLine[] }
   | { type: 'time'; data: string }
   | { type: 'pricing'; data: ServiceItem[] }
+  | { type: 'currency'; data: string }
   | { type: 'connection_requests'; data: PendingConnection[] }
   | { type: 'connection_devices'; data: ConnectedDevice[] }
   | { type: 'connection_pending'; data?: unknown }

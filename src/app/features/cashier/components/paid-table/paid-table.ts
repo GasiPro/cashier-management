@@ -8,22 +8,18 @@ import {
   groupHasDiscount,
   groupHasIncrease,
 } from '../../../../data/order/order.utils';
-
+import { MoneyPipe } from '../../../../shared/pipes/money.pipe';
 @Component({
   selector: 'app-paid-table',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, MoneyPipe],
   templateUrl: './paid-table.html',
   host: { class: 'block' },
 })
 export class PaidTable {
-  /** Most recent paid groups to display in the table. */
   groups = input.required<OrderGroup[]>();
-  /** Total number of paid groups (shown next to the section title). */
   totalCount = input.required<number>();
-
   @Output() opened = new EventEmitter<OrderGroup>();
-
   readonly formatGroupId = formatGroupId;
   readonly formatPaidLabel = formatPaidLabel;
   readonly getGroupItemsSummary = getGroupItemsSummary;

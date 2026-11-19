@@ -35,7 +35,7 @@
     }
     <p class="text-xs text-gray-400 mb-0.5 leading-tight">{{ service.category }}</p>
     <p class="text-sm font-medium text-[#1A1A1A] leading-snug">{{ service.label }}</p>
-    <p class="text-sm font-semibold text-[#1E3A5F] mt-1.5 tabular-nums">{{ service.price | number:'1.0-0' }} Ar</p>
+    <p class="text-sm font-semibold text-[#1E3A5F] mt-1.5 tabular-nums">{{ service.price | money }}</p>
   </button>
   }
 </div>

@@ -4,6 +4,7 @@ import { OrderStore } from '../../../data/order/order.store';
 import { OrderGroup, OrderLine } from '../../../data/order/order.model';
 import { buildGroups, formatGroupId, getGroupItemsSummary } from '../../../data/order/order.utils';
 import { startOfDay } from '../../../shared/utils/date';
+import { MoneyPipe } from '../../../shared/pipes/money.pipe';
 interface SalesComparisonPoint {
   label: string;
   today: number;
@@ -29,7 +30,7 @@ const DONUT_CIRCUMFERENCE = 2 * Math.PI * 15.9155;
 @Component({
   selector: 'app-admin-dashboard',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, MoneyPipe],
   templateUrl: './dashboard.page.html',
 })
 export class DashboardPage {

@@ -27,7 +27,7 @@ use crate::models::order::{Order, OrderChange, OrderChangeKind};
 use crate::services::account_service::{self, Accounts};
 use crate::services::connection_service::{self, Blacklist, ConnectionHistory};
 use crate::services::order_service::OrderService;
-use crate::services::pricing_service::PricingStore;
+use crate::services::pricing_service::{self, PricingStore};
 use crate::services::setting_service::MaxConnectedDevices;
 const INVALID_TOKEN: &str = "Jeton de session invalide ou expiré.";
 const SERVER_NOT_READY: &str = "Serveur non prêt. Réessayez.";
@@ -456,6 +456,7 @@ async fn register_staff(ctx: &WsContext, addr: SocketAddr, token: &str, role: Se
         data: ctx.order_service.get_orders(),
     };
     send_to_addr(&ctx.peers, addr, &orders).await;
+    send_currency(ctx, addr).await;
     if role == SessionRole::Cashier {
         let pending = ServerMessage::ConnectionRequests {
             data: get_pending_requests_list(&ctx.peers).await,
@@ -511,6 +512,7 @@ async fn register_counter(ctx: &WsContext, addr: SocketAddr, token: &str) {
         true,
     );
     send_to_addr(&ctx.peers, addr, &ServerMessage::Orders { data: scoped }).await;
+    send_currency(ctx, addr).await;
     notify_connected_devices(&ctx.peers).await;
 }
 async fn request_connection(ctx: &WsContext, addr: SocketAddr, username: &str, password: &str) {
@@ -639,6 +641,7 @@ async fn approve_trusted_counter(ctx: &WsContext, addr: SocketAddr, username: &s
     );
     send_to_addr(&ctx.peers, addr, &ServerMessage::ConnectionApproved).await;
     send_to_addr(&ctx.peers, addr, &ServerMessage::Orders { data: scoped }).await;
+    send_currency(ctx, addr).await;
     notify_pending_requests(&ctx.peers).await;
     notify_connected_devices(&ctx.peers).await;
 }
@@ -778,6 +781,13 @@ async fn account_username(peers: &PeerMap, addr: SocketAddr) -> Option<String> {
 }
 fn app_handle(ctx: &WsContext) -> Option<tauri::AppHandle> {
     ctx.app_handle.lock().unwrap().clone()
+}
+async fn send_currency(ctx: &WsContext, addr: SocketAddr) {
+    let Some(app) = app_handle(ctx) else {
+        return;
+    };
+    let code = pricing_service::get_currency_code(&app);
+    send_to_addr(&ctx.peers, addr, &ServerMessage::Currency { data: code }).await;
 }
 fn start_session(
     ctx: &WsContext,

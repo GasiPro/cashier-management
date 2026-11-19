@@ -1,7 +1,8 @@
-import { Component, EventEmitter, Output, computed, input, signal } from '@angular/core';
+import { Component, EventEmitter, Output, computed, inject, input, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { OrderLine } from '../../../../data/order/order.model';
 import { ReportExportInput, exportReportXlsx } from '../../../../data/report/report-export';
+import { CurrencyStore } from '../../../../data/pricing/currency.store';
 import { submitReport } from '../../../../data/report/report.api';
 import {
   Period,
@@ -18,33 +19,29 @@ import {
 } from '../../../../data/report/report-period';
 import * as reportCalc from '../../../../data/report/report.calculator';
 import { formatIsoDate, parseIsoDate } from '../../../../shared/utils/date';
-
+import { MoneyPipe } from '../../../../shared/pipes/money.pipe';
 @Component({
   selector: 'app-report-panel',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, MoneyPipe],
   templateUrl: './report-panel.html',
 })
 export class ReportPanel {
+  private readonly currencyStore = inject(CurrencyStore);
   paidOrders = input.required<OrderLine[]>();
   pendingCount = input<number>(0);
-
   @Output() closed = new EventEmitter<void>();
   @Output() notify = new EventEmitter<string>();
-
   exportingRapport = signal(false);
   rapportPeriod = signal<Period>('jour');
   rapportSelectedDate = signal<string>(formatIsoDate(new Date()));
   showRapportDatePicker = signal(false);
-
   private rapportPeriodBounds = computed(() =>
     periodBounds(this.rapportSelectedDate(), this.rapportPeriod()),
   );
-
   private rapportPaidOrders = computed(() =>
     reportCalc.paidOrdersInPeriod(this.paidOrders(), this.rapportPeriodBounds()),
   );
-
   rapportGroupsByUsername = computed(() => reportCalc.sectionsByCounterOf(this.rapportPaidOrders()));
   rapportByCounter = computed(() => reportCalc.byCounterOf(this.rapportPaidOrders()));
   rapportAverageBasket = computed(() => reportCalc.averageBasketOf(this.rapportPaidOrders()));
@@ -85,56 +82,46 @@ export class ReportPanel {
     return `${anchor.getFullYear()}-${String(anchor.getMonth() + 1).padStart(2, '0')}`;
   });
   rapportYearInputValue = computed(() => parseIsoDate(this.rapportSelectedDate()).getFullYear());
-
   rapportLineShare(line: reportCalc.CategoryLine): number {
     return reportCalc.lineShare(line.total, this.rapportRevenue());
   }
-
   setRapportPeriod(period: Period): void {
     if (this.rapportPeriod() === period) return;
     this.rapportPeriod.set(period);
     this.showRapportDatePicker.set(false);
   }
-
   setRapportCurrentPeriod(): void {
     this.rapportSelectedDate.set(formatIsoDate(new Date()));
     this.showRapportDatePicker.set(false);
   }
-
   setRapportPreviousPeriod(): void {
     const todayIso = formatIsoDate(new Date());
     const previous = previousPeriodBounds(todayIso, this.rapportPeriod());
     this.rapportSelectedDate.set(previous.start);
     this.showRapportDatePicker.set(false);
   }
-
   isRapportCurrentPeriod(): boolean {
     const todayIso = formatIsoDate(new Date());
     const bounds = this.rapportPeriodBounds();
     return todayIso >= bounds.start && todayIso <= bounds.end;
   }
-
   isRapportPreviousPeriod(): boolean {
     const todayIso = formatIsoDate(new Date());
     const previous = previousPeriodBounds(todayIso, this.rapportPeriod());
     const anchor = this.rapportSelectedDate();
     return anchor >= previous.start && anchor <= previous.end;
   }
-
   isRapportCustomPeriod(): boolean {
     return !this.isRapportCurrentPeriod() && !this.isRapportPreviousPeriod();
   }
-
   toggleRapportDatePicker(): void {
     this.showRapportDatePicker.update((v) => !v);
   }
-
   onRapportDateChange(value: string): void {
     if (!value) return;
     this.rapportSelectedDate.set(value);
     this.showRapportDatePicker.set(false);
   }
-
   onRapportWeekChange(value: string): void {
     const match = /^(\d{4})-W(\d{2})$/.exec(value);
     if (!match) return;
@@ -144,7 +131,6 @@ export class ReportPanel {
     this.rapportSelectedDate.set(formatIsoDate(monday));
     this.showRapportDatePicker.set(false);
   }
-
   onRapportMonthChange(value: string): void {
     const match = /^(\d{4})-(\d{2})$/.exec(value);
     if (!match) return;
@@ -154,14 +140,12 @@ export class ReportPanel {
     this.rapportSelectedDate.set(`${year}-${String(month).padStart(2, '0')}-01`);
     this.showRapportDatePicker.set(false);
   }
-
   onRapportYearChange(value: string): void {
     const year = Number(value);
     if (!Number.isInteger(year) || year < 2000 || year > 2100) return;
     this.rapportSelectedDate.set(`${year}-01-01`);
     this.showRapportDatePicker.set(false);
   }
-
   async exportRapportXlsx(): Promise<void> {
     this.exportingRapport.set(true);
     try {
@@ -169,6 +153,7 @@ export class ReportPanel {
       const input: ReportExportInput = {
         title: reportTitle(period),
         dateLabel: this.rapportDateLabel(),
+        currency: this.currencyStore.code(),
         orders: this.rapportPaidOrders(),
         trend: this.rapportRevenueTrend(),
         comparisonLabel: this.rapportComparisonLabel(),
@@ -195,7 +180,6 @@ export class ReportPanel {
       this.exportingRapport.set(false);
     }
   }
-
   private async sendToAdmin(input: ReportExportInput): Promise<boolean> {
     try {
       await submitReport(input);

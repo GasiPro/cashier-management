@@ -228,6 +228,8 @@ pub enum ServerMessage {
     OrderNotification { data: OrderChange },
     #[serde(rename = "pricing")]
     Pricing { data: Vec<ServiceItem> },
+    #[serde(rename = "currency")]
+    Currency { data: String },
     #[serde(rename = "notice")]
     Notice { data: Vec<String> },
     #[serde(rename = "error_protocol")]

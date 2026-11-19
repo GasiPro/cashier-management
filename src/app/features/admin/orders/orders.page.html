@@ -57,7 +57,7 @@
       </div>
       <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
         <p class="text-[11px] text-gray-400 uppercase tracking-wide">Chiffre encaissé</p>
-        <p class="text-lg font-semibold text-[#1E3A5F] tabular-nums mt-0.5">{{ totalRevenue() | number:'1.0-0' }} Ar</p>
+        <p class="text-lg font-semibold text-[#1E3A5F] tabular-nums mt-0.5">{{ totalRevenue() | money }}</p>
       </div>
     </div>
     <div class="mt-5 relative">
@@ -202,7 +202,7 @@
           </button>
           <p class="text-xs text-gray-400 hidden sm:block flex-shrink-0 whitespace-nowrap">{{ group.counterUsername }}</p>
           <p class="text-sm font-semibold text-[#1A1A1A] tabular-nums flex-shrink-0 whitespace-nowrap">
-            {{ group.totalAmount | number:'1.0-0' }} Ar
+            {{ group.totalAmount | money }}
           </p>
           @if (group.status === 'EN_ATTENTE') {
           <button type="button" [id]="'order-paid-btn-' + group.groupId"
@@ -296,9 +296,9 @@
                 <tr class="border-b border-gray-100 last:border-0">
                   <td class="px-3 py-2 text-gray-600">{{ line.service_type }}</td>
                   <td class="px-3 py-2 text-right text-gray-500 tabular-nums">{{ line.quantity }}</td>
-                  <td class="px-3 py-2 text-right text-gray-500 tabular-nums whitespace-nowrap">{{ line.unit_price | number:'1.0-0' }} Ar</td>
+                  <td class="px-3 py-2 text-right text-gray-500 tabular-nums whitespace-nowrap">{{ line.unit_price | money }}</td>
                   <td class="px-3 py-2 text-right font-medium text-[#1A1A1A] tabular-nums whitespace-nowrap">
-                    {{ line.quantity * line.unit_price | number:'1.0-0' }} Ar
+                    {{ line.quantity * line.unit_price | money }}
                   </td>
                 </tr>
                 }

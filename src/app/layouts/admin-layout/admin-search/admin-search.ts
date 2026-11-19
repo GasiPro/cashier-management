@@ -72,7 +72,7 @@ const SEARCH_PAGES: SearchPage[] = [
       'Nouveau tarif',
       'Libellé',
       'Catégorie',
-      'Prix (Ar)',
+      'Prix',
       'Services',
       'Produits',
     ],

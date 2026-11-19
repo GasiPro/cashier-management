@@ -37,7 +37,7 @@
               class="w-24 border rounded px-1.5 py-0.5 text-xs font-medium
                      text-[#1A1A1A] focus:outline-none focus:border-[#1E3A5F] transition-colors tabular-nums"
               [class]="store.isCartItemPriceInvalid(item) ? 'border-red-400 bg-red-50' : store.isCartItemDiscounted(item) ? 'border-amber-300 bg-amber-50' : store.isCartItemIncreased(item) ? 'border-sky-300 bg-sky-50' : 'border-gray-200'" />
-            <span class="text-xs text-gray-400">Ar</span>
+            <span class="text-xs text-gray-400">{{ currency.code() }}</span>
             @if (store.isCartItemPriceInvalid(item)) {
             <span [id]="'price-error-' + item.service.id" role="alert"
               class="inline-flex items-center gap-1 text-[10px] font-semibold text-red-700
@@ -48,16 +48,16 @@
             <span [id]="'price-hint-' + item.service.id"
               class="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700
                      bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
-              <span class="line-through" aria-hidden="true">{{ item.service.price | number:'1.0-0' }} Ar</span>
-              <span class="sr-only">Prix réduit depuis {{ item.service.price }} Ar</span>
+              <span class="line-through" aria-hidden="true">{{ item.service.price | money }}</span>
+              <span class="sr-only">Prix réduit depuis {{ item.service.price | money }}</span>
               Remise
             </span>
             } @else if (store.isCartItemIncreased(item)) {
             <span [id]="'price-hint-' + item.service.id"
               class="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700
                      bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full">
-              <span class="line-through" aria-hidden="true">{{ item.service.price | number:'1.0-0' }} Ar</span>
-              <span class="sr-only">Prix majoré depuis {{ item.service.price }} Ar</span>
+              <span class="line-through" aria-hidden="true">{{ item.service.price | money }}</span>
+              <span class="sr-only">Prix majoré depuis {{ item.service.price | money }}</span>
               Majoration
             </span>
             }
@@ -110,7 +110,7 @@
   </div>
   <div class="flex items-center justify-between py-3 border-t border-gray-100 mb-4">
     <span class="text-sm text-gray-500">Total</span>
-    <span class="text-xl font-bold text-[#1A1A1A] tabular-nums selectable">{{ store.grandTotal | number:'1.0-0' }} Ar</span>
+    <span class="text-xl font-bold text-[#1A1A1A] tabular-nums selectable">{{ store.grandTotal | money }}</span>
   </div>
   @if (store.pendingOrderGroups().length > 0) {
   <div class="mb-4">
@@ -122,7 +122,7 @@
       <option [ngValue]="null">Nouvelle commande</option>
       @for (g of store.pendingOrderGroups(); track g.groupId) {
       <option [ngValue]="g.groupId">
-        Ajouter à la commande de {{ g.time }} — {{ g.totalAmount | number:'1.0-0' }} Ar
+        Ajouter à la commande de {{ g.time }} — {{ g.totalAmount | money }}
       </option>
       }
     </select>

@@ -10,21 +10,19 @@ import {
   isLineDiscounted,
   isLineIncreased,
 } from '../../../../data/order/order.utils';
-
+import { MoneyPipe } from '../../../../shared/pipes/money.pipe';
 @Component({
   selector: 'app-order-detail-modal',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, MoneyPipe],
   templateUrl: './order-detail-modal.html',
 })
 export class OrderDetailModal {
   @Input({ required: true }) group!: OrderGroup;
   busyGroupId = input<number | null>(null);
-
   @Output() closed = new EventEmitter<void>();
   @Output() rejectRequested = new EventEmitter<OrderGroup>();
   @Output() payRequested = new EventEmitter<number>();
-
   readonly formatGroupId = formatGroupId;
   readonly formatCreatedLabel = formatCreatedLabel;
   readonly formatPaidLabel = formatPaidLabel;
@@ -32,7 +30,6 @@ export class OrderDetailModal {
   readonly isLineIncreased = isLineIncreased;
   readonly groupHasDiscount = groupHasDiscount;
   readonly groupHasIncrease = groupHasIncrease;
-
   isGroupPending(g: OrderGroup): boolean {
     return !g.paidAt;
   }
