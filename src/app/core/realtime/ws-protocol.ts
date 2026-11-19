@@ -25,6 +25,7 @@ export type WsMessage =
   | { type: 'account_update_error'; data: string }
   | { type: 'error_order'; data: string }
   | { type: 'order_notification'; data: OrderChange }
+  | { type: 'notice'; data: string[] }
   | { type: 'error_protocol'; data: string };
 export type WsMessageType = WsMessage['type'];
 export type WsMessageOf<T extends WsMessageType> = Extract<WsMessage, { type: T }>;
