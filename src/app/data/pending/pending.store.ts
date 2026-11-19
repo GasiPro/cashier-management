@@ -12,13 +12,20 @@ export type PendingPhase = 'editing' | 'saved';
 @Injectable({ providedIn: 'root' })
 export class PendingStore {
   readonly changes = signal<PendingChange[]>([]);
-  readonly phase = signal<PendingPhase>('editing');
   readonly applying = signal(false);
   readonly error = signal('');
+  /** True when edits were staged since the pending list was last opened. */
+  readonly hasNew = signal(false);
+  private readonly savedKeys = signal<string[]>([]);
   readonly count = computed(() => this.changes().length);
-  readonly briefing = computed(() => [...new Set(this.changes().flatMap((c) => [...c.counter, ...c.cashier]))]);
+  readonly phase = computed<PendingPhase>(() =>
+    this.count() > 0 && this.changes().every((c) => this.savedKeys().includes(c.key)) ? 'saved' : 'editing',
+  );
   get<T>(key: string): PendingChange<T> | undefined {
     return this.changes().find((c) => c.key === key) as PendingChange<T> | undefined;
+  }
+  isSaved(key: string): boolean {
+    return this.savedKeys().includes(key);
   }
   has(prefix: string): boolean {
     return this.changes().some((c) => c.key.startsWith(prefix));
@@ -26,21 +33,30 @@ export class PendingStore {
   stage(change: PendingChange): void {
     if (this.applying()) return;
     this.changes.update((list) => [...list.filter((c) => c.key !== change.key), change]);
-    this.phase.set('editing');
+    this.savedKeys.update((keys) => keys.filter((k) => k !== change.key));
+    this.hasNew.set(true);
     this.error.set('');
   }
   unstage(key: string): void {
     if (this.applying()) return;
     this.changes.update((list) => list.filter((c) => c.key !== key));
-    if (this.changes().length === 0) this.phase.set('editing');
+    this.savedKeys.update((keys) => keys.filter((k) => k !== key));
+    if (this.count() === 0) this.hasNew.set(false);
   }
-  save(): void {
-    if (this.count() > 0 && !this.applying()) this.phase.set('saved');
+  /** Marks one edit (or all of them when no key is given) as saved. */
+  save(key?: string): void {
+    if (this.applying()) return;
+    const keys = key ? [key] : this.changes().map((c) => c.key);
+    this.savedKeys.update((list) => [...new Set([...list, ...keys])]);
+  }
+  markSeen(): void {
+    this.hasNew.set(false);
   }
   discard(): void {
     if (this.applying()) return;
     this.changes.set([]);
-    this.phase.set('editing');
+    this.savedKeys.set([]);
+    this.hasNew.set(false);
     this.error.set('');
   }
   async apply(): Promise<boolean> {
@@ -59,7 +75,8 @@ export class PendingStore {
     }
     if (done.length > 0) {
       this.changes.update((list) => list.filter((c) => !done.includes(c)));
-      if (this.changes().length === 0) this.phase.set('editing');
+      this.savedKeys.update((keys) => keys.filter((k) => this.changes().some((c) => c.key === k)));
+      if (this.count() === 0) this.hasNew.set(false);
       try {
         await publishNotice(
           done.flatMap((c) => c.counter),

@@ -16,7 +16,7 @@ import type {
   ServiceItem,
 } from '../../../data/pricing/pricing.model';
 import { Badge, BadgeTone } from '../../../shared/ui/badge/badge';
-import { PendingBar } from '../../../shared/ui/pending-bar/pending-bar';
+import { PendingFab } from '../../../shared/ui/pending-fab/pending-fab';
 type PricingTab = 'price' | 'currency' | 'journal';
 interface JournalEntry {
   key: string;
@@ -82,7 +82,7 @@ const COPIED_FEEDBACK_MS = 1500;
 @Component({
   selector: 'app-admin-pricing',
   standalone: true,
-  imports: [FormsModule, NgTemplateOutlet, Badge, PendingBar],
+  imports: [FormsModule, NgTemplateOutlet, Badge, PendingFab],
   templateUrl: './pricing.page.html',
 })
 export class PricingPage implements OnInit, OnDestroy {
