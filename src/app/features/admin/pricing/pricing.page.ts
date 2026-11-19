@@ -1,7 +1,8 @@
-import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { errorMessage } from '../../../core/error/error-messages';
+import { PendingStore } from '../../../data/pending/pending.store';
 import * as pricingApi from '../../../data/pricing/pricing.api';
 import type {
   CurrencyInfo,
@@ -15,6 +16,7 @@ import type {
   ServiceItem,
 } from '../../../data/pricing/pricing.model';
 import { Badge, BadgeTone } from '../../../shared/ui/badge/badge';
+import { PendingBar } from '../../../shared/ui/pending-bar/pending-bar';
 type PricingTab = 'price' | 'currency' | 'journal';
 interface JournalEntry {
   key: string;
@@ -37,6 +39,13 @@ interface MorDraft {
   max_orders: number | null;
 }
 type MorDrafts = Record<PriceAdjustmentKind, MorDraft | null>;
+interface PricePatch {
+  price: number;
+  price_editable: boolean;
+  rules: Record<PriceAdjustmentKind, MorInput | null>;
+  drops: PriceAdjustmentKind[];
+  at: string;
+}
 const MOR_KINDS: PriceAdjustmentKind[] = ['majoration', 'reduction'];
 const MOR_LABELS: Record<PriceAdjustmentKind, string> = { majoration: 'majoration', reduction: 'réduction' };
 const MAX_RATE = 100;
@@ -73,7 +82,7 @@ const COPIED_FEEDBACK_MS = 1500;
 @Component({
   selector: 'app-admin-pricing',
   standalone: true,
-  imports: [FormsModule, NgTemplateOutlet, Badge],
+  imports: [FormsModule, NgTemplateOutlet, Badge, PendingBar],
   templateUrl: './pricing.page.html',
 })
 export class PricingPage implements OnInit, OnDestroy {
@@ -83,7 +92,9 @@ export class PricingPage implements OnInit, OnDestroy {
   readonly morKinds = MOR_KINDS;
   readonly morLabels = MOR_LABELS;
   readonly maxCurrencyNameLen = MAX_CURRENCY_NAME_LEN;
+  private readonly pending = inject(PendingStore);
   items = signal<ServiceItem[]>([]);
+  readonly viewItems = computed<ServiceItem[]>(() => this.items().map((item) => this.project(item)));
   history = signal<PriceHistoryEntry[]>([]);
   log = signal<PriceLogEntry[]>([]);
   currencyInfo = signal<CurrencyInfo | null>(null);
@@ -127,6 +138,7 @@ export class PricingPage implements OnInit, OnDestroy {
   }
   ngOnDestroy(): void {
     clearTimeout(this.copiedTimer);
+    this.pending.discard();
   }
   reload(): void {
     void this.load();
@@ -316,7 +328,7 @@ export class PricingPage implements OnInit, OnDestroy {
     const category = this.effectiveCategory();
     const term = this.searchTerm().trim().toLowerCase();
     const sort = this.sortKey();
-    const list = this.items().filter((item) => {
+    const list = this.viewItems().filter((item) => {
       if (type !== 'all' && item.type !== type) return false;
       if (category !== 'all' && item.category !== category) return false;
       if (term && !item.label.toLowerCase().includes(term) && !item.category.toLowerCase().includes(term)) {
@@ -342,7 +354,6 @@ export class PricingPage implements OnInit, OnDestroy {
   editPrice = signal<number | null>(null);
   editPriceEditable = signal(false);
   drafts = signal<MorDrafts>({ majoration: null, reduction: null });
-  savingId = signal<string | null>(null);
   editError = signal('');
   startEdit(item: ServiceItem): void {
     this.editingId.set(item.id);
@@ -388,21 +399,30 @@ export class PricingPage implements OnInit, OnDestroy {
   private sameRule(rule: PriceRule | null, draft: MorDraft): boolean {
     return !!rule && rule.rate === draft.rate && rule.days === draft.days && rule.max_orders === draft.max_orders;
   }
-  async deleteRule(item: ServiceItem, kind: PriceAdjustmentKind): Promise<void> {
-    if (this.savingId()) return;
-    this.savingId.set(item.id);
-    this.setStatus('', false);
-    try {
-      const updated = await pricingApi.deleteMor(item.id, kind);
-      this.items.update((list) => list.map((i) => (i.id === updated.id ? updated : i)));
-      this.drafts.update((d) => ({ ...d, [kind]: null }));
-      this.setStatus(`Tarif « ${updated.label} » : ${MOR_LABELS[kind]} supprimée.`, false);
-    } catch (e) {
-      console.error('mor_delete failed', e);
-      this.editError.set(errorMessage(e, 'Échec de la suppression. Réessayez.'));
-    } finally {
-      this.savingId.set(null);
-    }
+  private project(item: ServiceItem): ServiceItem {
+    const patch = this.pending.get<PricePatch>(`price:${item.id}`)?.payload;
+    if (!patch) return item;
+    const rule = (kind: PriceAdjustmentKind): PriceRule | null => {
+      if (!patch.price_editable) return null;
+      const input = patch.rules[kind];
+      if (input) return { id: 'pending', ...input, created_at: patch.at, used_orders: 0 };
+      return patch.drops.includes(kind) ? null : item[kind];
+    };
+    return {
+      ...item,
+      price: patch.price,
+      price_editable: patch.price_editable,
+      majoration: rule('majoration'),
+      reduction: rule('reduction'),
+    };
+  }
+  isPending(id: string): boolean {
+    return this.pending.get(`price:${id}`) !== undefined;
+  }
+  onApplied(): void {
+    this.editingId.set(null);
+    void this.refreshJournal();
+    this.setStatus('Modifications appliquées.', false);
   }
   cancelEdit(): void {
     const id = this.editingId();
@@ -410,8 +430,9 @@ export class PricingPage implements OnInit, OnDestroy {
     this.editError.set('');
     if (id) document.getElementById(`pricing-edit-btn-${id}`)?.focus();
   }
-  async saveEdit(item: ServiceItem): Promise<void> {
-    if (this.savingId()) return;
+  saveEdit(item: ServiceItem): void {
+    const real = this.items().find((i) => i.id === item.id);
+    if (!real) return;
     const price = this.editPrice();
     if (price === null || Number.isNaN(price)) {
       this.editError.set('Le prix est obligatoire.');
@@ -427,47 +448,73 @@ export class PricingPage implements OnInit, OnDestroy {
     }
     const editable = this.editPriceEditable();
     const drafts = this.drafts();
-    const inputs: Record<PriceAdjustmentKind, MorInput | null> = { majoration: null, reduction: null };
+    const rules: Record<PriceAdjustmentKind, MorInput | null> = { majoration: null, reduction: null };
+    const drops: PriceAdjustmentKind[] = [];
     if (editable) {
       for (const kind of MOR_KINDS) {
         const draft = drafts[kind];
-        if (!draft) continue;
+        if (!draft) {
+          if (real[kind]) drops.push(kind);
+          continue;
+        }
         const error = this.draftError(kind, draft);
         if (error) {
           this.editError.set(error);
           return;
         }
-        if (!this.sameRule(item[kind], draft)) {
-          inputs[kind] = { rate: draft.rate as number, days: draft.days, max_orders: draft.max_orders };
+        if (!this.sameRule(real[kind], draft)) {
+          rules[kind] = { rate: draft.rate as number, days: draft.days, max_orders: draft.max_orders };
         }
       }
+    }
+    const key = `price:${real.id}`;
+    const { counter, cashier } = this.briefing(real, price, editable, rules, drops);
+    if (counter.length === 0) {
+      this.pending.unstage(key);
+    } else {
+      const patch: PricePatch = { price, price_editable: editable, rules, drops, at: new Date().toISOString() };
+      this.pending.stage({
+        key,
+        payload: patch,
+        counter,
+        cashier,
+        apply: async () => {
+          await pricingApi.updatePricingItem(real.id, {
+            price,
+            price_editable: editable,
+            majoration: rules.majoration,
+            reduction: rules.reduction,
+          });
+          for (const kind of drops) await pricingApi.deleteMor(real.id, kind);
+        },
+      });
     }
     this.editError.set('');
-    this.savingId.set(item.id);
     this.setStatus('', false);
-    try {
-      let updated = await pricingApi.updatePricingItem(item.id, {
-        price,
-        price_editable: editable,
-        majoration: inputs.majoration,
-        reduction: inputs.reduction,
-      });
-      if (editable) {
-        for (const kind of MOR_KINDS) {
-          if (!drafts[kind] && updated[kind]) updated = await pricingApi.deleteMor(item.id, kind);
-        }
-      }
-      this.items.update((list) => list.map((i) => (i.id === updated.id ? updated : i)));
-      this.editingId.set(null);
-      this.setStatus(`Tarif « ${updated.label} » mis à jour.`, false);
-      void this.refreshJournal();
-      document.getElementById(`pricing-edit-btn-${updated.id}`)?.focus();
-    } catch (e) {
-      console.error('item_update failed', e);
-      this.editError.set(errorMessage(e, 'Échec de la mise à jour du tarif. Réessayez.'));
-    } finally {
-      this.savingId.set(null);
+    this.editingId.set(null);
+    document.getElementById(`pricing-edit-btn-${real.id}`)?.focus();
+  }
+  private briefing(
+    real: ServiceItem,
+    price: number,
+    editable: boolean,
+    rules: Record<PriceAdjustmentKind, MorInput | null>,
+    drops: PriceAdjustmentKind[],
+  ): { counter: string[]; cashier: string[] } {
+    const priceLines =
+      price !== real.price
+        ? [`${real.label} : ${this.money(real.price)} → ${this.money(price)} ${this.currency()}`]
+        : [];
+    const counter = [...priceLines];
+    if (editable !== real.price_editable) {
+      counter.push(`${real.label} : prix ${editable ? 'modifiable' : 'verrouillé'} au comptoir`);
     }
+    for (const kind of MOR_KINDS) {
+      const rule = rules[kind];
+      if (rule) counter.push(`${real.label} : ${MOR_LABELS[kind]} ${rule.rate} %`);
+      else if (drops.includes(kind)) counter.push(`${real.label} : ${MOR_LABELS[kind]} retirée`);
+    }
+    return { counter, cashier: priceLines };
   }
   currencyChoice = signal('');
   customCode = signal('');

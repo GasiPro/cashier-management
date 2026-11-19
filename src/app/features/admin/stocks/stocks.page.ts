@@ -1,13 +1,15 @@
-import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { errorMessage } from '../../../core/error/error-messages';
 import { getStoredUsername } from '../../../core/storage/local-storage';
 import { formatGroupId } from '../../../data/order/order.utils';
+import { PendingStore } from '../../../data/pending/pending.store';
 import type { PricingItemType } from '../../../data/pricing/pricing.model';
 import * as stockApi from '../../../data/stock/stock.api';
 import type { StockAction, StockHistoryEntry, StockItem, StockItemFields } from '../../../data/stock/stock.model';
 import { Badge, BadgeTone } from '../../../shared/ui/badge/badge';
+import { PendingBar } from '../../../shared/ui/pending-bar/pending-bar';
 type StockTab = 'product' | 'service' | 'journal';
 const ACTION_BADGES: Record<StockAction, { label: string; tone: BadgeTone }> = {
   availability: { label: 'Disponibilité', tone: 'info' },
@@ -24,7 +26,7 @@ const TYPE_OPTIONS: { value: PricingItemType; label: string }[] = [
 @Component({
   selector: 'app-admin-stocks',
   standalone: true,
-  imports: [FormsModule, NgTemplateOutlet, Badge],
+  imports: [FormsModule, NgTemplateOutlet, Badge, PendingBar],
   templateUrl: './stocks.page.html',
 })
 export class StocksPage implements OnInit, OnDestroy {
@@ -34,7 +36,9 @@ export class StocksPage implements OnInit, OnDestroy {
   readonly maxCategoryLen = MAX_CATEGORY_LEN;
   readonly formatGroupId = formatGroupId;
   private readonly username = getStoredUsername() ?? '';
+  private readonly pending = inject(PendingStore);
   items = signal<StockItem[]>([]);
+  readonly viewItems = computed<StockItem[]>(() => this.items().map((item) => this.project(item)));
   history = signal<StockHistoryEntry[]>([]);
   loading = signal(true);
   loadError = signal('');
@@ -42,8 +46,6 @@ export class StocksPage implements OnInit, OnDestroy {
   searchTerm = signal('');
   statusMessage = signal('');
   statusIsError = signal(false);
-  togglingId = signal<string | null>(null);
-  savingId = signal<string | null>(null);
   editingId = signal<string | null>(null);
   editQuantity = signal<number | null>(null);
   editError = signal('');
@@ -56,7 +58,6 @@ export class StocksPage implements OnInit, OnDestroy {
   newPrice = signal<number | null>(null);
   newQuantity = signal<number | null>(null);
   itemEditingId = signal<string | null>(null);
-  itemSavingId = signal<string | null>(null);
   itemEditError = signal('');
   editLabel = signal('');
   editCategory = signal('');
@@ -65,15 +66,15 @@ export class StocksPage implements OnInit, OnDestroy {
   expandedId = signal<number | null>(null);
   private copiedTimer?: ReturnType<typeof setTimeout>;
   readonly tabs = computed<{ value: StockTab; label: string; count: number }[]>(() => [
-    { value: 'product', label: 'Produit', count: this.items().filter((i) => i.type === 'product').length },
-    { value: 'service', label: 'Service', count: this.items().filter((i) => i.type === 'service').length },
+    { value: 'product', label: 'Produit', count: this.viewItems().filter((i) => i.type === 'product').length },
+    { value: 'service', label: 'Service', count: this.viewItems().filter((i) => i.type === 'service').length },
     { value: 'journal', label: 'Journal', count: this.history().length },
   ]);
   readonly visibleItems = computed<StockItem[]>(() => {
     const tab = this.tab();
     if (tab === 'journal') return [];
     const term = this.searchTerm().trim().toLowerCase();
-    return this.items()
+    return this.viewItems()
       .filter(
         (item) =>
           item.type === tab &&
@@ -82,13 +83,14 @@ export class StocksPage implements OnInit, OnDestroy {
       .sort((a, b) => a.category.localeCompare(b.category, 'fr') || a.label.localeCompare(b.label, 'fr'));
   });
   readonly categories = computed<string[]>(() =>
-    [...new Set(this.items().map((i) => i.category))].sort((a, b) => a.localeCompare(b, 'fr')),
+    [...new Set(this.viewItems().map((i) => i.category))].sort((a, b) => a.localeCompare(b, 'fr')),
   );
   ngOnInit(): void {
     void this.load();
   }
   ngOnDestroy(): void {
     clearTimeout(this.copiedTimer);
+    this.pending.discard();
   }
   reload(): void {
     void this.load();
@@ -115,9 +117,6 @@ export class StocksPage implements OnInit, OnDestroy {
     } catch (e) {
       console.error('failed to refresh stock history', e);
     }
-  }
-  private replaceItem(updated: StockItem): void {
-    this.items.update((list) => list.map((i) => (i.id === updated.id ? updated : i)));
   }
   private setStatus(message: string, isError: boolean): void {
     this.statusMessage.set(message);
@@ -169,21 +168,45 @@ export class StocksPage implements OnInit, OnDestroy {
       this.setStatus("Impossible de copier l'ID.", true);
     }
   }
-  async toggleAvailability(item: StockItem): Promise<void> {
-    if (this.togglingId()) return;
-    this.togglingId.set(item.id);
+  private project(item: StockItem): StockItem {
+    const fields = this.pending.get<StockItemFields>(`stock:${item.id}:item`);
+    const available = this.pending.get<boolean>(`stock:${item.id}:available`);
+    const quantity = this.pending.get<number | null>(`stock:${item.id}:quantity`);
+    return {
+      ...item,
+      ...(fields?.payload ?? {}),
+      available: available ? available.payload : item.available,
+      quantity: quantity ? quantity.payload : item.quantity,
+    };
+  }
+  isPending(id: string): boolean {
+    return this.pending.has(`stock:${id}:`);
+  }
+  onApplied(): void {
+    this.editingId.set(null);
+    this.itemEditingId.set(null);
+    void this.load(true);
+    this.setStatus('Modifications appliquées.', false);
+  }
+  toggleAvailability(item: StockItem): void {
+    const real = this.items().find((i) => i.id === item.id);
+    if (!real) return;
+    const key = `stock:${item.id}:available`;
+    const desired = !item.available;
     this.setStatus('', false);
-    try {
-      const updated = await stockApi.setStockAvailability(item.id, !item.available, this.username);
-      this.replaceItem(updated);
-      this.setStatus(`« ${updated.label} » est maintenant ${updated.available ? 'disponible' : 'indisponible'}.`, false);
-      await this.refreshHistory();
-    } catch (e) {
-      console.error('set_availability failed', e);
-      this.setStatus(errorMessage(e, 'Échec de la mise à jour de la disponibilité. Réessayez.'), true);
-    } finally {
-      this.togglingId.set(null);
+    if (desired === real.available) {
+      this.pending.unstage(key);
+      return;
     }
+    this.pending.stage({
+      key,
+      payload: desired,
+      counter: [`${item.label} : ${desired ? 'disponible' : 'indisponible'}`],
+      cashier: [],
+      apply: async () => {
+        await stockApi.setStockAvailability(item.id, desired, this.username);
+      },
+    });
   }
   startEdit(item: StockItem): void {
     this.itemEditingId.set(null);
@@ -198,29 +221,38 @@ export class StocksPage implements OnInit, OnDestroy {
     this.editError.set('');
     if (id) document.getElementById(`stock-edit-btn-${id}`)?.focus();
   }
-  async saveQuantity(item: StockItem): Promise<void> {
-    if (this.savingId()) return;
+  private quantityLine(item: StockItem, quantity: number | null): string {
+    const service = item.type === 'service';
+    if (quantity === null) return `${item.label} : ${service ? 'sans limite' : 'stock non suivi'}`;
+    if (quantity === 0) return `${item.label} : rupture de stock`;
+    return `${item.label} : ${service ? 'limite' : 'stock'} ${quantity}`;
+  }
+  saveQuantity(item: StockItem): void {
+    const real = this.items().find((i) => i.id === item.id);
+    if (!real) return;
     const quantity = this.editQuantity();
     if (quantity !== null && (!Number.isInteger(quantity) || quantity < 0)) {
       this.editError.set('La quantité doit être un nombre entier positif ou nul.');
       return;
     }
-    this.editError.set('');
-    this.savingId.set(item.id);
-    this.setStatus('', false);
-    try {
-      const updated = await stockApi.setStockQuantity(item.id, quantity, this.username);
-      this.replaceItem(updated);
-      this.editingId.set(null);
-      this.setStatus(`Stock de « ${updated.label} » mis à jour.`, false);
-      await this.refreshHistory();
-      document.getElementById(`stock-edit-btn-${updated.id}`)?.focus();
-    } catch (e) {
-      console.error('set_quantity failed', e);
-      this.editError.set(errorMessage(e, 'Échec de la mise à jour du stock. Réessayez.'));
-    } finally {
-      this.savingId.set(null);
+    const key = `stock:${item.id}:quantity`;
+    if (quantity === real.quantity) {
+      this.pending.unstage(key);
+    } else {
+      this.pending.stage({
+        key,
+        payload: quantity,
+        counter: [this.quantityLine(item, quantity)],
+        cashier: [],
+        apply: async () => {
+          await stockApi.setStockQuantity(item.id, quantity, this.username);
+        },
+      });
     }
+    this.editError.set('');
+    this.setStatus('', false);
+    this.editingId.set(null);
+    document.getElementById(`stock-edit-btn-${item.id}`)?.focus();
   }
   private fieldsError(label: string, category: string): string {
     if (!label) return "Le nom de l'article est obligatoire.";
@@ -295,8 +327,18 @@ export class StocksPage implements OnInit, OnDestroy {
     this.itemEditError.set('');
     if (id) document.getElementById(`item-edit-btn-${id}`)?.focus();
   }
-  async saveItem(item: StockItem): Promise<void> {
-    if (this.itemSavingId()) return;
+  private itemLines(real: StockItem, fields: StockItemFields): string[] {
+    const lines: string[] = [];
+    if (fields.label !== real.label) lines.push(`« ${real.label} » renommé « ${fields.label} »`);
+    if (fields.category !== real.category) lines.push(`${fields.label} : catégorie « ${fields.category} »`);
+    if (fields.type !== real.type) {
+      lines.push(`${fields.label} : désormais ${fields.type === 'service' ? 'un service' : 'un produit'}`);
+    }
+    return lines;
+  }
+  saveItem(item: StockItem): void {
+    const real = this.items().find((i) => i.id === item.id);
+    if (!real) return;
     const fields: StockItemFields = {
       type: this.editType(),
       category: this.editCategory().trim(),
@@ -307,21 +349,25 @@ export class StocksPage implements OnInit, OnDestroy {
       this.itemEditError.set(invalid);
       return;
     }
-    this.itemEditError.set('');
-    this.itemSavingId.set(item.id);
-    this.setStatus('', false);
-    try {
-      const updated = await stockApi.updateStockItem(item.id, fields);
-      this.replaceItem(updated);
-      this.itemEditingId.set(null);
-      if (updated.type !== item.type) this.setTab(updated.type);
-      this.setStatus(`« ${updated.label} » a été modifié.`, false);
-      document.getElementById(`item-edit-btn-${updated.id}`)?.focus();
-    } catch (e) {
-      console.error('update_item failed', e);
-      this.itemEditError.set(errorMessage(e, "Échec de la modification de l'article. Réessayez."));
-    } finally {
-      this.itemSavingId.set(null);
+    const key = `stock:${item.id}:item`;
+    const lines = this.itemLines(real, fields);
+    if (lines.length === 0) {
+      this.pending.unstage(key);
+    } else {
+      this.pending.stage({
+        key,
+        payload: fields,
+        counter: lines,
+        cashier: [],
+        apply: async () => {
+          await stockApi.updateStockItem(item.id, fields);
+        },
+      });
     }
+    this.itemEditError.set('');
+    this.setStatus('', false);
+    this.itemEditingId.set(null);
+    if (fields.type !== item.type) this.setTab(fields.type);
+    document.getElementById(`item-edit-btn-${item.id}`)?.focus();
   }
 }

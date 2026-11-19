@@ -3,7 +3,7 @@ use crate::infrastructure::filesystem;
 use crate::infrastructure::websocket::{
     get_connected_devices_list, get_pending_requests_list, get_server_address,
 };
-use crate::services::{connection_service, setting_service};
+use crate::services::{connection_service, notice_service, setting_service};
 use serde::Deserialize;
 use tauri::State;
 #[derive(Debug, Deserialize)]
@@ -48,6 +48,10 @@ pub enum ServerCommand {
     },
     DevicesCount,
     DevicesGetHistory,
+    NoticePublish {
+        counter: Vec<String>,
+        cashier: Vec<String>,
+    },
 }
 #[tauri::command]
 pub async fn server(
@@ -153,6 +157,10 @@ pub async fn server(
             Ok(serde_json::json!(get_connected_devices_list(&state.peers)
                 .await
                 .len()))
+        }
+        ServerCommand::NoticePublish { counter, cashier } => {
+            notice_service::publish(&state.peers, counter, cashier).await;
+            Ok(serde_json::Value::Null)
         }
     }
 }
