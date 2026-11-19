@@ -83,6 +83,7 @@ pub struct PriceHistoryEntry {
 pub enum PriceLogAction {
     MorAdded,
     PriceChanged,
+    CurrencyChanged,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PriceLogEntry {
@@ -96,6 +97,10 @@ pub struct PriceLogEntry {
     pub kind: Option<PriceAdjustmentKind>,
     pub before: Option<u32>,
     pub after: Option<u32>,
+    #[serde(default)]
+    pub before_code: Option<String>,
+    #[serde(default)]
+    pub after_code: Option<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Currency {

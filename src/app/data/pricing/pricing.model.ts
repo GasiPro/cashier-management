@@ -38,7 +38,7 @@ export interface PriceHistoryEntry {
   applied_price: number;
   peak?: PricePeak | null;
 }
-export type PriceLogAction = 'mor_added' | 'price_changed';
+export type PriceLogAction = 'mor_added' | 'price_changed' | 'currency_changed';
 export interface PriceLogEntry {
   id: string;
   at: string;
@@ -50,6 +50,8 @@ export interface PriceLogEntry {
   kind: PriceAdjustmentKind | null;
   before: number | null;
   after: number | null;
+  before_code?: string | null;
+  after_code?: string | null;
 }
 export interface Currency {
   code: string;

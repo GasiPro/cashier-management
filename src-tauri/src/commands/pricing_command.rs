@@ -35,6 +35,7 @@ pub enum PricingCommand {
     CurrencySet {
         code: String,
         name: Option<String>,
+        username: String,
     },
 }
 #[tauri::command]
@@ -111,8 +112,16 @@ pub async fn pricing(
         ))),
         PricingCommand::LogGet => Ok(serde_json::json!(pricing_service::get_price_log(&app))),
         PricingCommand::CurrencyGet => Ok(serde_json::json!(pricing_service::get_currency(&app))),
-        PricingCommand::CurrencySet { code, name } => Ok(serde_json::json!(
-            pricing_service::set_currency(&app, code, name)?
-        )),
+        PricingCommand::CurrencySet {
+            code,
+            name,
+            username,
+        } => Ok(serde_json::json!(pricing_service::set_currency(
+            &app,
+            &state.accounts,
+            code,
+            name,
+            &username
+        )?)),
     }
 }
