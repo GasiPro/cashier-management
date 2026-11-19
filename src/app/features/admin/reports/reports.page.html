@@ -96,7 +96,7 @@
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <div class="bg-white border border-gray-200 rounded-lg px-3 py-2.5">
               <p class="text-[11px] text-gray-400 uppercase tracking-wide">Chiffre d'affaires</p>
-              <p class="text-sm font-semibold text-[#1E3A5F] tabular-nums mt-0.5">{{ row.revenue | number:'1.0-0' }} Ar</p>
+              <p class="text-sm font-semibold text-[#1E3A5F] tabular-nums mt-0.5">{{ row.revenue | money: row.record.payload.currency }}</p>
             </div>
             <div class="bg-white border border-gray-200 rounded-lg px-3 py-2.5">
               <p class="text-[11px] text-gray-400 uppercase tracking-wide">Transactions</p>
@@ -104,7 +104,7 @@
             </div>
             <div class="bg-white border border-gray-200 rounded-lg px-3 py-2.5">
               <p class="text-[11px] text-gray-400 uppercase tracking-wide">Panier moyen</p>
-              <p class="text-sm font-semibold text-[#1A1A1A] tabular-nums mt-0.5">{{ row.averageBasket | number:'1.0-0' }} Ar</p>
+              <p class="text-sm font-semibold text-[#1A1A1A] tabular-nums mt-0.5">{{ row.averageBasket | money: row.record.payload.currency }}</p>
             </div>
             <div class="bg-white border border-gray-200 rounded-lg px-3 py-2.5">
               <p class="text-[11px] text-gray-400 uppercase tracking-wide">Articles vendus</p>

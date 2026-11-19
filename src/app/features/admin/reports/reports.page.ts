@@ -12,7 +12,7 @@ import {
 import { listReports } from '../../../data/report/report.api';
 import { ReportRecord, formatReportId } from '../../../data/report/report.model';
 import { TimePipe } from '../../../shared/pipes/time.pipe';
-
+import { MoneyPipe } from '../../../shared/pipes/money.pipe';
 interface ReportRow {
   record: ReportRecord;
   idLabel: string;
@@ -22,15 +22,12 @@ interface ReportRow {
   items: number;
   counters: string;
 }
-
 interface Notice {
   message: string;
   error: boolean;
 }
-
 const NOTICE_DURATION_MS = 3000;
 const COPIED_DURATION_MS = 1500;
-
 function toRow(record: ReportRecord): ReportRow {
   const orders = record.payload.orders;
   return {
@@ -45,11 +42,10 @@ function toRow(record: ReportRecord): ReportRow {
       .join(', '),
   };
 }
-
 @Component({
   selector: 'app-admin-reports',
   standalone: true,
-  imports: [CommonModule, TimePipe],
+  imports: [CommonModule, TimePipe, MoneyPipe],
   templateUrl: './reports.page.html',
 })
 export class ReportsPage implements OnInit, OnDestroy {
@@ -60,21 +56,16 @@ export class ReportsPage implements OnInit, OnDestroy {
   readonly copiedId = signal<number | null>(null);
   readonly downloadingId = signal<number | null>(null);
   readonly notice = signal<Notice | null>(null);
-
   readonly rows = computed<ReportRow[]>(() => this.reports().map(toRow));
-
   private copiedTimer?: ReturnType<typeof setTimeout>;
   private noticeTimer?: ReturnType<typeof setTimeout>;
-
   ngOnInit(): void {
     void this.load();
   }
-
   ngOnDestroy(): void {
     clearTimeout(this.copiedTimer);
     clearTimeout(this.noticeTimer);
   }
-
   async load(): Promise<void> {
     this.loading.set(true);
     this.loadError.set('');
@@ -87,15 +78,12 @@ export class ReportsPage implements OnInit, OnDestroy {
       this.loading.set(false);
     }
   }
-
   toggle(id: number): void {
     this.expandedId.update((current) => (current === id ? null : id));
   }
-
   isExpanded(id: number): boolean {
     return this.expandedId() === id;
   }
-
   async copyId(record: ReportRecord): Promise<void> {
     try {
       await navigator.clipboard.writeText(formatReportId(record.id));
@@ -107,7 +95,6 @@ export class ReportsPage implements OnInit, OnDestroy {
       this.showNotice("Impossible de copier l'identifiant.", true);
     }
   }
-
   async download(record: ReportRecord): Promise<void> {
     if (this.downloadingId() !== null) return;
     this.downloadingId.set(record.id);
@@ -127,7 +114,6 @@ export class ReportsPage implements OnInit, OnDestroy {
       this.downloadingId.set(null);
     }
   }
-
   private showNotice(message: string, error: boolean): void {
     this.notice.set({ message, error });
     clearTimeout(this.noticeTimer);

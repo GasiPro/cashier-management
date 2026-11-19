@@ -90,13 +90,13 @@
             [class]="store.isLineDiscounted(line) ? 'border-amber-300 bg-amber-50' : store.isLineIncreased(line) ? 'border-sky-300 bg-sky-50' : 'border-gray-200'" />
           @if (store.isLineDiscounted(line)) {
           <span [id]="'edit-price-sb-hint-' + line.id" class="text-[10px] text-amber-600 flex-shrink-0 whitespace-nowrap">
-            <span aria-hidden="true">initial {{ line.original_unit_price | number:'1.0-0' }} Ar</span>
-            <span class="sr-only">Prix réduit, initialement {{ line.original_unit_price }} Ar</span>
+            <span aria-hidden="true">initial {{ line.original_unit_price | money }}</span>
+            <span class="sr-only">Prix réduit, initialement {{ line.original_unit_price | money }}</span>
           </span>
           } @else if (store.isLineIncreased(line)) {
           <span [id]="'edit-price-sb-hint-' + line.id" class="text-[10px] text-sky-600 flex-shrink-0 whitespace-nowrap">
-            <span aria-hidden="true">initial {{ line.original_unit_price | number:'1.0-0' }} Ar</span>
-            <span class="sr-only">Prix majoré, initialement {{ line.original_unit_price }} Ar</span>
+            <span aria-hidden="true">initial {{ line.original_unit_price | money }}</span>
+            <span class="sr-only">Prix majoré, initialement {{ line.original_unit_price | money }}</span>
           </span>
           }
           <button (click)="store.deleteOrderLine(line)" title="Supprimer cette ligne"

@@ -7,12 +7,13 @@ import { OrderStore } from '../../../data/order/order.store';
 import { OrderGroup, OrderLine } from '../../../data/order/order.model';
 import { buildGroups, formatGroupId, getGroupItemsSummary } from '../../../data/order/order.utils';
 import { startOfDay } from '../../../shared/utils/date';
+import { MoneyPipe } from '../../../shared/pipes/money.pipe';
 type StatusFilter = 'all' | OrderLine['status'];
 type SortKey = 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc';
 @Component({
   selector: 'app-admin-orders',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, MoneyPipe],
   templateUrl: './orders.page.html'
 })
 export class OrdersPage implements OnDestroy {

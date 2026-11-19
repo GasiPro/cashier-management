@@ -116,12 +116,17 @@ pub async fn pricing(
             code,
             name,
             username,
-        } => Ok(serde_json::json!(pricing_service::set_currency(
-            &app,
-            &state.accounts,
-            code,
-            name,
-            &username
-        )?)),
+        } => {
+            let info =
+                pricing_service::set_currency(&app, &state.accounts, code, name, &username)?;
+            broadcast_to_approved(
+                &state.peers,
+                &ServerMessage::Currency {
+                    data: info.selected.clone(),
+                },
+            )
+            .await;
+            Ok(serde_json::json!(info))
+        }
     }
 }

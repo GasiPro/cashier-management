@@ -10,6 +10,7 @@ use crate::models::connection::{
 };
 use crate::models::order::Order;
 use crate::repositories::connection_repository;
+use crate::services::pricing_service;
 use crate::services::setting_service::MaxConnectedDevices;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
@@ -137,6 +138,7 @@ pub async fn approve_connection(
             "Limite de {max} appareil(s) connecté(s) atteinte. Déconnectez un appareil ou augmentez la limite dans Réglages."
         ));
     }
+    let currency = pricing_service::get_currency_code(app);
     {
         let mut guard = peers.lock().await;
         let peer = guard
@@ -149,6 +151,7 @@ pub async fn approve_connection(
         peer.send(&ServerMessage::Orders {
             data: scope_orders_for_peer(&orders, peer),
         });
+        peer.send(&ServerMessage::Currency { data: currency });
         let username = peer.username.clone();
         trust_counter(&mut guard, socket_addr.ip(), &username);
     }

@@ -49,10 +49,10 @@
         </span>
         <span class="text-sm text-gray-500 font-medium whitespace-nowrap tabular-nums">
           @if (store.isLineDiscounted(line) || store.isLineIncreased(line)) {
-          <span class="line-through text-gray-300 mr-1" aria-hidden="true">{{ line.original_unit_price | number:'1.0-0' }} Ar</span>
-          <span class="sr-only">Prix initial {{ line.original_unit_price }} Ar, prix {{ store.isLineDiscounted(line) ? 'réduit' : 'majoré' }},</span>
+          <span class="line-through text-gray-300 mr-1" aria-hidden="true">{{ line.original_unit_price | money }}</span>
+          <span class="sr-only">Prix initial {{ line.original_unit_price | money }}, prix {{ store.isLineDiscounted(line) ? 'réduit' : 'majoré' }},</span>
           }
-          {{ line.unit_price | number:'1.0-0' }} Ar × {{ line.quantity }}
+          {{ line.unit_price | money }} × {{ line.quantity }}
         </span>
         @if (line.observation) {
         <p class="w-full mt-0.5 text-[11px] text-gray-500 italic">{{ line.observation }}</p>
@@ -77,7 +77,7 @@
           <span class="text-sky-600" title="Cette commande inclut une majoration" aria-label="Majoration appliquée">●</span>
           }
         </span>
-        <span class="text-xl font-bold text-[#1A1A1A] tabular-nums selectable">{{ store.groupTotal(group) | number:'1.0-0' }} Ar</span>
+        <span class="text-xl font-bold text-[#1A1A1A] tabular-nums selectable">{{ store.groupTotal(group) | money }}</span>
       </div>
       @if (group.status === 'EN_ATTENTE') {
       <div class="flex items-center gap-2">

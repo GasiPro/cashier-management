@@ -10,10 +10,11 @@ import {
   groupHasIncrease,
 } from '../../../../data/order/order.utils';
 import { HistoriqueDayGroup } from '../../cashier.store';
+import { MoneyPipe } from '../../../../shared/pipes/money.pipe';
 @Component({
   selector: 'app-history-panel',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, MoneyPipe],
   templateUrl: './history-panel.html',
 })
 export class HistoryPanel {

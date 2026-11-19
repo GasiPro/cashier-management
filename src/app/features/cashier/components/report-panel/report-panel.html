@@ -156,9 +156,9 @@
           </span>
           }
         </div>
-        <p class="text-3xl font-bold tabular-nums leading-tight">{{ rapportRevenue() | number:'1.0-0' }} Ar</p>
+        <p class="text-3xl font-bold tabular-nums leading-tight">{{ rapportRevenue() | money }}</p>
         <p class="text-xs text-white/60 mt-1">
-          {{ rapportComparisonLabel() }} : {{ rapportRevenueTrend().previousRevenue | number:'1.0-0' }} Ar
+          {{ rapportComparisonLabel() }} : {{ rapportRevenueTrend().previousRevenue | money }}
         </p>
       </div>
       <div class="grid grid-cols-2 gap-2 mb-4">
@@ -168,7 +168,7 @@
         </div>
         <div class="bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5">
           <p class="text-[11px] text-gray-400 uppercase tracking-wide">Panier moyen</p>
-          <p class="text-lg font-semibold text-[#1A1A1A] tabular-nums">{{ rapportAverageBasket() | number:'1.0-0' }} Ar</p>
+          <p class="text-lg font-semibold text-[#1A1A1A] tabular-nums">{{ rapportAverageBasket() | money }}</p>
         </div>
         <div class="bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5">
           <p class="text-[11px] text-gray-400 uppercase tracking-wide">Articles vendus</p>
@@ -199,7 +199,7 @@
               <div class="h-full bg-[#1E3A5F] rounded-full"
                    [style.width.%]="rapportRevenue() === 0 ? 0 : (counter.total / rapportRevenue()) * 100"></div>
             </div>
-            <span class="text-sm font-semibold text-[#1A1A1A] tabular-nums w-20 text-right flex-shrink-0">{{ counter.total | number:'1.0-0' }} Ar</span>
+            <span class="text-sm font-semibold text-[#1A1A1A] tabular-nums w-20 text-right flex-shrink-0">{{ counter.total | money }}</span>
           </div>
           }
         </div>
@@ -215,7 +215,7 @@
             <div class="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden flex-shrink-0">
               <div class="h-full bg-emerald-400 rounded-full" [style.width.%]="rapportLineShare(line)"></div>
             </div>
-            <span class="text-sm font-semibold text-[#1A1A1A] tabular-nums w-20 text-right flex-shrink-0">{{ line.total | number:'1.0-0' }} Ar</span>
+            <span class="text-sm font-semibold text-[#1A1A1A] tabular-nums w-20 text-right flex-shrink-0">{{ line.total | money }}</span>
           </div>
           }
         </div>
@@ -239,7 +239,7 @@
           </div>
           <span [class]="rapportAdjustmentsSummary().netImpact >= 0 ? 'text-emerald-700' : 'text-red-600'"
             class="text-sm font-semibold tabular-nums" title="Impact net sur le chiffre d'affaires">
-            {{ rapportAdjustmentsSummary().netImpact >= 0 ? '+' : '' }}{{ rapportAdjustmentsSummary().netImpact | number:'1.0-0' }} Ar
+            {{ rapportAdjustmentsSummary().netImpact >= 0 ? '+' : '' }}{{ rapportAdjustmentsSummary().netImpact | money }}
           </span>
         </div>
       </div>
@@ -278,24 +278,24 @@
             <span class="text-gray-400 tabular-nums text-right whitespace-nowrap">
               @if (line.discounted || line.increased) {
               <span class="line-through text-gray-300 mr-1" aria-hidden="true">{{ line.originalUnitPrice | number:'1.0-0' }}</span>
-              <span class="sr-only">Prix initial {{ line.originalUnitPrice }} Ar, prix {{ line.discounted ? 'réduit' : 'majoré' }} à</span>
+              <span class="sr-only">Prix initial {{ line.originalUnitPrice | money }}, prix {{ line.discounted ? 'réduit' : 'majoré' }} à</span>
               }
-              {{ line.unitPrice | number:'1.0-0' }} Ar
+              {{ line.unitPrice | money }}
             </span>
             <span class="font-medium text-gray-400 tabular-nums text-right">×{{ line.qty }}</span>
-            <span class="font-semibold text-gray-400 tabular-nums text-right whitespace-nowrap">{{ line.total | number:'1.0-0' }} Ar</span>
+            <span class="font-semibold text-gray-400 tabular-nums text-right whitespace-nowrap">{{ line.total | money }}</span>
           </div>
           }
           }
           <div class="flex items-center justify-between px-1 pt-2 mt-1 border-t border-gray-100">
             <span class="text-xs font-semibold text-gray-500">Total {{ section.username }}</span>
-            <span class="text-sm font-semibold text-[#1A1A1A] tabular-nums">{{ section.total | number:'1.0-0' }} Ar</span>
+            <span class="text-sm font-semibold text-[#1A1A1A] tabular-nums">{{ section.total | money }}</span>
           </div>
         </div>
         }
         <div class="flex items-center justify-between px-1 pt-3 mt-4 border-t border-gray-200">
           <span class="text-sm font-semibold text-[#1E3A5F]">Total général</span>
-          <span class="text-base font-bold text-[#1A1A1A] tabular-nums">{{ rapportRevenue() | number:'1.0-0' }} Ar</span>
+          <span class="text-base font-bold text-[#1A1A1A] tabular-nums">{{ rapportRevenue() | money }}</span>
         </div>
       </div>
     </div>

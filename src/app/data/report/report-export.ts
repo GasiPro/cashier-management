@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import * as XLSX from 'xlsx';
 import { OrderLine } from '../order/order.model';
+import { DEFAULT_CURRENCY } from '../pricing/currency.store';
 import {
   adjustmentsSummaryOf,
   averageBasketOf,
@@ -13,28 +14,23 @@ import {
   revenueOf,
   sectionsByCounterOf,
 } from './report.calculator';
-
 export interface ReportExportInput {
   title: string;
   dateLabel: string;
-  /** Counter the report is restricted to; shown as an extra header row when set. */
   counterLabel?: string;
-  /** Paid orders of the period (already filtered by period and counter). */
+  currency?: string;
   orders: OrderLine[];
   trend: RevenueTrend;
   comparisonLabel: string;
-  /** Pending / rejected group counts; the rows are only written when provided. */
   pendingCount?: number;
   rejectedCount?: number;
-  /** Time range of the day's payments; the row is only written when non-empty. */
   timeRange?: string;
   defaultFileName: string;
 }
-
 export type ReportExportResult = 'saved' | 'cancelled' | 'dialog_failed' | 'save_failed';
-
 export async function exportReportXlsx(input: ReportExportInput): Promise<ReportExportResult> {
   const { orders } = input;
+  const currency = (input.currency || DEFAULT_CURRENCY).replace(/[^A-Za-z]/g, '');
   const rows: (string | number)[][] = [];
   const currencyCells: { r: number; c: number }[] = [];
   const usernameHeaderRows: number[] = [];
@@ -74,7 +70,7 @@ export async function exportReportXlsx(input: ReportExportInput): Promise<Report
   const counters = byCounterOf(orders);
   if (counters.length > 1) {
     pushRow([]);
-    pushRow(['Comptoir', 'Transactions', 'Total (Ar)']);
+    pushRow(['Comptoir', 'Transactions', `Total (${currency})`]);
     for (const counter of counters) {
       const r = pushRow([counter.username, counter.clients, counter.total]);
       currencyCells.push({ r, c: 2 });
@@ -85,7 +81,7 @@ export async function exportReportXlsx(input: ReportExportInput): Promise<Report
     pushRow([]);
     pushRow(['Remises appliquées', adjustments.discountCount]);
     pushRow(['Majorations appliquées', adjustments.increaseCount]);
-    const netImpactRow = pushRow(["Impact net des ajustements (Ar)", adjustments.netImpact]);
+    const netImpactRow = pushRow([`Impact net des ajustements (${currency})`, adjustments.netImpact]);
     currencyCells.push({ r: netImpactRow, c: 1 });
   }
   pushRow([]);
@@ -94,12 +90,12 @@ export async function exportReportXlsx(input: ReportExportInput): Promise<Report
     'Service',
     'N° Commande',
     'Comptoir',
-    'Prix unitaire (Ar)',
-    'Prix appliqué (Ar)',
+    `Prix unitaire (${currency})`,
+    `Prix appliqué (${currency})`,
     'Quantité',
     'Heure commande',
     'Heure paiement',
-    'Total (Ar)',
+    `Total (${currency})`,
   ]);
   const formatReportTime = (iso: string): string =>
     new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -157,7 +153,7 @@ export async function exportReportXlsx(input: ReportExportInput): Promise<Report
   worksheet['!autofilter'] = {
     ref: XLSX.utils.encode_range({ s: { r: headerRow, c: 0 }, e: { r: headerRow, c: 9 } }),
   };
-  const currencyFormat = '#,##0" Ar"';
+  const currencyFormat = `#,##0" ${currency}"`;
   for (const { r, c } of currencyCells) {
     const cellRef = XLSX.utils.encode_cell({ r, c });
     const cell = worksheet[cellRef];

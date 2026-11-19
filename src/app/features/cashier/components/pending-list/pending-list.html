@@ -72,7 +72,7 @@
       <div class="flex items-center justify-between pt-4 border-t border-gray-100">
         <div>
           <p class="text-xs text-gray-400">Total à payer</p>
-          <p class="text-xl font-bold text-[#1A1A1A] tabular-nums">{{ group.totalAmount | number:'1.0-0' }} Ar</p>
+          <p class="text-xl font-bold text-[#1A1A1A] tabular-nums">{{ group.totalAmount | money }}</p>
         </div>
         <div class="flex items-center gap-2">
           <button (click)="$event.stopPropagation(); rejectRequested.emit(group)" title="Refuser la commande"

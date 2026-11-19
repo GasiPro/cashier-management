@@ -5,6 +5,7 @@ import { errorMessage } from '../../../core/error/error-messages';
 import { getStoredUsername } from '../../../core/storage/local-storage';
 import { formatGroupId } from '../../../data/order/order.utils';
 import { PendingStore } from '../../../data/pending/pending.store';
+import { CurrencyStore } from '../../../data/pricing/currency.store';
 import type { PricingItemType } from '../../../data/pricing/pricing.model';
 import * as stockApi from '../../../data/stock/stock.api';
 import type { StockAction, StockHistoryEntry, StockItem, StockItemFields } from '../../../data/stock/stock.model';
@@ -37,6 +38,7 @@ export class StocksPage implements OnInit, OnDestroy {
   readonly formatGroupId = formatGroupId;
   private readonly username = getStoredUsername() ?? '';
   private readonly pending = inject(PendingStore);
+  readonly currency = inject(CurrencyStore);
   items = signal<StockItem[]>([]);
   readonly viewItems = computed<StockItem[]>(() => this.items().map((item) => this.project(item)));
   history = signal<StockHistoryEntry[]>([]);
