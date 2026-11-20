@@ -13,48 +13,29 @@ use app::AppState;
 use config::rate_limit;
 use config::setting_config::DEFAULT_MAX_CONNECTED_DEVICES;
 use infrastructure::splash;
-use infrastructure::websocket::{self, WsContext};
+use models::setting::AppMode;
 use models::stock::StockData;
 use services::order_service::OrderService;
-use services::report_service::ReportStore;
-use services::stock_service::StockStore;
-use services::{
-    account_service, connection_service, pricing_service, report_service, setting_service,
-    stock_service,
-};
+use services::setting_service;
 pub fn run() {
-    let ctx = WsContext {
+    let state = AppState {
         order_service: Arc::new(OrderService::new()),
         peers: Arc::new(Mutex::new(HashMap::new())),
         max_connected_devices: Arc::new(SyncMutex::new(DEFAULT_MAX_CONNECTED_DEVICES)),
         accounts: Arc::new(SyncMutex::new(Vec::new())),
-        app_handle: Arc::new(SyncMutex::new(None)),
         blacklist: Arc::new(SyncMutex::new(Vec::new())),
         connection_history: Arc::new(SyncMutex::new(Vec::new())),
         pricing: Arc::new(SyncMutex::new(Vec::new())),
+        reports: Arc::new(SyncMutex::new(Vec::new())),
+        stock: Arc::new(SyncMutex::new(StockData::default())),
         sessions: Arc::new(SyncMutex::new(HashMap::new())),
-        connection_attempts: rate_limit::new_tracker(),
-    };
-    let reports: ReportStore = Arc::new(SyncMutex::new(Vec::new()));
-    let stock: StockStore = Arc::new(SyncMutex::new(StockData::default()));
-    let state = AppState {
-        order_service: ctx.order_service.clone(),
-        peers: ctx.peers.clone(),
-        max_connected_devices: ctx.max_connected_devices.clone(),
-        accounts: ctx.accounts.clone(),
-        blacklist: ctx.blacklist.clone(),
-        connection_history: ctx.connection_history.clone(),
-        pricing: ctx.pricing.clone(),
-        reports: reports.clone(),
-        stock: stock.clone(),
-        sessions: ctx.sessions.clone(),
         auth_attempts: rate_limit::new_tracker(),
     };
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
-        .setup(move |app| {
+        .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -64,19 +45,9 @@ pub fn run() {
             }
             let handle = app.handle();
             splash::open(handle)?;
-            let loaded_settings = setting_service::load_settings(handle);
-            *ctx.max_connected_devices.lock().unwrap() = loaded_settings.max_connected_devices;
-            *ctx.accounts.lock().unwrap() = account_service::load_or_bootstrap(handle);
-            *ctx.blacklist.lock().unwrap() = connection_service::load_blacklist(handle);
-            *ctx.connection_history.lock().unwrap() = connection_service::load_history(handle);
-            *ctx.pricing.lock().unwrap() = pricing_service::load_or_bootstrap(handle);
-            *reports.lock().unwrap() = report_service::load(handle);
-            stock_service::migrate_item_ids(handle, &ctx.pricing);
-            *stock.lock().unwrap() = stock_service::load(handle);
-            ctx.order_service.load(handle);
-            *ctx.app_handle.lock().unwrap() = Some(handle.clone());
-            websocket::start_clock(ctx.peers.clone());
-            websocket::start_server(ctx);
+            if setting_service::load_mode(handle) == Some(AppMode::Caisse) {
+                app::runtime::start_caisse(handle);
+            }
             Ok(())
         })
         .manage(state)

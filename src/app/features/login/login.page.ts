@@ -5,6 +5,7 @@ import { Subscription } from 'rxjs';
 import { take } from 'rxjs/operators';
 import { DEFAULT_WS } from '../../core/config/app.constants';
 import { errorMessage } from '../../core/error/error-messages';
+import { ModeStore } from '../../core/auth/mode.store';
 import { SessionStore } from '../../core/auth/session.store';
 import { WsClient } from '../../core/realtime/ws-client';
 import {
@@ -20,9 +21,7 @@ import { AdminModal } from './components/admin-modal/admin-modal';
 import { CashierSetup } from './components/cashier-setup/cashier-setup';
 import { CounterSetup } from './components/counter-setup/counter-setup';
 import { CounterWaiting } from './components/counter-waiting/counter-waiting';
-import { RolePicker } from './components/role-picker/role-picker';
 type Step =
-  | 'role'
   | 'cashier-setup'
   | 'counter-setup'
   | 'counter-waiting'
@@ -40,11 +39,11 @@ interface AuthResult<T> {
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [RolePicker, CashierSetup, CounterSetup, CounterWaiting, AdminModal],
+  imports: [CashierSetup, CounterSetup, CounterWaiting, AdminModal],
   templateUrl: './login.page.html',
 })
 export class LoginPage implements OnInit, OnDestroy {
-  step = signal<Step>('role');
+  step = signal<Step>('counter-setup');
   currentDateTime = '';
   // Cashier fields
   cashierUsername = signal('');
@@ -80,6 +79,7 @@ export class LoginPage implements OnInit, OnDestroy {
     private router: Router,
     private ws: WsClient,
     private session: SessionStore,
+    private modeStore: ModeStore,
   ) {}
   ngOnInit(): void {
     this.session.setRole(null);
@@ -88,6 +88,11 @@ export class LoginPage implements OnInit, OnDestroy {
     this.cashierUsername.set(getStoredUsername() ?? '');
     this.counterUsername.set(getStoredUsername() ?? '');
     this.counterWsUrl.set(getStoredCashierWsUrl() ?? DEFAULT_WS);
+    if (this.modeStore.mode() === 'comptoir') {
+      this.selectCounter();
+    } else {
+      this.selectCashier();
+    }
   }
   ngOnDestroy(): void {
     if (this.clockInterval) clearInterval(this.clockInterval);
@@ -105,9 +110,10 @@ export class LoginPage implements OnInit, OnDestroy {
   showAdminPassword = signal(false);
   authenticatingAdmin = signal(false);
   adminError = signal('');
-  /** Ctrl+Alt+A on the login screen reveals a hidden admin login popup. */
+  /** Ctrl+Alt+A on the cashier login screen reveals a hidden admin login popup. */
   @HostListener('document:keydown', ['$event'])
   handleGlobalKeydown(event: KeyboardEvent): void {
+    if (this.modeStore.mode() !== 'caisse') return;
     if (event.ctrlKey && event.altKey && event.key.toLowerCase() === 'a') {
       event.preventDefault();
       this.openAdminModal();
@@ -339,16 +345,15 @@ export class LoginPage implements OnInit, OnDestroy {
     this.counterError.set('');
     this.addressCheck.set('idle');
   }
+  /** Leaves the waiting screen and returns to the counter form. */
   goBack(): void {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     this.closeSubscription?.unsubscribe();
     this.counterConnecting.set(false);
     this.ws.disconnect();
-    this.cashierPassword.set('');
-    this.cashierError.set('');
     this.counterPassword.set('');
     this.counterError.set('');
-    this.step.set('role');
+    this.step.set('counter-setup');
   }
 }

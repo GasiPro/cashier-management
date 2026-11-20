@@ -1,4 +1,6 @@
+use crate::app::runtime;
 use crate::models::account::UserType;
+use crate::models::setting::AppMode;
 use crate::services::setting_service;
 use serde::Deserialize;
 #[derive(Debug, Deserialize)]
@@ -12,6 +14,8 @@ pub enum SettingsCommand {
     FontSizeSet { user_type: UserType, username: String, value: u32 },
     ActivationGet,
     ActivationSet { value: String },
+    ModeGet,
+    ModeSet { value: String },
 }
 #[tauri::command]
 pub async fn settings(
@@ -41,5 +45,13 @@ pub async fn settings(
         SettingsCommand::ActivationSet { value } => Ok(serde_json::json!(
             setting_service::activate(&app, value).await?
         )),
+        SettingsCommand::ModeGet => Ok(serde_json::json!(setting_service::load_mode(&app))),
+        SettingsCommand::ModeSet { value } => {
+            let mode = setting_service::set_mode(&app, &value)?;
+            if mode == AppMode::Caisse {
+                runtime::start_caisse(&app);
+            }
+            Ok(serde_json::json!(mode))
+        }
     }
 }

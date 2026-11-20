@@ -1,6 +1,7 @@
 export const MIN_FONT_SIZE = 8;
 export const MAX_FONT_SIZE = 32;
 export const FONT_SIZE_STEP = 1;
+export type AppMode = 'caisse' | 'comptoir';
 export type ThemeOption = 'clair' | 'sombre' | 'systeme';
 export interface ThemeChoice {
   value: ThemeOption;

@@ -20,7 +20,6 @@ export class CashierSetup {
   /** Address to share with the counters. */
   readonly address = input('');
   readonly authenticating = input(false);
-  readonly back = output<void>();
   readonly submitted = output<void>();
   readonly copyAddress = output<void>();
   togglePasswordVisibility(): void {

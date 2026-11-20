@@ -1,0 +1,48 @@
+<div class="bg-[#FAFAFA] min-h-screen flex flex-col">
+  <header class="px-6 py-5 border-b border-gray-200">
+    <div class="max-w-lg mx-auto flex items-center gap-3">
+      <div class="w-7 h-7 bg-[#1E3A5F] rounded-sm flex items-center justify-center">
+        <span class="text-white text-xs font-bold">G</span>
+      </div>
+      <span class="text-sm font-semibold tracking-wide text-gray-800">GasiPro</span>
+    </div>
+  </header>
+  <main class="flex-1 flex items-center justify-center px-6 py-16">
+    <div class="w-full max-w-lg">
+      <div class="mb-8">
+        <h1 class="text-2xl font-semibold text-[#1A1A1A] mb-2">Type de poste</h1>
+        <p class="text-sm text-gray-500">Choisissez le rôle de cet ordinateur.</p>
+      </div>
+      <div class="space-y-3" role="radiogroup" aria-label="Type de poste">
+        @for (choice of choices; track choice.value) {
+        <button
+          type="button"
+          role="radio"
+          (click)="select(choice.value)"
+          [disabled]="saving()"
+          [attr.aria-checked]="selected() === choice.value"
+          [class]="selected() === choice.value
+            ? 'w-full text-left border-2 border-[#1E3A5F] bg-[#EFF4FA] rounded-xl px-6 py-5 transition-colors'
+            : 'w-full text-left border border-gray-200 bg-white rounded-xl px-6 py-5 hover:border-[#1E3A5F] transition-colors'"
+          class="disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
+          <p class="text-xs font-medium text-gray-400 uppercase tracking-widest mb-1">{{ choice.label }}</p>
+          <h2 class="text-lg font-semibold text-[#1A1A1A]">{{ choice.title }}</h2>
+          <p class="text-sm text-gray-500 mt-1.5">{{ choice.description }}</p>
+        </button>
+        }
+      </div>
+      <p class="text-xs text-gray-500 mt-4">Ce choix est définitif pour cette installation.</p>
+      <p role="alert" aria-live="assertive" class="text-sm text-red-600 mt-3 min-h-5">{{ error() }}</p>
+      <button
+        type="button"
+        (click)="confirm()"
+        [disabled]="!selected() || saving()"
+        [attr.aria-busy]="saving()"
+        class="w-full mt-4 bg-[#1E3A5F] text-white text-sm font-semibold py-3.5 rounded-lg
+               hover:bg-[#16304f] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
+        {{ saving() ? 'Enregistrement…' : 'Confirmer' }}
+      </button>
+    </div>
+  </main>
+</div>

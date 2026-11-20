@@ -9,10 +9,8 @@
   </header>
   <main class="flex-1 flex items-center justify-center px-4 py-16">
     <div class="w-full max-w-md">
-      @if (step() === 'role') {
-      <app-role-picker (selectCashier)="selectCashier()" (selectCounter)="selectCounter()" />
-      }
       @if (step() === 'cashier-setup') {
+      @defer (on immediate) {
       <app-cashier-setup
         [(username)]="cashierUsername"
         [(password)]="cashierPassword"
@@ -21,11 +19,12 @@
         [loadingAddress]="loadingWsAddress()"
         [address]="wsAddress()"
         [authenticating]="authenticatingCashier()"
-        (back)="goBack()"
         (submitted)="enterAsCashier()"
         (copyAddress)="copyWsAddress()" />
       }
+      }
       @if (step() === 'counter-setup') {
+      @defer (on immediate) {
       <app-counter-setup
         [(username)]="counterUsername"
         [(password)]="counterPassword"
@@ -34,13 +33,14 @@
         [error]="counterError()"
         [connecting]="counterConnecting()"
         [addressCheck]="addressCheck()"
-        (back)="goBack()"
         (submitted)="connectAsCounter()"
         (urlChanged)="onCounterWsUrlChanged()"
         (urlBlurred)="checkCounterWsUrl()"
         (pingRequested)="checkCounterWsUrl()" />
       }
+      }
       @if (step() === 'counter-waiting' || step() === 'counter-rejected') {
+      @defer (on immediate) {
       <app-counter-waiting
         [rejected]="step() === 'counter-rejected'"
         [username]="counterUsername()"
@@ -49,9 +49,11 @@
         (cancelled)="goBack()"
         (retry)="retryConnection()" />
       }
+      }
     </div>
   </main>
   @if (showAdminModal()) {
+  @defer (on immediate) {
   <app-admin-modal
     [(username)]="adminUsername"
     [(password)]="adminPassword"
@@ -60,5 +62,6 @@
     [authenticating]="authenticatingAdmin()"
     (closed)="closeAdminModal()"
     (submitted)="submitAdminLogin()" />
+  }
   }
 </div>

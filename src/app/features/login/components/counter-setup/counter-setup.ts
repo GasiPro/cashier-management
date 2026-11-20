@@ -20,7 +20,6 @@ export class CounterSetup {
   /** Result of probing the cashier address for a running server, shown as a hint/warning. */
   readonly addressCheck = input<'idle' | 'checking' | 'reachable' | 'unreachable'>('idle');
   readonly connecting = input(false);
-  readonly back = output<void>();
   readonly submitted = output<void>();
   readonly urlChanged = output<void>();
   readonly urlBlurred = output<void>();

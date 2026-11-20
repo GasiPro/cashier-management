@@ -1,7 +1,7 @@
 use crate::config::setting_config::{clamp_font_size, clamp_max_connected_devices, PRODUCT_KEY};
 use crate::models::account::UserType;
-use crate::models::setting::{AppSettings, DisplayPrefs, Theme};
-use crate::repositories::setting_repository;
+use crate::models::setting::{AppMode, AppSettings, DisplayPrefs, Theme};
+use crate::repositories::{account_repository, setting_repository};
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
 pub type MaxConnectedDevices = Arc<SyncMutex<u32>>;
@@ -36,6 +36,38 @@ pub fn get_font_size(app: &AppHandle, user_type: UserType, username: &str) -> u3
 pub fn is_activated(app: &AppHandle) -> bool {
     let settings = setting_repository::load(app);
     settings.activated && settings.product_key == PRODUCT_KEY
+}
+pub fn load_mode(app: &AppHandle) -> Option<AppMode> {
+    let settings = setting_repository::load(app);
+    if settings.mode.is_some() {
+        return settings.mode;
+    }
+    let legacy_install = settings.activated
+        && settings.product_key == PRODUCT_KEY
+        && !account_repository::load(app).is_empty();
+    if !legacy_install {
+        return None;
+    }
+    update_settings(app, |current| current.mode = Some(AppMode::Caisse)).ok()?;
+    Some(AppMode::Caisse)
+}
+pub fn set_mode(app: &AppHandle, value: &str) -> Result<AppMode, String> {
+    let mode = AppMode::from_str(value)?;
+    if !is_activated(app) {
+        return Err("Produit non activé.".to_string());
+    }
+    if load_mode(app).is_some() {
+        return Err("Le mode est déjà défini.".to_string());
+    }
+    let mut already_set = false;
+    update_settings(app, |settings| match settings.mode {
+        Some(_) => already_set = true,
+        None => settings.mode = Some(mode),
+    })?;
+    if already_set {
+        return Err("Le mode est déjà défini.".to_string());
+    }
+    Ok(mode)
 }
 fn update_settings(app: &AppHandle, change: impl FnOnce(&mut AppSettings)) -> Result<(), String> {
     let _guard = SETTINGS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
