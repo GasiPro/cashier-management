@@ -3,10 +3,26 @@ use crate::config::setting_config::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AppMode {
+    Caisse,
+    Comptoir,
+}
+impl AppMode {
+    pub fn from_str(value: &str) -> Result<Self, String> {
+        match value {
+            "caisse" => Ok(AppMode::Caisse),
+            "comptoir" => Ok(AppMode::Comptoir),
+            _ => Err(format!("Mode invalide: {value}")),
+        }
+    }
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppSettings {
     pub max_connected_devices: u32,
+    pub mode: Option<AppMode>,
     pub product_key: String,
     pub activated: bool,
     pub users: HashMap<String, DisplayPrefs>,
@@ -46,6 +62,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             max_connected_devices: DEFAULT_MAX_CONNECTED_DEVICES,
+            mode: None,
             product_key: String::new(),
             activated: false,
             users: HashMap::new(),
