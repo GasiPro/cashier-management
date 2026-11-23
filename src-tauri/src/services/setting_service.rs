@@ -1,6 +1,8 @@
-use crate::config::setting_config::{clamp_font_size, clamp_max_connected_devices, PRODUCT_KEY};
+use crate::config::setting_config::{
+    clamp_font_size, clamp_max_connected_devices, MAX_ORGANIZATION_NAME_LEN, PRODUCT_KEY,
+};
 use crate::models::account::UserType;
-use crate::models::setting::{AppMode, AppSettings, DisplayPrefs, Theme};
+use crate::models::setting::{AppMode, AppSettings, DisplayPrefs, Organization, Theme};
 use crate::repositories::{account_repository, setting_repository};
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
@@ -37,6 +39,54 @@ pub fn is_activated(app: &AppHandle) -> bool {
     let settings = setting_repository::load(app);
     settings.activated && settings.product_key == PRODUCT_KEY
 }
+pub fn is_setup_complete(app: &AppHandle) -> bool {
+    is_activated(app) && load_mode(app).is_some()
+}
+pub fn load_organization(app: &AppHandle) -> Option<Organization> {
+    setting_repository::load(app).organization
+}
+fn validate_organization(name: &str, email: &str, phone: &str) -> Result<Organization, String> {
+    let (name, email, phone) = (name.trim(), email.trim(), phone.trim());
+    if name.is_empty() || name.chars().count() > MAX_ORGANIZATION_NAME_LEN {
+        return Err("Nom de l'organisation invalide.".to_string());
+    }
+    let email_ok = email.split_once('@').is_some_and(|(local, domain)| {
+        !local.is_empty()
+            && !domain.contains('@')
+            && domain.contains('.')
+            && !domain.starts_with('.')
+            && !domain.ends_with('.')
+            && !email.contains(char::is_whitespace)
+    });
+    if !email_ok {
+        return Err("Adresse e-mail invalide.".to_string());
+    }
+    let digits = phone.chars().filter(char::is_ascii_digit).count();
+    let phone_ok = phone.starts_with('+')
+        && (7..=15).contains(&digits)
+        && phone[1..].chars().all(|c| c.is_ascii_digit() || c == ' ');
+    if !phone_ok {
+        return Err("Numéro de téléphone invalide.".to_string());
+    }
+    Ok(Organization {
+        name: name.to_string(),
+        email: email.to_string(),
+        phone: phone.to_string(),
+    })
+}
+pub fn set_organization(
+    app: &AppHandle,
+    name: &str,
+    email: &str,
+    phone: &str,
+) -> Result<Organization, String> {
+    if !is_activated(app) {
+        return Err("Produit non activé.".to_string());
+    }
+    let organization = validate_organization(name, email, phone)?;
+    update_settings(app, |settings| settings.organization = Some(organization.clone()))?;
+    Ok(organization)
+}
 pub fn load_mode(app: &AppHandle) -> Option<AppMode> {
     let settings = setting_repository::load(app);
     if settings.mode.is_some() {
@@ -58,6 +108,9 @@ pub fn set_mode(app: &AppHandle, value: &str) -> Result<AppMode, String> {
     }
     if load_mode(app).is_some() {
         return Err("Le mode est déjà défini.".to_string());
+    }
+    if load_organization(app).is_none() {
+        return Err("Organisation non renseignée.".to_string());
     }
     let mut already_set = false;
     update_settings(app, |settings| match settings.mode {

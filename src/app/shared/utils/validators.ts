@@ -33,6 +33,28 @@ const IPV6_REGEX = /^[0-9a-fA-F:]+$/;
 export function isValidIp(value: string): boolean {
   return IPV4_REGEX.test(value) || (value.includes(':') && IPV6_REGEX.test(value));
 }
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const PHONE_PREFIX_REGEX = /^\+\d{1,4}$/;
+const MIN_PHONE_NATIONAL_DIGITS = 6;
+const MAX_PHONE_DIGITS = 15;
+export function isValidEmail(value: string): boolean {
+  return EMAIL_REGEX.test(value.trim());
+}
+function phoneNationalDigits(number: string): string {
+  return number.replace(/\D/g, '').replace(/^0/, '');
+}
+export function isValidPhone(prefix: string, number: string): boolean {
+  const code = prefix.trim();
+  const national = phoneNationalDigits(number);
+  return (
+    PHONE_PREFIX_REGEX.test(code) &&
+    national.length >= MIN_PHONE_NATIONAL_DIGITS &&
+    code.length - 1 + national.length <= MAX_PHONE_DIGITS
+  );
+}
+export function formatPhone(prefix: string, number: string): string {
+  return `${prefix.trim()} ${phoneNationalDigits(number)}`;
+}
 export function hasLetterAndDigit(password: string): boolean {
   return PASSWORD_HAS_LETTER.test(password) && PASSWORD_HAS_DIGIT.test(password);
 }

@@ -2,6 +2,31 @@ export const MIN_FONT_SIZE = 8;
 export const MAX_FONT_SIZE = 32;
 export const FONT_SIZE_STEP = 1;
 export type AppMode = 'caisse' | 'comptoir';
+export const DEFAULT_ORGANIZATION_NAME = 'GasiPro';
+export interface Organization {
+  name: string;
+  email: string;
+  phone: string;
+}
+export interface PhoneRegion {
+  name: string;
+  prefix: string;
+}
+export const DEFAULT_PHONE_PREFIX = '+261';
+export const PHONE_REGIONS: PhoneRegion[] = [
+  { name: 'Madagascar', prefix: '+261' },
+  { name: 'Comores', prefix: '+269' },
+  { name: 'Maurice', prefix: '+230' },
+  { name: 'Réunion / Mayotte', prefix: '+262' },
+  { name: 'Seychelles', prefix: '+248' },
+  { name: 'France', prefix: '+33' },
+  { name: 'Belgique', prefix: '+32' },
+  { name: 'Suisse', prefix: '+41' },
+  { name: 'Canada / États-Unis', prefix: '+1' },
+  { name: 'Maroc', prefix: '+212' },
+  { name: 'Sénégal', prefix: '+221' },
+  { name: "Côte d'Ivoire", prefix: '+225' },
+];
 export type ThemeOption = 'clair' | 'sombre' | 'systeme';
 export interface ThemeChoice {
   value: ThemeOption;

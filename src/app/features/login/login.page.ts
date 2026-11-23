@@ -16,6 +16,7 @@ import {
   setStoredUsername,
 } from '../../core/storage/local-storage';
 import { getServerAddress } from '../../data/device/device.api';
+import { OrganizationStore } from '../../data/settings/organization.store';
 import { credentialsRuleError } from '../../shared/utils/validators';
 import { AdminModal } from './components/admin-modal/admin-modal';
 import { CashierSetup } from './components/cashier-setup/cashier-setup';
@@ -80,6 +81,7 @@ export class LoginPage implements OnInit, OnDestroy {
     private ws: WsClient,
     private session: SessionStore,
     private modeStore: ModeStore,
+    readonly organization: OrganizationStore,
   ) {}
   ngOnInit(): void {
     this.session.setRole(null);
@@ -99,7 +101,6 @@ export class LoginPage implements OnInit, OnDestroy {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     this.closeSubscription?.unsubscribe();
-    // Only disconnect WS if we're NOT handing it off to the counter view.
     if (!this.navigatingToCounter) {
       this.ws.disconnect();
     }
@@ -278,7 +279,7 @@ export class LoginPage implements OnInit, OnDestroy {
     this.counterError.set('');
     this.counterConnecting.set(true);
     const wsUrl = this.counterWsUrl().trim();
-    const fullUrl = wsUrl.startsWith('ws://') ? wsUrl : `ws://${wsUrl}`;
+    const fullUrl = wsUrl.startsWith('ws:
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     this.closeSubscription?.unsubscribe();
@@ -345,7 +346,6 @@ export class LoginPage implements OnInit, OnDestroy {
     this.counterError.set('');
     this.addressCheck.set('idle');
   }
-  /** Leaves the waiting screen and returns to the counter form. */
   goBack(): void {
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();

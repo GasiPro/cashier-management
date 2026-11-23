@@ -14,6 +14,8 @@ pub enum SettingsCommand {
     FontSizeSet { user_type: UserType, username: String, value: u32 },
     ActivationGet,
     ActivationSet { value: String },
+    OrganizationGet,
+    OrganizationSet { name: String, email: String, phone: String },
     ModeGet,
     ModeSet { value: String },
 }
@@ -44,6 +46,10 @@ pub async fn settings(
         SettingsCommand::ActivationGet => Ok(serde_json::json!(setting_service::is_activated(&app))),
         SettingsCommand::ActivationSet { value } => Ok(serde_json::json!(
             setting_service::activate(&app, value).await?
+        )),
+        SettingsCommand::OrganizationGet => Ok(serde_json::json!(setting_service::load_organization(&app))),
+        SettingsCommand::OrganizationSet { name, email, phone } => Ok(serde_json::json!(
+            setting_service::set_organization(&app, &name, &email, &phone)?
         )),
         SettingsCommand::ModeGet => Ok(serde_json::json!(setting_service::load_mode(&app))),
         SettingsCommand::ModeSet { value } => {

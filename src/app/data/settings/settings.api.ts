@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { UserRole } from '../../core/auth/session.store';
 import { getStoredUsername } from '../../core/storage/local-storage';
-import { AppMode, DisplaySettings, ThemeOption } from './settings.model';
+import { AppMode, DisplaySettings, Organization, ThemeOption } from './settings.model';
 function account(role: UserRole): { user_type: UserRole; username: string } {
   return { user_type: role, username: getStoredUsername() ?? '' };
 }
@@ -40,6 +40,12 @@ export function getActivated(): Promise<boolean> {
 }
 export function activate(value: string): Promise<boolean> {
   return invoke<boolean>('settings', { command: { method: 'activation_set', value } });
+}
+export function getOrganization(): Promise<Organization | null> {
+  return invoke<Organization | null>('settings', { command: { method: 'organization_get' } });
+}
+export function setOrganization(value: Organization): Promise<Organization> {
+  return invoke<Organization>('settings', { command: { method: 'organization_set', ...value } });
 }
 export function getMode(): Promise<AppMode | null> {
   return invoke<AppMode | null>('settings', { command: { method: 'mode_get' } });

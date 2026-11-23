@@ -11,9 +11,9 @@
       }
       <div class="flex items-center gap-2 min-w-0">
         <span class="w-7 h-7 bg-[#1E3A5F] rounded-lg flex items-center justify-center flex-shrink-0" aria-hidden="true">
-          <span class="text-white text-xs font-bold">G</span>
+          <span class="text-white text-xs font-bold">{{ organization.initial() }}</span>
         </span>
-        <span class="text-base font-bold tracking-tight text-gray-800 flex-shrink-0">GasiPro</span>
+        <span class="text-base font-bold tracking-tight text-gray-800 truncate max-w-[10rem] sm:max-w-xs">{{ organization.name() }}</span>
         <span class="text-gray-300 flex-shrink-0">/</span>
         <span class="text-sm text-gray-500 truncate max-w-[140px] sm:max-w-[240px]" [title]="displayLabel()">{{ roleLabel() }} · {{ displayLabel() }}</span>
       </div>

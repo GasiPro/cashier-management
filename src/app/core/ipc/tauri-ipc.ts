@@ -24,3 +24,6 @@ export function ipcSaveDialog(options: SaveDialogOptions): Promise<string | null
 export function ipcCloseSplash(): Promise<void> {
   return ipcInvoke<void>('splash', { method: 'close' });
 }
+export function ipcEndSetup(): Promise<void> {
+  return ipcInvoke<void>('splash', { method: 'end_setup' });
+}

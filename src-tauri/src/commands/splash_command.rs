@@ -1,11 +1,10 @@
 use serde::Deserialize;
-
 #[derive(Debug, Deserialize)]
 #[serde(tag = "method", rename_all = "snake_case")]
 pub enum SplashCommand {
     Close,
+    EndSetup,
 }
-
 #[tauri::command]
 pub async fn splash(
     app: tauri::AppHandle,
@@ -14,6 +13,10 @@ pub async fn splash(
     match command {
         SplashCommand::Close => {
             crate::infrastructure::splash::close(&app).map_err(|err| err.to_string())?;
+            Ok(serde_json::Value::Null)
+        }
+        SplashCommand::EndSetup => {
+            crate::infrastructure::splash::end_setup(&app).map_err(|err| err.to_string())?;
             Ok(serde_json::Value::Null)
         }
     }

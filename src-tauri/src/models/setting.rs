@@ -19,10 +19,17 @@ impl AppMode {
     }
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Organization {
+    pub name: String,
+    pub email: String,
+    pub phone: String,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppSettings {
     pub max_connected_devices: u32,
     pub mode: Option<AppMode>,
+    pub organization: Option<Organization>,
     pub product_key: String,
     pub activated: bool,
     pub users: HashMap<String, DisplayPrefs>,
@@ -63,6 +70,7 @@ impl Default for AppSettings {
         Self {
             max_connected_devices: DEFAULT_MAX_CONNECTED_DEVICES,
             mode: None,
+            organization: None,
             product_key: String::new(),
             activated: false,
             users: HashMap::new(),

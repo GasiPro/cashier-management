@@ -45,6 +45,9 @@ pub fn run() {
             }
             let handle = app.handle();
             splash::open(handle)?;
+            if !setting_service::is_setup_complete(handle) {
+                splash::begin_setup(handle)?;
+            }
             if setting_service::load_mode(handle) == Some(AppMode::Caisse) {
                 app::runtime::start_caisse(handle);
             }

@@ -1,0 +1,223 @@
+<div
+  class="h-screen flex flex-col p-8 bg-[#EBE8E1] text-[#1A1A1A]
+         shadow-[inset_0_0_0_1px_#1E3A5F,inset_0_0_0_7px_#EBE8E1,inset_0_0_0_8px_#CFCABD]">
+  @if (launching()) {
+  <main class="flex-1 flex items-center justify-center text-center" role="status" aria-live="polite">
+    <div class="max-w-xl">
+      <span
+        class="w-10 h-10 rounded-full border-2 border-gray-200 border-t-[#1E3A5F]
+               animate-spin [animation-duration:2.2s] motion-reduce:animate-none inline-block mb-8"></span>
+      <p class="text-xl leading-relaxed">
+        <span class="block">Ravi de vous compter parmi nous.</span>
+        <span class="block text-gray-500">Lancement imminent...</span>
+      </p>
+    </div>
+  </main>
+  } @else if (ready()) {
+  <form class="flex-1 min-h-0 flex flex-col" (submit)="next($event)" novalidate>
+    <header
+      class="border border-gray-300 bg-white rounded px-4 py-2.5 flex items-center justify-between gap-4"
+      aria-label="Étapes de l'installation">
+      <span class="text-xs font-semibold uppercase tracking-widest text-gray-500">Installation</span>
+      <ol class="flex items-center gap-5">
+        @for (step of steps; track step.id; let i = $index) {
+        <li
+          class="flex items-center gap-2 text-xs"
+          [class]="i === stepIndex() ? 'font-semibold text-[#1E3A5F]' : i < stepIndex() ? 'text-gray-600' : 'text-gray-400'"
+          [attr.aria-current]="i === stepIndex() ? 'step' : null">
+          <span
+            class="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
+            [class]="i < stepIndex()
+              ? 'bg-[#1E3A5F] text-white'
+              : i === stepIndex()
+                ? 'border-2 border-[#1E3A5F] text-[#1E3A5F]'
+                : 'border border-gray-300 text-gray-400'">{{ i < stepIndex() ? '✓' : i + 1 }}</span>
+          {{ step.label }}
+        </li>
+        }
+      </ol>
+    </header>
+
+    <main class="flex-1 min-h-0 overflow-y-auto px-2 py-5">
+      @switch (currentStep()) {
+      @case ('key') {
+      <section class="max-w-md mx-auto" aria-label="Clé de produit">
+        <h1 class="text-xl font-semibold mb-1">Nous vous souhaitons la bienvenue,</h1>
+        <p class="text-sm text-gray-500 mb-5">veuillez insérer votre clé de produit</p>
+        @if (keyValidated()) {
+        <p class="border border-gray-300 bg-white rounded-lg px-4 py-3 text-sm" role="status">
+          Clé de produit validée.
+        </p>
+        } @else {
+        <div class="flex items-center gap-2" role="group" aria-label="Clé de produit">
+          @for (i of segmentIndexes; track i) {
+          <input
+            type="text"
+            [id]="'key-seg-' + i"
+            [name]="'productKey' + i"
+            autocomplete="off"
+            spellcheck="false"
+            maxlength="4"
+            placeholder="XXXX"
+            [value]="segments()[i]"
+            (input)="onSegmentInput(i, $event)"
+            (keydown)="onSegmentKeydown(i, $event)"
+            (paste)="onPaste($event)"
+            [attr.aria-label]="'Clé de produit, groupe ' + (i + 1) + ' sur 4'"
+            [attr.aria-invalid]="error() ? true : null"
+            class="flex-1 min-w-0 border border-gray-200 rounded-lg px-2 py-3 text-base font-mono tracking-widest text-center
+                   focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
+          @if (i < segmentIndexes.length - 1) {
+          <span class="text-xl text-gray-300 select-none" aria-hidden="true">-</span>
+          }
+          }
+        </div>
+        <button
+          type="button"
+          (click)="requestKey()"
+          class="w-full mt-4 text-sm text-gray-500 border border-gray-200 bg-white py-2.5 rounded-lg
+                 hover:bg-gray-50 transition-colors
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+          Demander une clé
+        </button>
+        @if (showContact()) {
+        <div class="mt-3 border border-gray-200 bg-white rounded-lg px-4 py-3 text-center">
+          <p class="text-sm text-gray-500 mb-1">veuillez contacter</p>
+          <p class="text-base font-mono text-[#1E3A5F] selectable mb-2">{{ contactEmail }}</p>
+          <button
+            type="button"
+            (click)="copyEmail()"
+            class="text-sm font-medium text-gray-600 border border-gray-200 rounded-lg px-4 py-1.5
+                   hover:bg-gray-50 transition-colors
+                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+            {{ copied() ? 'Copié' : 'Copier' }}
+          </button>
+        </div>
+        }
+        }
+      </section>
+      }
+      @case ('organization') {
+      <section class="max-w-md mx-auto space-y-3" aria-label="Organisation">
+        <div class="mb-4">
+          <h1 class="text-xl font-semibold mb-1">Organisation</h1>
+          <p class="text-sm text-gray-500">Ces informations identifient votre entreprise dans l'application.</p>
+        </div>
+        <div>
+          <label for="org-name" class="block text-xs font-medium text-gray-500 mb-1">Nom de l'organisation</label>
+          <input
+            id="org-name"
+            type="text"
+            autocomplete="organization"
+            [attr.maxlength]="maxNameLen"
+            [value]="orgName()"
+            (input)="setField(orgName, $event)"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm
+                   focus:outline-none focus:border-[#1E3A5F] transition-colors" />
+        </div>
+        <div>
+          <label for="org-email" class="block text-xs font-medium text-gray-500 mb-1">Adresse e-mail</label>
+          <input
+            id="org-email"
+            type="email"
+            autocomplete="email"
+            spellcheck="false"
+            [value]="orgEmail()"
+            (input)="setField(orgEmail, $event)"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm
+                   focus:outline-none focus:border-[#1E3A5F] transition-colors" />
+        </div>
+        <div>
+          <label for="org-phone" class="block text-xs font-medium text-gray-500 mb-1">Téléphone</label>
+          <div class="flex gap-2">
+            <select
+              aria-label="Indicatif régional"
+              (change)="setField(prefixChoice, $event)"
+              class="shrink-0 border border-gray-200 bg-white rounded-lg px-2 py-2.5 text-sm
+                     focus:outline-none focus:border-[#1E3A5F] transition-colors">
+              @for (region of regions; track region.prefix) {
+              <option [value]="region.prefix" [selected]="prefixChoice() === region.prefix">
+                {{ region.name }} ({{ region.prefix }})
+              </option>
+              }
+              <option [value]="otherPrefix" [selected]="prefixChoice() === otherPrefix">Autre</option>
+            </select>
+            @if (prefixChoice() === otherPrefix) {
+            <input
+              type="text"
+              inputmode="tel"
+              maxlength="5"
+              placeholder="+000"
+              aria-label="Indicatif"
+              [value]="customPrefix()"
+              (input)="setField(customPrefix, $event)"
+              class="w-20 shrink-0 border border-gray-200 rounded-lg px-2 py-2.5 text-sm text-center
+                     focus:outline-none focus:border-[#1E3A5F] transition-colors" />
+            }
+            <input
+              id="org-phone"
+              type="tel"
+              autocomplete="tel-national"
+              placeholder="34 00 000 00"
+              [value]="phoneNumber()"
+              (input)="setField(phoneNumber, $event)"
+              class="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2.5 text-sm
+                     focus:outline-none focus:border-[#1E3A5F] transition-colors" />
+          </div>
+        </div>
+      </section>
+      }
+      @case ('mode') {
+      <section class="max-w-md mx-auto" aria-label="Type de poste">
+        <div class="mb-4">
+          <h1 class="text-xl font-semibold mb-1">Type de poste</h1>
+          <p class="text-sm text-gray-500">Choisissez le rôle de cet ordinateur.</p>
+        </div>
+        <div class="space-y-3" role="radiogroup" aria-label="Type de poste">
+          @for (choice of choices; track choice.value) {
+          <button
+            type="button"
+            role="radio"
+            (click)="selectMode(choice.value)"
+            [disabled]="busy()"
+            [attr.aria-checked]="selectedMode() === choice.value"
+            [class]="selectedMode() === choice.value
+              ? 'w-full text-left border-2 border-[#1E3A5F] bg-[#EFF4FA] rounded-xl px-5 py-3 transition-colors'
+              : 'w-full text-left border border-gray-200 bg-white rounded-xl px-5 py-3 hover:border-[#1E3A5F] transition-colors'"
+            class="disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
+            <p class="text-xs font-medium text-gray-400 uppercase tracking-widest">{{ choice.label }}</p>
+            <h2 class="text-base font-semibold">{{ choice.title }}</h2>
+            <p class="text-sm text-gray-500 mt-0.5">{{ choice.description }}</p>
+          </button>
+          }
+        </div>
+        <p class="text-xs text-gray-500 mt-3">Ce choix est définitif pour cette installation.</p>
+      </section>
+      }
+      }
+    </main>
+
+    <footer class="flex items-center gap-4 pt-3 border-t border-gray-300">
+      <p role="alert" aria-live="assertive" class="flex-1 min-h-5 text-sm text-red-600">{{ error() }}</p>
+      <button
+        type="button"
+        (click)="previous()"
+        [disabled]="busy() || stepIndex() === 0"
+        class="w-28 border border-gray-300 bg-white text-sm font-medium py-2.5 rounded-lg
+               hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
+        Précédent
+      </button>
+      <button
+        type="submit"
+        [disabled]="busy() || !canNext()"
+        [attr.aria-busy]="busy()"
+        class="w-28 bg-[#1E3A5F] text-white text-sm font-semibold py-2.5 rounded-lg
+               hover:bg-[#16304f] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
+        {{ busy() ? 'Patientez…' : isLastStep() ? 'Terminer' : 'Suivant' }}
+      </button>
+    </footer>
+  </form>
+  }
+</div>

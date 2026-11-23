@@ -2,9 +2,9 @@
   <header class="px-6 py-6 border-b border-gray-200">
     <div class="max-w-md mx-auto flex items-center gap-3">
       <div class="w-9 h-9 bg-[#1E3A5F] rounded-lg shadow-sm flex items-center justify-center">
-        <span class="text-white text-sm font-bold">G</span>
+        <span class="text-white text-sm font-bold">{{ organization.initial() }}</span>
       </div>
-      <span class="text-lg font-bold tracking-tight text-gray-800">GasiPro</span>
+      <span class="text-lg font-bold tracking-tight text-gray-800 truncate">{{ organization.name() }}</span>
     </div>
   </header>
   <main class="flex-1 flex items-center justify-center px-4 py-16">

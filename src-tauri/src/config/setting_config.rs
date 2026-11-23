@@ -1,6 +1,7 @@
 pub const PRODUCT_KEY: &str = "HKQL-8CVG-5VUM-F1B4";
 pub const MAX_ALLOWED_CONNECTED_DEVICES: u32 = 50;
 pub const DEFAULT_MAX_CONNECTED_DEVICES: u32 = 10;
+pub const MAX_ORGANIZATION_NAME_LEN: usize = 60;
 pub const DEFAULT_BACKGROUND_COLOR: &str = "#EBE8E1";
 pub const DEFAULT_FONT_SIZE: u32 = 14;
 pub const MIN_FONT_SIZE: u32 = 8;
