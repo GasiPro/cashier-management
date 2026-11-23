@@ -1,44 +1,61 @@
-use crate::config::account_config::{DEFAULT_PASSWORD, DEFAULT_USERNAME};
 use crate::domain::account;
 use crate::models::account::{
     Account, AccountActivity, AccountActivityEntry, AccountStatus, ActivityKind, StoredAccount,
     UserType,
 };
 use crate::repositories::account_repository;
+use crate::services::setting_service;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
 pub type Accounts = Arc<SyncMutex<Vec<StoredAccount>>>;
 const LAST_ADMIN_ERROR: &str = "Impossible : il doit rester au moins un administrateur actif.";
-pub fn load_or_bootstrap(app: &AppHandle) -> Vec<StoredAccount> {
+pub fn load(app: &AppHandle) -> Vec<StoredAccount> {
     let mut accounts = account_repository::load(app);
-    if !accounts.is_empty() {
-        if account::normalize_ids(&mut accounts) {
-            let _ = account_repository::save(app, &accounts);
-        }
-        return accounts;
+    if account::normalize_ids(&mut accounts) {
+        let _ = account_repository::save(app, &accounts);
     }
-    let now = chrono::Local::now().to_rfc3339();
-    let default_account = match account::hash_password(DEFAULT_PASSWORD) {
-        Ok(password_hash) => StoredAccount {
-            id: account::generate_id(),
-            username: DEFAULT_USERNAME.to_string(),
-            display_name: String::new(),
-            password_hash,
-            user_type: UserType::Admin,
-            status: AccountStatus::Active,
-            created_at: now.clone(),
-            last_sign_in_at: None,
-            history: vec![AccountActivityEntry {
-                kind: ActivityKind::Created,
-                timestamp: now,
-                reason: None,
-            }],
-        },
-        Err(_) => return accounts,
-    };
-    let accounts = vec![default_account];
-    let _ = account_repository::save(app, &accounts);
     accounts
+}
+/// Creates the first administrator during installation, replacing any account saved by an earlier attempt.
+pub fn create_initial_admin(
+    app: &AppHandle,
+    username: String,
+    password: String,
+    display_name: String,
+) -> Result<(), String> {
+    if !setting_service::is_activated(app) {
+        return Err("Produit non activé.".to_string());
+    }
+    if setting_service::load_organization(app).is_none() {
+        return Err("Organisation non renseignée.".to_string());
+    }
+    if setting_service::load_settings(app).mode.is_some() {
+        return Err("L'installation est déjà terminée.".to_string());
+    }
+    let username = account::validate_username(&username)?;
+    account::validate_password(&password)?;
+    let display_name = account::validate_display_name(&display_name)?;
+    if display_name.is_empty() {
+        return Err("Le nom affiché est obligatoire.".to_string());
+    }
+    let password_hash = account::hash_password(&password)?;
+    let now = chrono::Local::now().to_rfc3339();
+    let admin = StoredAccount {
+        id: account::generate_id(),
+        username,
+        display_name,
+        password_hash,
+        user_type: UserType::Admin,
+        status: AccountStatus::Active,
+        created_at: now.clone(),
+        last_sign_in_at: None,
+        history: vec![AccountActivityEntry {
+            kind: ActivityKind::Created,
+            timestamp: now,
+            reason: None,
+        }],
+    };
+    account_repository::save(app, &[admin])
 }
 fn is_last_active_admin(accounts: &[StoredAccount], username: &str) -> bool {
     let mut admins = accounts

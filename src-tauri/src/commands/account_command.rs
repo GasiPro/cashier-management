@@ -12,6 +12,11 @@ pub enum AccountCommand {
         display_name: String,
         user_type: UserType,
     },
+    CreateInitialAdmin {
+        username: String,
+        password: String,
+        display_name: String,
+    },
     List,
     Update {
         username: String,
@@ -54,6 +59,14 @@ pub async fn account(
             )
             .await?
         )),
+        AccountCommand::CreateInitialAdmin {
+            username,
+            password,
+            display_name,
+        } => {
+            account_service::create_initial_admin(&app, username, password, display_name)?;
+            Ok(serde_json::Value::Null)
+        }
         AccountCommand::List => Ok(serde_json::json!(account_service::list_accounts(
             &state.accounts
         ))),

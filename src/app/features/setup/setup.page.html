@@ -51,7 +51,7 @@
         <div class="flex items-center gap-2" role="group" aria-label="Clé de produit">
           @for (i of segmentIndexes; track i) {
           <input
-            type="text"
+            type="password"
             [id]="'key-seg-' + i"
             [name]="'productKey' + i"
             autocomplete="off"
@@ -163,6 +163,51 @@
               class="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2.5 text-sm
                      focus:outline-none focus:border-[#1E3A5F] transition-colors" />
           </div>
+        </div>
+      </section>
+      }
+      @case ('admin') {
+      <section class="max-w-md mx-auto space-y-3" aria-label="Administrateur">
+        <div class="mb-4">
+          <h1 class="text-xl font-semibold mb-1">Administrateur</h1>
+          <p class="text-sm text-gray-500">Créez le premier compte administrateur.</p>
+        </div>
+        <div>
+          <label for="admin-display-name" class="block text-xs font-medium text-gray-500 mb-1">Nom affiché</label>
+          <input
+            id="admin-display-name"
+            type="text"
+            autocomplete="name"
+            [attr.maxlength]="maxDisplayNameLen"
+            [value]="adminDisplayName()"
+            (input)="setField(adminDisplayName, $event)"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm
+                   focus:outline-none focus:border-[#1E3A5F] transition-colors" />
+        </div>
+        <div>
+          <label for="admin-username" class="block text-xs font-medium text-gray-500 mb-1">Nom d'utilisateur</label>
+          <input
+            id="admin-username"
+            type="text"
+            autocomplete="username"
+            spellcheck="false"
+            [attr.maxlength]="maxUsernameLen"
+            [value]="adminUsername()"
+            (input)="setField(adminUsername, $event)"
+            class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm
+                   focus:outline-none focus:border-[#1E3A5F] transition-colors" />
+        </div>
+        <div>
+          <label for="admin-password" class="block text-xs font-medium text-gray-500 mb-1">Mot de passe</label>
+          <app-password-input
+            inputId="admin-password"
+            name="adminPassword"
+            size="sm"
+            autocomplete="new-password"
+            placeholder=""
+            [(value)]="adminPassword"
+            [(visible)]="showAdminPassword" />
+          <p class="text-xs text-gray-400 mt-1.5">{{ minPasswordLen }} caractères minimum, une lettre et un chiffre.</p>
         </div>
       </section>
       }

@@ -106,7 +106,7 @@ pub fn set_mode(app: &AppHandle, value: &str) -> Result<AppMode, String> {
     if !is_activated(app) {
         return Err("Produit non activé.".to_string());
     }
-    if load_mode(app).is_some() {
+    if load_settings(app).mode.is_some() {
         return Err("Le mode est déjà défini.".to_string());
     }
     if load_organization(app).is_none() {

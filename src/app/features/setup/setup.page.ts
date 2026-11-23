@@ -1,8 +1,10 @@
 import { Component, OnDestroy, OnInit, WritableSignal, computed, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { ModeStore } from '../../core/auth/mode.store';
+import { MAX_DISPLAY_NAME_LEN, MAX_USERNAME_LEN, MIN_PASSWORD_LEN } from '../../core/config/app.constants';
 import { errorMessage } from '../../core/error/error-messages';
 import { ipcEndSetup } from '../../core/ipc/tauri-ipc';
+import { createInitialAdmin } from '../../data/account/account.api';
 import { OrganizationStore } from '../../data/settings/organization.store';
 import { activate, getActivated } from '../../data/settings/settings.api';
 import {
@@ -11,8 +13,9 @@ import {
   Organization,
   PHONE_REGIONS,
 } from '../../data/settings/settings.model';
-import { formatPhone, isValidEmail, isValidPhone } from '../../shared/utils/validators';
-type SetupStep = 'key' | 'organization' | 'mode';
+import { PasswordInput } from '../../shared/ui/password-input/password-input';
+import { credentialsRuleError, formatPhone, isValidEmail, isValidPhone } from '../../shared/utils/validators';
+type SetupStep = 'key' | 'organization' | 'admin' | 'mode';
 interface StepInfo {
   id: SetupStep;
   label: string;
@@ -36,12 +39,14 @@ function cleanKey(value: string): string {
 @Component({
   selector: 'app-setup',
   standalone: true,
+  imports: [PasswordInput],
   templateUrl: './setup.page.html',
 })
 export class SetupPage implements OnInit, OnDestroy {
   readonly steps: StepInfo[] = [
     { id: 'key', label: 'Clé de produit' },
     { id: 'organization', label: 'Organisation' },
+    { id: 'admin', label: 'Administrateur' },
     { id: 'mode', label: 'Type de poste' },
   ];
   readonly choices: ModeChoice[] = [
@@ -61,28 +66,30 @@ export class SetupPage implements OnInit, OnDestroy {
   readonly regions = PHONE_REGIONS;
   readonly otherPrefix = OTHER_PREFIX;
   readonly maxNameLen = MAX_ORGANIZATION_NAME_LEN;
+  readonly maxUsernameLen = MAX_USERNAME_LEN;
+  readonly maxDisplayNameLen = MAX_DISPLAY_NAME_LEN;
+  readonly minPasswordLen = MIN_PASSWORD_LEN;
   readonly contactEmail = CONTACT_EMAIL;
   readonly segmentIndexes = Array.from({ length: KEY_SEGMENT_COUNT }, (_, i) => i);
-
   readonly ready = signal(false);
   readonly stepIndex = signal(0);
   readonly busy = signal(false);
   readonly launching = signal(false);
   readonly error = signal('');
-
   readonly segments = signal<string[]>(this.segmentIndexes.map(() => ''));
   readonly keyValidated = signal(false);
   readonly showContact = signal(false);
   readonly copied = signal(false);
-
   readonly orgName = signal('');
   readonly orgEmail = signal('');
   readonly prefixChoice = signal(DEFAULT_PHONE_PREFIX);
   readonly customPrefix = signal('+');
   readonly phoneNumber = signal('');
-
+  readonly adminDisplayName = signal('');
+  readonly adminUsername = signal('');
+  readonly adminPassword = signal('');
+  readonly showAdminPassword = signal(false);
   readonly selectedMode = signal<AppMode | null>(null);
-
   /** Full key in the XXXX-XXXX-XXXX-XXXX form expected by the backend; the dashes are added here, never typed. */
   readonly productKey = computed(() => this.segments().join('-'));
   readonly isKeyComplete = computed(() => this.segments().every((s) => s.length === KEY_SEGMENT_LEN));
@@ -101,15 +108,12 @@ export class SetupPage implements OnInit, OnDestroy {
         return true;
     }
   });
-
   private contactTimer: ReturnType<typeof setTimeout> | null = null;
-
   constructor(
     private router: Router,
     private modeStore: ModeStore,
     private organization: OrganizationStore,
   ) {}
-
   async ngOnInit(): Promise<void> {
     try {
       this.keyValidated.set(await getActivated());
@@ -121,16 +125,13 @@ export class SetupPage implements OnInit, OnDestroy {
     this.stepIndex.set(!this.keyValidated() ? 0 : saved ? 2 : 1);
     this.ready.set(true);
   }
-
   ngOnDestroy(): void {
     this.clearContactTimer();
   }
-
   setField(field: WritableSignal<string>, event: Event): void {
     field.set((event.target as HTMLInputElement).value);
     this.error.set('');
   }
-
   onSegmentInput(index: number, event: Event): void {
     const input = event.target as HTMLInputElement;
     const value = cleanKey(input.value).slice(0, KEY_SEGMENT_LEN);
@@ -141,14 +142,12 @@ export class SetupPage implements OnInit, OnDestroy {
       this.focusSegment(index + 1);
     }
   }
-
   onSegmentKeydown(index: number, event: KeyboardEvent): void {
     if (event.key === 'Backspace' && index > 0 && (event.target as HTMLInputElement).value === '') {
       event.preventDefault();
       this.focusSegment(index - 1);
     }
   }
-
   /** A pasted key (with or without dashes) is spread over the four segments. */
   onPaste(event: ClipboardEvent): void {
     event.preventDefault();
@@ -158,14 +157,12 @@ export class SetupPage implements OnInit, OnDestroy {
     this.error.set('');
     this.focusSegment(Math.min(Math.floor(text.length / KEY_SEGMENT_LEN), KEY_SEGMENT_COUNT - 1));
   }
-
   /** Opens the contact message and (re)starts its auto-close countdown. */
   requestKey(): void {
     this.copied.set(false);
     this.showContact.set(true);
     this.startContactTimer();
   }
-
   async copyEmail(): Promise<void> {
     try {
       await navigator.clipboard.writeText(CONTACT_EMAIL);
@@ -175,19 +172,16 @@ export class SetupPage implements OnInit, OnDestroy {
     }
     this.startContactTimer();
   }
-
   selectMode(value: AppMode): void {
     if (this.busy()) return;
     this.selectedMode.set(value);
     this.error.set('');
   }
-
   previous(): void {
     if (this.busy() || this.stepIndex() === 0) return;
     this.error.set('');
     this.stepIndex.update((i) => i - 1);
   }
-
   async next(event: Event): Promise<void> {
     event.preventDefault();
     if (this.busy() || !this.canNext()) return;
@@ -201,6 +195,9 @@ export class SetupPage implements OnInit, OnDestroy {
         case 'organization':
           await this.submitOrganization();
           break;
+        case 'admin':
+          await this.submitAdmin();
+          break;
         case 'mode':
           await this.submitMode();
           break;
@@ -209,7 +206,6 @@ export class SetupPage implements OnInit, OnDestroy {
       this.busy.set(false);
     }
   }
-
   private async submitKey(): Promise<void> {
     if (!this.keyValidated()) {
       try {
@@ -228,7 +224,6 @@ export class SetupPage implements OnInit, OnDestroy {
     this.showContact.set(false);
     this.stepIndex.set(1);
   }
-
   private async submitOrganization(): Promise<void> {
     const problem = this.organizationProblem();
     if (problem) {
@@ -252,7 +247,25 @@ export class SetupPage implements OnInit, OnDestroy {
     }
     this.stepIndex.set(2);
   }
-
+  private async submitAdmin(): Promise<void> {
+    const problem = this.adminProblem();
+    if (problem) {
+      this.error.set(problem);
+      return;
+    }
+    try {
+      await createInitialAdmin({
+        username: this.adminUsername().trim(),
+        password: this.adminPassword(),
+        display_name: this.adminDisplayName().trim(),
+      });
+    } catch (e) {
+      console.error('failed to create initial admin', e);
+      this.error.set(errorMessage(e, "Impossible de créer l'administrateur. Veuillez réessayer."));
+      return;
+    }
+    this.stepIndex.set(3);
+  }
   private async submitMode(): Promise<void> {
     const value = this.selectedMode();
     if (!value) return;
@@ -265,8 +278,6 @@ export class SetupPage implements OnInit, OnDestroy {
     }
     await this.launch();
   }
-
-  /** Shows the welcome message, gives the window back its normal size, then opens the login page. */
   private async launch(): Promise<void> {
     this.launching.set(true);
     await new Promise<void>((resolve) => setTimeout(resolve, LAUNCH_MIN_DELAY_MS));
@@ -277,14 +288,20 @@ export class SetupPage implements OnInit, OnDestroy {
     }
     await this.router.navigate(['/login'], { replaceUrl: true });
   }
-
   private organizationProblem(): string {
     if (!this.orgName().trim()) return "Veuillez saisir le nom de l'organisation.";
     if (!isValidEmail(this.orgEmail())) return 'Adresse e-mail invalide.';
     if (!isValidPhone(this.phonePrefix(), this.phoneNumber())) return 'Numéro de téléphone invalide.';
     return '';
   }
-
+  private adminProblem(): string {
+    const displayName = this.adminDisplayName().trim();
+    if (!displayName) return 'Veuillez saisir le nom affiché.';
+    if (displayName.length > MAX_DISPLAY_NAME_LEN) {
+      return `Le nom affiché ne peut pas dépasser ${MAX_DISPLAY_NAME_LEN} caractères.`;
+    }
+    return credentialsRuleError(this.adminUsername().trim(), this.adminPassword());
+  }
   private fillOrganization(saved: Organization): void {
     this.orgName.set(saved.name);
     this.orgEmail.set(saved.email);
@@ -297,11 +314,9 @@ export class SetupPage implements OnInit, OnDestroy {
     }
     this.phoneNumber.set(number.join(''));
   }
-
   private focusSegment(index: number): void {
     document.getElementById(`key-seg-${index}`)?.focus();
   }
-
   private startContactTimer(): void {
     this.clearContactTimer();
     this.contactTimer = setTimeout(() => {
@@ -309,7 +324,6 @@ export class SetupPage implements OnInit, OnDestroy {
       this.contactTimer = null;
     }, CONTACT_CLOSE_DELAY_MS);
   }
-
   private clearContactTimer(): void {
     if (this.contactTimer) clearTimeout(this.contactTimer);
     this.contactTimer = null;

@@ -7,12 +7,11 @@ use crate::services::{
 };
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::{AppHandle, Manager};
-
 pub fn start_caisse(app: &AppHandle) {
     let state = app.state::<AppState>();
     *state.max_connected_devices.lock().unwrap() =
         setting_service::load_settings(app).max_connected_devices;
-    *state.accounts.lock().unwrap() = account_service::load_or_bootstrap(app);
+    *state.accounts.lock().unwrap() = account_service::load(app);
     *state.blacklist.lock().unwrap() = connection_service::load_blacklist(app);
     *state.connection_history.lock().unwrap() = connection_service::load_history(app);
     *state.pricing.lock().unwrap() = pricing_service::load_or_bootstrap(app);
