@@ -19,10 +19,15 @@ import { MoneyPipe } from '../../../../shared/pipes/money.pipe';
 })
 export class PendingList {
   groups = input.required<OrderGroup[]>();
-  busyGroupId = input<number | null>(null);
+  totalCount = input.required<number>();
+  totalAmount = input.required<number>();
+  search = input<string>('');
+  counters = input<string[]>([]);
+  selectedCounter = input<string>('');
+  allCounters = input<string>('');
   @Output() opened = new EventEmitter<OrderGroup>();
-  @Output() rejectRequested = new EventEmitter<OrderGroup>();
-  @Output() payRequested = new EventEmitter<number>();
+  @Output() searchChange = new EventEmitter<string>();
+  @Output() counterChange = new EventEmitter<string>();
   readonly formatGroupId = formatGroupId;
   readonly formatCreatedLabel = formatCreatedLabel;
   readonly getGroupItemsSummary = getGroupItemsSummary;

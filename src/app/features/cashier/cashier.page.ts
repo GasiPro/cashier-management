@@ -24,12 +24,13 @@ import { formatGroupId } from '../../data/order/order.utils';
 import { BottomBar } from '../../layouts/main-layout/bottom-bar/bottom-bar';
 import { LeftSidebar } from '../../layouts/main-layout/sidebar/sidebar';
 import { Navbar } from '../../layouts/main-layout/navbar/navbar';
-import { CashierStore } from './cashier.store';
+import { CashierStore, PAYMENT_METHOD_LABELS } from './cashier.store';
 import { DaySummary } from './components/day-summary/day-summary';
 import { DevicesPanel, deviceDisplayName } from './components/devices-panel/devices-panel';
 import { HistoryPanel } from './components/history-panel/history-panel';
 import { OrderDetailModal } from './components/order-detail-modal/order-detail-modal';
 import { PaidTable } from './components/paid-table/paid-table';
+import { PaymentDialog } from './components/payment-dialog/payment-dialog';
 import { PendingList } from './components/pending-list/pending-list';
 import { RejectDialog } from './components/reject-dialog/reject-dialog';
 import { ReportPanel } from './components/report-panel/report-panel';
@@ -46,6 +47,7 @@ import { ReportPanel } from './components/report-panel/report-panel';
     PaidTable,
     OrderDetailModal,
     RejectDialog,
+    PaymentDialog,
     HistoryPanel,
     ReportPanel,
     DevicesPanel,
@@ -215,7 +217,9 @@ export class CashierPage implements OnInit, OnDestroy {
     this.store.busyGroupId.set(groupId);
     try {
       await markGroupPaid(groupId);
-      this.store.notify(`Commande ${formatGroupId(groupId)} encaissée.`);
+      const method = PAYMENT_METHOD_LABELS[this.store.paymentMethod()];
+      this.store.closePaymentDialog();
+      this.store.notify(`Commande ${formatGroupId(groupId)} encaissée (${method}).`);
     } catch (e) {
       console.error('group_mark_paid failed', e);
       this.store.notify(errorMessage(e, "Impossible d'encaisser cette commande."));

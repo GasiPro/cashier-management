@@ -5,6 +5,7 @@ import {
   formatCreatedLabel,
   formatGroupId,
   formatPaidLabel,
+  getGroupObservations,
   groupHasDiscount,
   groupHasIncrease,
   isLineDiscounted,
@@ -30,7 +31,19 @@ export class OrderDetailModal {
   readonly isLineIncreased = isLineIncreased;
   readonly groupHasDiscount = groupHasDiscount;
   readonly groupHasIncrease = groupHasIncrease;
+  readonly getGroupObservations = getGroupObservations;
   isGroupPending(g: OrderGroup): boolean {
     return !g.paidAt;
+  }
+  totalQuantity(g: OrderGroup): number {
+    return g.lines.reduce((sum, l) => sum + l.quantity, 0);
+  }
+  priceAdjustmentLabel(g: OrderGroup): string {
+    const discount = groupHasDiscount(g);
+    const increase = groupHasIncrease(g);
+    if (discount && increase) return 'Remise / Majoration';
+    if (discount) return 'Remise';
+    if (increase) return 'Majoration';
+    return 'Aucun';
   }
 }

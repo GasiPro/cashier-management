@@ -47,11 +47,16 @@
   <div class="relative flex-1 min-h-0">
   <main class="h-full overflow-y-auto max-w-5xl w-full mx-auto px-5 sm:px-8 py-8">
     <app-pending-list
-      [groups]="orders.pendingGroups()"
-      [busyGroupId]="store.busyGroupId()"
-      (opened)="store.openGroupDetail($event)"
-      (rejectRequested)="store.openRejectDialog($event)"
-      (payRequested)="markGroupAsPaid($event)"></app-pending-list>
+      [groups]="store.filteredPendingGroups()"
+      [totalCount]="orders.pendingGroups().length"
+      [totalAmount]="store.pendingTotalAmount()"
+      [search]="store.pendingSearch()"
+      [counters]="store.pendingCounters()"
+      [selectedCounter]="store.selectedPendingCounter()"
+      [allCounters]="store.pendingAllCounters"
+      (searchChange)="store.pendingSearch.set($event)"
+      (counterChange)="store.setPendingCounterFilter($event)"
+      (opened)="store.openGroupDetail($event)"></app-pending-list>
     <app-paid-table
       [groups]="store.recentPaidGroups()"
       [totalCount]="orders.paidGroups().length"
@@ -101,7 +106,16 @@
     [busyGroupId]="store.busyGroupId()"
     (closed)="store.closeGroupDetail()"
     (rejectRequested)="store.openRejectDialog($event)"
-    (payRequested)="markGroupAsPaid($event); store.closeGroupDetail()"></app-order-detail-modal>
+    (payRequested)="store.openPaymentDialog($event)"></app-order-detail-modal>
+  }
+  @if (store.payGroupTarget(); as group) {
+  <app-payment-dialog
+    [group]="group"
+    [method]="store.paymentMethod()"
+    [busy]="store.busyGroupId() !== null"
+    (methodChange)="store.paymentMethod.set($event)"
+    (closed)="store.backToGroupDetail()"
+    (confirmed)="markGroupAsPaid(group.groupId)"></app-payment-dialog>
   }
   @if (store.rejectGroupTarget(); as group) {
   <app-reject-dialog

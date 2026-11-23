@@ -6,15 +6,42 @@
       <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block"></span>
       En attente
     </span>
-    <span class="text-sm text-gray-400">({{ groups().length }})</span>
+    <span class="text-sm text-gray-400">
+      ({{ groups().length }}{{ groups().length !== totalCount() ? ' sur ' + totalCount() : '' }})
+    </span>
+    @if (groups().length > 0) {
+    <span class="ml-auto text-sm text-gray-500">
+      Total : <span class="font-semibold text-[#1A1A1A] tabular-nums">{{ totalAmount() | money }}</span>
+    </span>
+    }
   </div>
+  @if (totalCount() > 0) {
+  <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
+    <input type="search" [value]="search()" (input)="searchChange.emit($any($event.target).value)"
+      placeholder="Rechercher (n°, comptoir, article)…" aria-label="Rechercher une commande en attente"
+      class="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white text-gray-700
+             focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]" />
+    @if (counters().length > 1) {
+    <select (change)="counterChange.emit($any($event.target).value)" aria-label="Filtrer par comptoir"
+      class="text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white text-gray-700
+             focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+      <option [value]="allCounters()" [selected]="selectedCounter() === allCounters()">Tous les comptoirs</option>
+      @for (counter of counters(); track counter) {
+      <option [value]="counter" [selected]="selectedCounter() === counter">{{ counter }}</option>
+      }
+    </select>
+    }
+  </div>
+  }
   @if (groups().length === 0) {
   <div class="text-center py-20 text-gray-400">
     <svg class="w-8 h-8 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2
                  M9 5a2 2 0 002 2h2a2 2 0 002-2" />
     </svg>
-    <p class="text-sm">Aucun client en attente d'encaissement.</p>
+    <p class="text-sm">
+      {{ totalCount() === 0 ? "Aucun client en attente d'encaissement." : 'Aucune commande ne correspond à la recherche.' }}
+    </p>
   </div>
   }
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -74,27 +101,13 @@
           <p class="text-xs text-gray-400">Total à payer</p>
           <p class="text-xl font-bold text-[#1A1A1A] tabular-nums">{{ group.totalAmount | money }}</p>
         </div>
-        <div class="flex items-center gap-2">
-          <button (click)="$event.stopPropagation(); rejectRequested.emit(group)" title="Refuser la commande"
-            [disabled]="busyGroupId() !== null"
-            [attr.aria-label]="'Refuser la commande ' + formatGroupId(group.groupId)"
-            class="text-gray-400 hover:text-red-600 border border-gray-200 hover:border-red-200 hover:bg-red-50
-                   p-2.5 rounded-lg transition-colors
-                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-          <button (click)="$event.stopPropagation(); payRequested.emit(group.groupId)"
-            [disabled]="busyGroupId() !== null"
-            [attr.aria-busy]="busyGroupId() === group.groupId"
-            [attr.aria-label]="'Encaisser la commande ' + formatGroupId(group.groupId)"
-            class="bg-[#1E3A5F] text-white text-sm font-medium px-5 py-2.5 rounded-lg shadow-sm
-                           hover:bg-[#16304f] active:scale-95 transition-all
-                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
-            Encaisser
-          </button>
-        </div>
+        <button (click)="$event.stopPropagation(); opened.emit(group)"
+          [attr.aria-label]="'Vérifier la commande ' + formatGroupId(group.groupId)"
+          class="bg-[#1E3A5F] text-white text-sm font-medium px-5 py-2.5 rounded-lg shadow-sm
+                 hover:bg-[#16304f] active:scale-95 transition-all
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
+          Vérifier
+        </button>
       </div>
     </div>
     }
