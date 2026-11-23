@@ -7,7 +7,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "gasipro": {
+    "light": {
       "projectType": "application",
       "schematics": {},
       "root": "",
@@ -57,10 +57,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "gasipro:build:production"
+              "buildTarget": "light:build:production"
             },
             "development": {
-              "buildTarget": "gasipro:build:development"
+              "buildTarget": "light:build:development"
             }
           },
           "defaultConfiguration": "development"

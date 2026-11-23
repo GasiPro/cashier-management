@@ -59,7 +59,7 @@
     @if (!notificationsExpanded()) {
     <div class="px-3 py-2.5 text-sm" role="status" aria-live="polite">
       @if (latestNotification) {
-      <p class="text-gray-700">{{ latestNotification.message }}</p>
+      <p [class]="latestNotification.alert ? 'text-red-700 font-medium' : 'text-gray-700'">{{ latestNotification.message }}</p>
       } @else {
       <p class="text-gray-400 italic">Aucune notification</p>
       }
@@ -76,7 +76,7 @@
           @if (n.time) {
           <p class="text-[10px] text-gray-400 mb-0.5">{{ n.time }}</p>
           }
-          <p>{{ n.message }}</p>
+          <p [class]="n.alert ? 'text-red-700 font-medium' : ''">{{ n.message }}</p>
         </div>
         }
       </div>

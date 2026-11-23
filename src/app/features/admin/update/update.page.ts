@@ -2,19 +2,15 @@ import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { check, type Update } from '@tauri-apps/plugin-updater';
-
 type UpdatePhase = 'idle' | 'checking' | 'up-to-date' | 'available' | 'installing' | 'completed';
-
 interface AvailableUpdate {
   version: string;
   note: string;
 }
-
 const RELAUNCH_DELAY_MS = 2000;
 const NO_NOTE = 'Aucune note de version.';
-const CHECK_ERROR = 'Impossible de vérifier les mises à jour. Vérifiez votre connexion internet.';
-const INSTALL_ERROR = 'La mise à jour a échoué. Veuillez réessayer.';
-
+const CHECK_ERROR = 'Vérification impossible. Contrôlez la connexion.';
+const INSTALL_ERROR = 'Échec de la mise à jour.';
 @Component({
   selector: 'app-admin-update',
   standalone: true,
@@ -26,12 +22,9 @@ export class UpdatePage implements OnInit, OnDestroy {
   readonly update = signal<AvailableUpdate | null>(null);
   readonly progress = signal(0);
   readonly errorMessage = signal('');
-
   readonly busy = computed(() => this.phase() === 'checking' || this.phase() === 'installing');
-
   private pendingUpdate: Update | null = null;
   private relaunchTimer: ReturnType<typeof setTimeout> | null = null;
-
   async ngOnInit(): Promise<void> {
     try {
       this.currentVersion.set(await getVersion());
@@ -39,14 +32,12 @@ export class UpdatePage implements OnInit, OnDestroy {
       this.currentVersion.set('—');
     }
   }
-
   ngOnDestroy(): void {
     if (this.relaunchTimer !== null) {
       clearTimeout(this.relaunchTimer);
       this.relaunchTimer = null;
     }
   }
-
   async checkForUpdates(): Promise<void> {
     if (this.busy()) return;
     this.errorMessage.set('');
@@ -67,7 +58,6 @@ export class UpdatePage implements OnInit, OnDestroy {
       this.phase.set('idle');
     }
   }
-
   async installUpdate(): Promise<void> {
     const pending = this.pendingUpdate;
     if (!pending || this.phase() !== 'available') return;

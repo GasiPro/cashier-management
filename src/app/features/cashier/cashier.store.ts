@@ -1,4 +1,5 @@
 import { Injectable, computed, signal } from '@angular/core';
+import { NotifyLevel, playAlertSound } from '../../core/notification/notification';
 import { PeerId } from '../../data/device/device.model';
 import { OrderGroup } from '../../data/order/order.model';
 import { OrderStore } from '../../data/order/order.store';
@@ -173,11 +174,12 @@ export class CashierStore {
   cancelBlockDevice(): void {
     this.confirmingBlockDeviceId.set(null);
   }
-  notify(msg: string): void {
+  notify(msg: string, level: NotifyLevel = 'quiet'): void {
     const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     this.notifications.update((list) =>
-      [...list, { id: ++this.notificationIdCounter, message: msg, time }].slice(-30),
+      [...list, { id: ++this.notificationIdCounter, message: msg, time, alert: level !== 'quiet' }].slice(-30),
     );
+    if (level === 'sound') playAlertSound();
   }
   private isToday(iso: string): boolean {
     return formatIsoDate(new Date(iso)) === formatIsoDate(new Date());

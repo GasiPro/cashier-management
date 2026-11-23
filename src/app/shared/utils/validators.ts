@@ -60,19 +60,19 @@ export function hasLetterAndDigit(password: string): boolean {
 }
 export function passwordRuleError(password: string): string {
   if (password.length < MIN_PASSWORD_LEN) {
-    return `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LEN} caractères.`;
+    return `Mot de passe : ${MIN_PASSWORD_LEN} caractères minimum.`;
   }
   if (!hasLetterAndDigit(password)) {
-    return 'Le mot de passe doit contenir au moins une lettre et un chiffre.';
+    return 'Mot de passe : une lettre et un chiffre requis.';
   }
   return '';
 }
 export function credentialsRuleError(username: string, password: string): string {
   if (username.length < MIN_USERNAME_LEN) {
-    return `Le nom d'utilisateur doit contenir au moins ${MIN_USERNAME_LEN} caractères.`;
+    return `Identifiant : ${MIN_USERNAME_LEN} caractères minimum.`;
   }
   if (username.length > MAX_USERNAME_LEN) {
-    return `Le nom d'utilisateur ne peut pas dépasser ${MAX_USERNAME_LEN} caractères.`;
+    return `Identifiant : ${MAX_USERNAME_LEN} caractères maximum.`;
   }
   return passwordRuleError(password);
 }

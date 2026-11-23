@@ -5,7 +5,7 @@
   </div>
   <h1 class="text-xl font-semibold text-[#1A1A1A] mb-2">En attente d'approbation</h1>
   <p class="text-sm text-gray-500 mb-1">
-    Votre demande a été envoyée à la caisse sous le nom
+    Demande envoyée sous le nom
   </p>
   <p class="text-sm font-semibold text-[#1E3A5F] mb-6">« {{ username() }} »</p>
   <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-left mb-8">
@@ -27,8 +27,7 @@
   </div>
   <h1 class="text-xl font-semibold text-[#1A1A1A] mb-2">Connexion refusée</h1>
   <p role="alert" aria-live="assertive" class="text-sm text-gray-500 mb-8">
-    {{ error() || "Le caissier a refusé votre demande de connexion." }}<br>
-    Contactez le caissier si vous pensez qu'il s'agit d'une erreur.
+    {{ error() || "Demande refusée par le caissier." }}
   </p>
   <div class="space-y-3">
     <button

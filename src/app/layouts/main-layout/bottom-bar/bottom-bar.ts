@@ -5,6 +5,7 @@ export interface BottomBarNotification {
   id: number;
   message: string;
   time?: string;
+  alert?: boolean;
 }
 @Component({
   selector: 'app-bottom-bar',
@@ -28,15 +29,16 @@ export class BottomBar implements OnInit, OnChanges, OnDestroy {
   private autoHideTimeout?: ReturnType<typeof setTimeout>;
   private lastSeenId = 0;
   private static readonly AUTO_HIDE_DELAY_MS = 5000;
+  private static readonly ALERT_HIDE_DELAY_MS = 10000;
   ngOnInit(): void {
     this.tick();
     this.clockInterval = setInterval(() => this.tick(), 1000);
   }
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['notifications']) {
-      const added = this.notifications.filter((n) => n.id > this.lastSeenId).length;
-      if (added > 0 && !changes['notifications'].firstChange) {
-        this.onNewNotifications(added);
+      const fresh = this.notifications.filter((n) => n.id > this.lastSeenId);
+      if (fresh.length > 0 && !changes['notifications'].firstChange) {
+        this.onNewNotifications(fresh.length, fresh.some((n) => n.alert));
       }
       this.lastSeenId = this.notifications[this.notifications.length - 1]?.id ?? 0;
     }
@@ -95,19 +97,19 @@ export class BottomBar implements OnInit, OnChanges, OnDestroy {
       this.scheduleAutoHide();
     }
   }
-  private onNewNotifications(added: number): void {
+  private onNewNotifications(added: number, alert: boolean): void {
     if (this.notificationsExpanded()) return;
     this.unreadCount.update((count) => count + added);
     this.notificationsPanelOpen.set(true);
-    this.scheduleAutoHide();
+    this.scheduleAutoHide(alert);
   }
-  private scheduleAutoHide(): void {
+  private scheduleAutoHide(alert = false): void {
     this.clearAutoHide();
     this.autoHideTimeout = setTimeout(() => {
       if (!this.notificationsExpanded()) {
         this.notificationsPanelOpen.set(false);
       }
-    }, BottomBar.AUTO_HIDE_DELAY_MS);
+    }, alert ? BottomBar.ALERT_HIDE_DELAY_MS : BottomBar.AUTO_HIDE_DELAY_MS);
   }
   private clearAutoHide(): void {
     if (this.autoHideTimeout) {

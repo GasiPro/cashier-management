@@ -1,3 +1,4 @@
+use crate::config::app_info::APP_NAME;
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{
@@ -19,7 +20,7 @@ pub fn open(app: &AppHandle) -> tauri::Result<()> {
         main.hide()?;
     }
     let splash = WebviewWindowBuilder::new(app, SPLASH_LABEL, WebviewUrl::App(SPLASH_PAGE.into()))
-        .title("GasiPro")
+        .title(APP_NAME)
         .inner_size(SPLASH_WIDTH, SPLASH_HEIGHT)
         .min_inner_size(SPLASH_WIDTH, SPLASH_HEIGHT)
         .max_inner_size(SPLASH_WIDTH, SPLASH_HEIGHT)

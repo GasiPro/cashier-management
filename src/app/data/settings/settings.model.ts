@@ -1,8 +1,9 @@
+import { APP_NAME } from '../../core/config/app.constants';
 export const MIN_FONT_SIZE = 8;
 export const MAX_FONT_SIZE = 32;
 export const FONT_SIZE_STEP = 1;
 export type AppMode = 'caisse' | 'comptoir';
-export const DEFAULT_ORGANIZATION_NAME = 'GasiPro';
+export const DEFAULT_ORGANIZATION_NAME = APP_NAME;
 export interface Organization {
   name: string;
   email: string;

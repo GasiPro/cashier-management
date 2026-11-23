@@ -16,7 +16,7 @@ import {
   getServerAddress,
   rejectConnection,
 } from '../../data/device/device.api';
-import { PeerId } from '../../data/device/device.model';
+import { PeerId, PendingConnection } from '../../data/device/device.model';
 import { DeviceStore } from '../../data/device/device.store';
 import { markGroupPaid, rejectGroup } from '../../data/order/order.api';
 import { OrderStore } from '../../data/order/order.store';
@@ -34,6 +34,7 @@ import { PaymentDialog } from './components/payment-dialog/payment-dialog';
 import { PendingList } from './components/pending-list/pending-list';
 import { RejectDialog } from './components/reject-dialog/reject-dialog';
 import { ReportPanel } from './components/report-panel/report-panel';
+const ORDER_UPDATE_COALESCE_MS = 1500;
 @Component({
   selector: 'app-cashier',
   standalone: true,
@@ -70,6 +71,8 @@ export class CashierPage implements OnInit, OnDestroy {
   private closeSubscription?: Subscription;
   private approved = false;
   private destroyed = false;
+  private readonly updateTimers = new Map<number, ReturnType<typeof setTimeout>>();
+  private knownRequestIds: Set<PeerId> | null = null;
   constructor(
     private router: Router,
     private ws: WsClient,
@@ -103,6 +106,8 @@ export class CashierPage implements OnInit, OnDestroy {
         this.currentTime.set(msg.data as string);
       } else if (msg.type === 'order_notification') {
         this.notifyOrderChange(msg.data);
+      } else if (msg.type === 'connection_requests') {
+        this.notifyNewRequests(msg.data);
       }
     });
     this.openSubscription = this.ws.onOpened().subscribe(() => this.registerOnOpen());
@@ -127,14 +132,36 @@ export class CashierPage implements OnInit, OnDestroy {
     }
   }
   private notifyOrderChange(change: OrderChange): void {
-    const label = formatGroupId(change.group_id);
+    const groupId = change.group_id;
+    const label = formatGroupId(groupId);
     const from = change.counter_username ? ` (${change.counter_username})` : '';
-    const messages: Record<OrderChange['kind'], string> = {
-      created: `Nouvelle commande ${label}${from}.`,
-      updated: `Commande ${label} modifiée${from}.`,
-      deleted: `Commande ${label} supprimée${from}.`,
-    };
-    this.store.notify(messages[change.kind]);
+    const previous = this.updateTimers.get(groupId);
+    if (previous) {
+      clearTimeout(previous);
+      this.updateTimers.delete(groupId);
+    }
+    if (change.kind === 'created') {
+      this.store.notify(`Nouvelle commande ${label}${from}.`, 'sound');
+    } else if (change.kind === 'deleted') {
+      this.store.notify(`Commande ${label} supprimée${from}.`);
+    } else if (change.kind === 'updated') {
+      this.updateTimers.set(
+        groupId,
+        setTimeout(() => {
+          this.updateTimers.delete(groupId);
+          this.store.notify(`Commande ${label} modifiée${from}.`);
+        }, ORDER_UPDATE_COALESCE_MS),
+      );
+    }
+  }
+  private notifyNewRequests(requests: PendingConnection[]): void {
+    const known = this.knownRequestIds;
+    this.knownRequestIds = new Set(requests.map((r) => r.id));
+    if (!known) return;
+    const fresh = requests.filter((r) => !known.has(r.id));
+    if (fresh.length === 0) return;
+    const names = fresh.map((r) => deviceDisplayName(r)).join(', ');
+    this.store.notify(`Nouvelle demande de connexion : « ${names} ».`, 'sound');
   }
   logout(): void {
     this.ws.send({ type: 'logout' });
@@ -146,6 +173,8 @@ export class CashierPage implements OnInit, OnDestroy {
   }
   ngOnDestroy(): void {
     this.destroyed = true;
+    this.updateTimers.forEach((timer) => clearTimeout(timer));
+    this.updateTimers.clear();
     this.orders.stop();
     this.devices.stopLive();
     this.wsSubscription?.unsubscribe();

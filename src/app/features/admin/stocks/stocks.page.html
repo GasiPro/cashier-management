@@ -46,9 +46,7 @@
     <div class="mb-4">
       <h2 id="stocks-heading" class="text-base font-semibold text-[#1A1A1A]">Stocks</h2>
       <p class="text-xs text-gray-400 mt-0.5">
-        Gérez la disponibilité et les quantités des produits et services. Chaque modification et chaque
-        commande payée est enregistrée dans le journal. Vos modifications sont d'abord mises en attente :
-        « Enregistrer » puis « Appliquer » les envoient au comptoir.
+        Disponibilité et quantités. Enregistrez, puis appliquez.
       </p>
     </div>
     <div class="mb-4 flex gap-2" role="group" aria-label="Sections du stock">
@@ -89,7 +87,7 @@
     </div>
     } @else if (tab() === 'journal') {
     @if (history().length === 0) {
-    <p class="text-sm text-gray-400 py-4">Aucune modification de stock enregistrée pour le moment.</p>
+    <p class="text-sm text-gray-400 py-4">Aucune modification.</p>
     } @else {
     <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden"
       [attr.aria-label]="history().length + ' ligne(s) dans le journal'">
@@ -130,8 +128,8 @@
             <dd class="font-medium text-gray-700">
               @if (entry.action === 'empty') {
               {{ entry.order_group_id === null
-                ? 'Rupture de stock définie manuellement (quantité mise à 0)'
-                : 'Rupture de stock causée par la commande ' + formatGroupId(entry.order_group_id) }}
+                ? 'Rupture manuelle'
+                : 'Rupture · commande ' + formatGroupId(entry.order_group_id) }}
               } @else {
               {{ sourceLabel(entry) }}
               }
@@ -191,7 +189,7 @@
     </div>
     @if (visibleItems().length === 0) {
     <p class="text-sm text-gray-400 py-4">
-      {{ searchTerm().trim() ? 'Aucun article ne correspond à cette recherche.' : 'Aucun article à afficher.' }}
+      {{ searchTerm().trim() ? 'Aucun résultat.' : 'Aucun article.' }}
     </p>
     } @else {
     <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg"
@@ -263,8 +261,8 @@
                    focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
           <p class="text-[11px] text-gray-400 mt-1">
             {{ item.type === 'service'
-              ? 'Laissez vide pour un service illimité. Une limite à 0 enregistre une rupture de stock.'
-              : 'Laissez vide pour ne plus suivre la quantité. Une quantité à 0 enregistre une rupture de stock.' }}
+              ? 'Vide : illimité. 0 : rupture.'
+              : 'Vide : non suivi. 0 : rupture.' }}
           </p>
           @if (editError()) {
           <p role="alert" aria-live="assertive" class="text-xs text-red-600 font-medium mt-2">{{ editError() }}</p>
@@ -311,7 +309,7 @@
             <ng-container [ngTemplateOutlet]="typePicker"
               [ngTemplateOutletContext]="{ model: editType, name: 'Type' }" />
           </div>
-          <p class="text-[11px] text-gray-400">Ces modifications ne sont pas ajoutées à l'historique.</p>
+          <p class="text-[11px] text-gray-400">Absent de l'historique.</p>
           @if (itemEditError()) {
           <p role="alert" aria-live="assertive" class="text-xs text-red-600 font-medium">{{ itemEditError() }}</p>
           }
@@ -406,8 +404,7 @@
           </div>
         </div>
         <p class="text-xs text-gray-400">
-          Prix et {{ newType() === 'service' ? 'limite' : 'quantité' }} sont facultatifs. L'article est créé disponible avec la
-          grille tarifaire par défaut ; majoration, réduction et prix se règlent ensuite dans la grille tarifaire.
+          Prix et {{ newType() === 'service' ? 'limite' : 'quantité' }} facultatifs. Article créé disponible.
         </p>
         @if (createError()) {
         <p role="alert" aria-live="assertive" class="text-xs text-red-600 font-medium">{{ createError() }}</p>

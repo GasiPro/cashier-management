@@ -45,10 +45,14 @@ pub enum OrderChangeKind {
     Created,
     Updated,
     Deleted,
+    Paid,
+    Rejected,
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct OrderChange {
     pub kind: OrderChangeKind,
     pub group_id: i64,
     pub counter_username: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }

@@ -5,8 +5,7 @@
         Appareils &amp; Connexion
       </h1>
       <p class="text-xs text-gray-400 mt-0.5">
-        Gérez les appareils autorisés à se connecter au réseau local : approuvez ou refusez les nouvelles
-        demandes, déconnectez ou bloquez un poste à tout moment.
+        Approuver, déconnecter ou bloquer les postes.
       </p>
     </header>
     <section aria-labelledby="pending-heading">
@@ -103,8 +102,7 @@
             [attr.aria-label]="'Confirmer le blocage de ' + row.entry.username"
             (keydown.escape)="cancelBlockDevice()">
             <p class="text-xs text-red-800">
-              Bloquer « {{ row.entry.username }} » ? L'appareil sera déconnecté et son adresse IP ajoutée à la liste
-              noire — il ne pourra plus se reconnecter tant qu'elle y figure.
+              Bloquer « {{ row.entry.username }} » ? Déconnexion et liste noire.
             </p>
             @if (blockError()) {
             <p role="alert" aria-live="assertive" class="text-xs text-red-700 font-medium mt-2">{{ blockError() }}</p>

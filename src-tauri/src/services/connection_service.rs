@@ -191,7 +191,7 @@ pub async fn disconnect_device(
     addr: Option<String>,
 ) -> Result<(), String> {
     let socket_addr = resolve_peer_addr(peers, id, addr).await?;
-    remove_peer(peers, socket_addr, &ServerMessage::ConnectionBlocked).await;
+    remove_peer(peers, socket_addr, &ServerMessage::ConnectionDisconnected).await;
     update_connection_session(
         history,
         Some(app),

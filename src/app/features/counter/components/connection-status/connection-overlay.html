@@ -18,10 +18,13 @@
         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
       </svg>
     </div>
-    <h2 class="text-lg font-semibold text-[#1A1A1A] mb-1">Connexion bloquée</h2>
+    <h2 class="text-lg font-semibold text-[#1A1A1A] mb-1">{{ store.lockReason() === 'blocked' ? 'Connexion bloquée' : 'Déconnecté par la caisse' }}</h2>
     <p class="text-sm text-gray-500 mb-6">
-      Le caissier a bloqué ce poste.<br>
-      Contactez le caissier si vous pensez qu'il s'agit d'une erreur.
+      @if (store.lockReason() === 'blocked') {
+      Poste bloqué par le caissier.
+      } @else {
+      Reconnectez-vous pour continuer.
+      }
     </p>
     <button (click)="store.disconnectFromCashier()"
       class="text-sm text-[#1E3A5F] font-medium border border-[#1E3A5F]/30 px-4 py-2 rounded-lg
@@ -44,7 +47,7 @@
     @if (store.credentialsError()) {
     <p role="alert" aria-live="assertive" class="text-sm text-red-600 mb-6">{{ store.credentialsError() }}</p>
     } @else {
-    <p class="text-sm text-gray-500 mb-6">La connexion avec la caisse a été interrompue. Reconnexion en cours…</p>
+    <p class="text-sm text-gray-500 mb-6">Reconnexion…</p>
     }
     <button (click)="store.showServerPanel = true"
       class="text-sm text-[#1E3A5F] font-medium border border-[#1E3A5F]/30 px-4 py-2 rounded-lg

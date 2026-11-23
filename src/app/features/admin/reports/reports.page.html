@@ -6,7 +6,7 @@
           Rapports
         </h2>
         <p class="text-xs text-gray-400 mt-0.5">
-          Fichiers exportés par les caissiers. Dépliez une ligne pour voir l'essentiel de son contenu.
+          Exports des caissiers.
         </p>
       </div>
       @if (!loading() && reports().length > 0) {
@@ -34,7 +34,7 @@
       </button>
     </div>
     } @else if (rows().length === 0) {
-    <p class="text-sm text-gray-400 py-4">Aucun rapport exporté par un caissier pour le moment.</p>
+    <p class="text-sm text-gray-400 py-4">Aucun rapport.</p>
     } @else {
     <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg" [attr.aria-label]="rows().length + ' rapport(s)'">
       @for (row of rows(); track row.record.id) {

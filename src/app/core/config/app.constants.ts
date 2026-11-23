@@ -1,3 +1,5 @@
+export const APP_NAME = 'Light';
+export const APP_SLUG = 'light';
 export const DEFAULT_WS = '127.0.0.1:8080';
 export const LOCAL_WS_URL = 'ws://127.0.0.1:8080';
 export const WS_RECONNECT_DELAY_MS = 2000;

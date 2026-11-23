@@ -37,7 +37,6 @@
         }
       </ol>
     </header>
-
     <main class="flex-1 min-h-0 overflow-y-auto px-2 py-5">
       @switch (currentStep()) {
       @case ('key') {
@@ -101,7 +100,7 @@
       <section class="max-w-md mx-auto space-y-3" aria-label="Organisation">
         <div class="mb-4">
           <h1 class="text-xl font-semibold mb-1">Organisation</h1>
-          <p class="text-sm text-gray-500">Ces informations identifient votre entreprise dans l'application.</p>
+          <p class="text-sm text-gray-500">Informations de l'entreprise.</p>
         </div>
         <div>
           <label for="org-name" class="block text-xs font-medium text-gray-500 mb-1">Nom de l'organisation</label>
@@ -196,7 +195,6 @@
       }
       }
     </main>
-
     <footer class="flex items-center gap-4 pt-3 border-t border-gray-300">
       <p role="alert" aria-live="assertive" class="flex-1 min-h-5 text-sm text-red-600">{{ error() }}</p>
       <button

@@ -84,7 +84,7 @@
                 <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
-                Format d'adresse invalide. Utilisez IP:port, ex : 192.168.1.5:8080.
+                Format attendu : IP:port.
               </p>
               } @else if (store.newCashierAddressCheck() === 'unreachable') {
               <p class="text-xs text-amber-600 mt-1.5 flex items-center gap-1.5">
@@ -92,14 +92,14 @@
                   <path stroke-linecap="round" stroke-linejoin="round"
                         d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-8.94 3.94h.008v.008h-.008v-.008z" />
                 </svg>
-                Aucun serveur trouvé à cette adresse — il est peut-être éteint. Vérifiez-la avant de continuer.
+                Serveur introuvable.
               </p>
               } @else if (store.newCashierAddressCheck() === 'reachable') {
               <p class="text-xs text-emerald-600 mt-1.5 flex items-center gap-1.5">
                 <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                 </svg>
-                Serveur détecté à cette adresse.
+                Serveur détecté.
               </p>
               }
             </div>

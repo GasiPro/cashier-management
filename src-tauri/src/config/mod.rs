@@ -1,4 +1,5 @@
 pub mod account_config;
+pub mod app_info;
 pub mod connection_config;
 pub mod default;
 pub mod pricing_config;

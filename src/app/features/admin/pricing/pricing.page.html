@@ -40,8 +40,7 @@
       <div>
         <h2 id="pricing-heading" class="text-base font-semibold text-[#1A1A1A]">Grille tarifaire</h2>
         <p class="text-xs text-gray-400 mt-0.5">
-          Gérez les prix, les majorations et réductions (MOR) autorisées au comptoir, ainsi que la devise.
-          Les modifications de prix et de devise sont d'abord mises en attente : « Enregistrer » puis « Appliquer » les envoient aux postes concernés.
+          Prix, majorations, réductions et devise. Enregistrez, puis appliquez.
         </p>
       </div>
       @if (!loading() && !loadError()) {
@@ -148,7 +147,7 @@
             <div><dt class="text-gray-400">Commandes utilisées / max</dt><dd class="font-medium text-gray-700 tabular-nums">{{ d.orders }}</dd></div>
           </dl>
           } @else {
-          <p class="text-xs text-gray-400">Règle terminée ou remplacée : les détails de durée et de commandes ne sont plus disponibles.</p>
+          <p class="text-xs text-gray-400">Règle terminée : détails indisponibles.</p>
           }
           }
           <div class="flex flex-wrap items-center gap-x-6 gap-y-1 text-xs text-gray-400">
@@ -223,14 +222,14 @@
         @if (pendingCurrency(); as next) {
         <p class="text-xs text-gray-500 mt-2 flex flex-wrap items-center gap-2">
           <app-badge tone="warning">En attente</app-badge>
-          <span>Passage à <span class="font-semibold text-gray-700">{{ next.code }}</span> : à enregistrer puis appliquer depuis le bouton en bas à droite.</span>
+          <span>Passage à <span class="font-semibold text-gray-700">{{ next.code }}</span> : à enregistrer, puis appliquer.</span>
         </p>
         }
       </div>
       <div class="border-t border-gray-100 pt-5">
         <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Autre devise</h3>
         <p class="text-xs text-gray-400 mb-3">
-          Votre devise n'est pas dans la liste ? Saisissez son code (2 à 6 lettres) et, si vous le souhaitez, son nom.
+          Code de 2 à 6 lettres ; nom facultatif.
         </p>
         <div class="flex flex-wrap items-end gap-3">
           <div class="w-28">
@@ -410,7 +409,7 @@
           </div>
           <div class="space-y-3">
             <ng-container [ngTemplateOutlet]="editSwitch"
-              [ngTemplateOutletContext]="{ label: 'Prix modifiable au comptoir', hint: 'Désactivé par défaut. Activé : le comptoir peut appliquer la majoration et/ou la réduction définies ci-dessous. Désactivé : elles sont supprimées.', checked: editPriceEditable(), disabled: false }" />
+              [ngTemplateOutletContext]="{ label: 'Prix modifiable au comptoir', hint: 'Autorise majoration et réduction au comptoir. Désactivé : règles supprimées.', checked: editPriceEditable(), disabled: false }" />
           </div>
           @if (editPriceEditable()) {
           <div class="space-y-3">
@@ -461,7 +460,7 @@
               </p>
               }
               @if (item[kind]; as rule) {
-              <p class="text-[11px] text-gray-400 mt-1">En cours : {{ ruleInfo(rule) }}. Modifier la règle remet le compteur à zéro.</p>
+              <p class="text-[11px] text-gray-400 mt-1">En cours : {{ ruleInfo(rule) }}. Modifier remet le compteur à zéro.</p>
               }
               } @else {
               <button type="button" (click)="addDraft(kind)"

@@ -90,7 +90,7 @@
         </div>
         @if (atDeviceCapacity()) {
         <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5 mb-3">
-          Limite atteinte : les nouvelles demandes de connexion seront refusées automatiquement.
+          Limite atteinte : demandes refusées.
         </p>
         }
         @if (connectedDevices().length === 0) {
@@ -132,8 +132,7 @@
               [attr.aria-label]="'Confirmer le blocage de ' + displayName(dev)"
               (keydown.escape)="blockCancelled.emit()">
               <p class="text-xs text-red-800">
-                Bloquer « {{ displayName(dev) }} » ({{ addrOf(dev) }}) ? L'appareil sera déconnecté et son
-                adresse IP ajoutée à la liste noire.
+                Bloquer « {{ displayName(dev) }} » ({{ addrOf(dev) }}) ? Déconnexion et liste noire.
               </p>
               <div class="flex items-center gap-2 mt-3">
                 <button (click)="blocked.emit(dev.id)" [disabled]="busyDeviceId() !== null"

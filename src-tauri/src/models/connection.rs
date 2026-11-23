@@ -216,6 +216,8 @@ pub enum ServerMessage {
     ConnectionRejected,
     #[serde(rename = "connection_blocked")]
     ConnectionBlocked,
+    #[serde(rename = "connection_disconnected")]
+    ConnectionDisconnected,
     #[serde(rename = "account_data")]
     Account { data: Account },
     #[serde(rename = "account_updated")]

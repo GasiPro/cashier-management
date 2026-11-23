@@ -4,9 +4,9 @@ use crate::models::order::Order;
 use tauri::AppHandle;
 pub struct OrderApi;
 impl OrderApi {
-    const ORDERS_FILE_NAME: &'static str = "gasipro_orders.bin";
-    const ID_FILE_NAME: &'static str = "gasipro_nextId.bin";
-    const GID_FILE_NAME: &'static str = "gasipro_nextGroupId.bin";
+    const ORDERS_FILE_NAME: &'static str = concat!(crate::app_slug!(), "_orders.bin");
+    const ID_FILE_NAME: &'static str = concat!(crate::app_slug!(), "_nextId.bin");
+    const GID_FILE_NAME: &'static str = concat!(crate::app_slug!(), "_nextGroupId.bin");
     pub fn load_orders(app: &AppHandle) -> Vec<Order> {
         config_file_path(app, Self::ORDERS_FILE_NAME)
             .ok()

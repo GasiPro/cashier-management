@@ -11,7 +11,7 @@
             Profil
           </h2>
           <p class="text-xs text-gray-400 mt-0.5">
-            Modifiez le nom affiché et le mot de passe de votre compte. Le nom d'utilisateur ne peut pas être modifié.
+            Nom affiché et mot de passe.
           </p>
         </div>
         @if (viewRole === 'counter' && !connected()) {
@@ -41,7 +41,7 @@
                 class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-[#1A1A1A]
                        focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
               <p id="profile-display-name-help" class="text-xs text-gray-400 mt-1.5">
-                Facultatif — affiché à la place du nom d'utilisateur.
+                Facultatif.
               </p>
             </div>
             <div>
@@ -54,8 +54,7 @@
                 autocomplete="new-password" describedBy="profile-password-help"
                 [minLength]="minPasswordLen" placeholder="Laisser vide pour ne pas changer" />
               <p id="profile-password-help" class="text-xs text-gray-400 mt-1.5">
-                Laissez vide pour conserver le mot de passe actuel. Sinon, au moins {{ minPasswordLen }}
-                caractères, avec une lettre et un chiffre.
+                Vide : inchangé. Sinon {{ minPasswordLen }} caractères minimum, lettre et chiffre.
               </p>
             </div>
             @if (editPassword().length > 0) {

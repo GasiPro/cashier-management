@@ -5,7 +5,7 @@
         Comptes et Sécurité
       </h1>
       <p class="text-xs text-gray-400 mt-0.5">
-        Gérez les comptes de l'application et protégez l'accès au réseau local.
+        Comptes, accès et appareils.
       </p>
     </header>
     <section aria-labelledby="accounts-group-heading" class="space-y-6">
@@ -19,8 +19,7 @@
             Liste des comptes
           </h3>
           <p class="text-xs text-gray-400 mt-0.5">
-            Gérez les comptes de l'application : suspendez, modifiez (y compris son mot de passe) ou supprimez un compte, ou dépliez une ligne
-            pour voir son historique complet.
+            Suspendre, modifier ou supprimer un compte.
           </p>
         </div>
         <div class="relative mb-3">
@@ -166,8 +165,7 @@
               class="px-3 pb-3">
               <div class="bg-red-50 border border-red-200 rounded-lg p-3">
                 <p class="text-xs text-red-800">
-                  Supprimer définitivement le compte « {{ account.username }} » ? Cette action est
-                  <strong>irréversible</strong> — préférez « Suspendre » pour un blocage temporaire.
+                  Supprimer « {{ account.username }} » ? <strong>Irréversible.</strong>
                 </p>
                 @if (deleteAccountError()) {
                 <p role="alert" aria-live="assertive" class="text-xs text-red-700 font-medium mt-2">
@@ -392,8 +390,7 @@
             Liste noire
           </h3>
           <p class="text-xs text-gray-400 mt-0.5">
-            Bloquez une adresse IP, un compte (identifiant ou nom d'utilisateur) ou un appareil (identifiant) pour
-            l'empêcher de se connecter. Retirez une entrée à tout moment pour autoriser à nouveau la connexion.
+            Bloquer une adresse IP, un compte ou un appareil.
           </p>
         </div>
         <div class="mt-4 mb-6">
@@ -437,7 +434,7 @@
                 [attr.aria-label]="'Confirmer le retrait de ' + entry.value"
                 (keydown.escape)="cancelRemoveBlacklistEntry()">
                 <p class="text-xs text-red-800">
-                  Retirer « {{ entry.value }} » de la liste noire ? La connexion sera de nouveau autorisée.
+                  Retirer « {{ entry.value }} » ?
                 </p>
                 @if (removeBlacklistError()) {
                 <p role="alert" aria-live="assertive" class="text-xs text-red-700 font-medium mt-2">
@@ -547,7 +544,7 @@
             Appareils connectés
           </h3>
           <p class="text-xs text-gray-400 mt-0.5">
-            Limite le nombre de comptoirs pouvant être connectés à la caisse en même temps.
+            Nombre maximal de comptoirs connectés.
           </p>
         </div>
         @if (loadingDevicesSetting()) {
@@ -568,8 +565,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
           </svg>
           <p class="text-xs text-amber-800">
-            La limite est atteinte : les nouvelles demandes de connexion seront automatiquement refusées
-            tant qu'un appareil ne se déconnecte pas ou que la limite n'est pas augmentée.
+            Limite atteinte : nouvelles demandes refusées.
           </p>
         </div>
         }
@@ -611,8 +607,7 @@
             </span>
           </div>
           <p id="max-connected-devices-help" class="text-xs text-gray-400 mt-2">
-            0 = illimité. Un appareil déjà connecté n'est pas déconnecté si vous baissez la limite —
-            elle s'applique seulement aux nouvelles connexions.
+            0 : illimité. S'applique aux nouvelles connexions.
           </p>
         </div>
         <div class="flex items-center gap-2 mt-5">

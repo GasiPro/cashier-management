@@ -3,7 +3,8 @@ import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { SessionStore } from '../../core/auth/session.store';
 import { WsClient } from '../../core/realtime/ws-client';
-import { WsMessage } from '../../core/realtime/ws-protocol';
+import { OrderChange, WsMessage } from '../../core/realtime/ws-protocol';
+import { NotifyLevel, playAlertSound } from '../../core/notification/notification';
 import {
   getStoredCashierWsUrl,
   getStoredUsername,
@@ -104,7 +105,7 @@ export class CounterStore {
   });
   wsConnected = signal(false);
   waitingApproval = signal(false);
-  lockReason = signal<'blocked' | null>(null);
+  lockReason = signal<'blocked' | 'disconnected' | null>(null);
   credentialsError = signal('');
   // ── Menu / panels ────────────────────────────────────────────────────────────
   showServerPanel = false;
@@ -247,21 +248,29 @@ export class CounterStore {
         this.waitingApproval.set(false);
         this.ws.send({ type: 'request_orders' });
         this.ws.send({ type: 'request_pricing' });
+        this.showToast('Connexion approuvée par la caisse.');
       } else if (msg.type === 'connection_rejected') {
         this.wsConnected.set(false);
         this.waitingApproval.set(false);
         this.ws.disconnect();
         this.session.clearCounterCredentials();
-        this.showToast("Connexion refusée : identifiant ou mot de passe incorrect, ou accès refusé par la caisse.");
+        this.showToast("Connexion refusée : identifiant ou mot de passe incorrect, ou accès refusé par la caisse.", 'alert');
       } else if (msg.type === 'connection_blocked') {
         this.wsConnected.set(false);
         this.waitingApproval.set(false);
         this.lockReason.set('blocked');
         this.ws.disconnect();
+        this.showToast('Accès bloqué par la caisse.', 'alert');
+      } else if (msg.type === 'connection_disconnected') {
+        this.wsConnected.set(false);
+        this.waitingApproval.set(false);
+        this.lockReason.set('disconnected');
+        this.ws.disconnect();
+        this.showToast('Déconnecté par la caisse.', 'alert');
+      } else if (msg.type === 'order_notification') {
+        this.notifyOrderResult(msg.data);
       } else if (msg.type === 'orders') {
-        const newGroups = buildGroups(msg.data as OrderLine[]);
-        this.notifyStatusChanges(newGroups);
-        this.orderGroups.set(newGroups);
+        this.orderGroups.set(buildGroups(msg.data as OrderLine[]));
       } else if (msg.type === 'time') {
         this.currentTime.set(msg.data as string);
       } else if (msg.type === 'account_data') {
@@ -716,28 +725,24 @@ export class CounterStore {
     }
     return `Envoyé à ${g.time}`;
   }
-  private notifyStatusChanges(newGroups: OrderGroup[]): void {
-    const previousStatuses = new Map(this.orderGroups().map((g) => [g.groupId, g.status]));
-    for (const g of newGroups) {
-      const prevStatus = previousStatuses.get(g.groupId);
-      if (prevStatus !== 'EN_ATTENTE') continue;
-      if (g.status === 'PAYE') {
-        this.showToast(`Commande ${this.groupLabel(g.groupId)} acceptée par la caisse !`);
-      } else if (g.status === 'REJETEE') {
-        const reason = this.groupRejectReason(g);
-        this.showToast(
-          reason
-            ? `Commande ${this.groupLabel(g.groupId)} refusée : ${reason}`
-            : `Commande ${this.groupLabel(g.groupId)} refusée.`,
-        );
-      }
+  private notifyOrderResult(change: OrderChange): void {
+    const label = this.groupLabel(change.group_id);
+    if (change.kind === 'paid') {
+      this.showToast(`Commande ${label} payée.`);
+    } else if (change.kind === 'rejected') {
+      const reason = change.reason?.trim();
+      this.showToast(
+        reason ? `Commande ${label} refusée : ${reason}` : `Commande ${label} refusée.`,
+        'sound',
+      );
     }
   }
-  private showToast(msg: string): void {
+  private showToast(msg: string, level: NotifyLevel = 'quiet'): void {
     const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     this.notifications.update((list) =>
-      [...list, { id: ++this.notificationIdCounter, message: msg, time }].slice(-30),
+      [...list, { id: ++this.notificationIdCounter, message: msg, time, alert: level !== 'quiet' }].slice(-30),
     );
+    if (level === 'sound') playAlertSound();
   }
   private updateClock(): void {
     this.currentTime.set(

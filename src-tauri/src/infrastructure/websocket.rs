@@ -736,12 +736,21 @@ async fn finish_order_change(
 ) {
     match result {
         Ok(group_id) => {
-            broadcast_orders_to_approved(&ctx.peers, &ctx.order_service.get_orders()).await;
+            let orders = ctx.order_service.get_orders();
+            broadcast_orders_to_approved(&ctx.peers, &orders).await;
             if !caller.is_staff {
+                let kind = if kind == OrderChangeKind::Deleted
+                    && orders.iter().any(|o| o.group_id == group_id)
+                {
+                    OrderChangeKind::Updated
+                } else {
+                    kind
+                };
                 let change = OrderChange {
                     kind,
                     group_id,
                     counter_username: caller.username.clone(),
+                    reason: None,
                 };
                 notify_cashier(
                     &ctx.peers,
@@ -868,6 +877,18 @@ pub(crate) async fn notify_cashier(peers: &PeerMap, msg: &ServerMessage) {
     };
     let guard = peers.lock().await;
     for peer in guard.values().filter(|p| p.is_cashier) {
+        peer.send_text(json.clone());
+    }
+}
+pub(crate) async fn notify_counter(peers: &PeerMap, username: &str, msg: &ServerMessage) {
+    let Ok(json) = serde_json::to_string(msg) else {
+        return;
+    };
+    let guard = peers.lock().await;
+    for peer in guard
+        .values()
+        .filter(|p| p.approved && !p.is_staff() && p.username == username)
+    {
         peer.send_text(json.clone());
     }
 }

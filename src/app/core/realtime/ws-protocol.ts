@@ -4,11 +4,12 @@ import type { ConnectedDevice, PendingConnection } from '../../data/device/devic
 export interface AccountSummary {
   display_name: string;
 }
-export type OrderChangeKind = 'created' | 'updated' | 'deleted';
+export type OrderChangeKind = 'created' | 'updated' | 'deleted' | 'paid' | 'rejected';
 export interface OrderChange {
   kind: OrderChangeKind;
   group_id: number;
   counter_username: string;
+  reason?: string | null;
 }
 export type WsMessage =
   | { type: 'orders'; data: OrderLine[] }
@@ -21,6 +22,7 @@ export type WsMessage =
   | { type: 'connection_approved'; data?: unknown }
   | { type: 'connection_rejected'; data?: unknown }
   | { type: 'connection_blocked'; data?: unknown }
+  | { type: 'connection_disconnected'; data?: unknown }
   | { type: 'account_data'; data: AccountSummary }
   | { type: 'account_updated'; data: AccountSummary }
   | { type: 'account_update_error'; data: string }
