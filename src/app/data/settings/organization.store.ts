@@ -4,11 +4,13 @@ import { DEFAULT_ORGANIZATION_NAME, Organization } from './settings.model';
 @Injectable({ providedIn: 'root' })
 export class OrganizationStore {
   readonly name = signal(DEFAULT_ORGANIZATION_NAME);
+  readonly email = signal('');
+  readonly phone = signal('');
   readonly initial = computed(() => this.name().charAt(0).toUpperCase());
   async load(): Promise<Organization | null> {
     try {
       const organization = await getOrganization();
-      if (organization) this.name.set(organization.name);
+      if (organization) this.apply(organization);
       return organization;
     } catch (e) {
       console.error('failed to read organization', e);
@@ -16,7 +18,11 @@ export class OrganizationStore {
     }
   }
   async save(value: Organization): Promise<void> {
-    const saved = await setOrganization(value);
-    this.name.set(saved.name);
+    this.apply(await setOrganization(value));
+  }
+  private apply(organization: Organization): void {
+    this.name.set(organization.name);
+    this.email.set(organization.email);
+    this.phone.set(organization.phone);
   }
 }

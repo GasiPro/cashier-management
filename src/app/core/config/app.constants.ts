@@ -12,3 +12,4 @@ export const MIN_PASSWORD_LEN = 8;
 export const MAX_DISPLAY_NAME_LEN = 40;
 export const PASSWORD_HAS_LETTER = /\p{Alphabetic}/u;
 export const PASSWORD_HAS_DIGIT = /\d/;
+export const CONTACT_EMAIL = 'fanambynana@duck.com';

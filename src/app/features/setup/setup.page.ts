@@ -1,7 +1,12 @@
 import { Component, OnDestroy, OnInit, WritableSignal, computed, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { ModeStore } from '../../core/auth/mode.store';
-import { MAX_DISPLAY_NAME_LEN, MAX_USERNAME_LEN, MIN_PASSWORD_LEN } from '../../core/config/app.constants';
+import {
+  CONTACT_EMAIL,
+  MAX_DISPLAY_NAME_LEN,
+  MAX_USERNAME_LEN,
+  MIN_PASSWORD_LEN,
+} from '../../core/config/app.constants';
 import { errorMessage } from '../../core/error/error-messages';
 import { ipcEndSetup } from '../../core/ipc/tauri-ipc';
 import { createInitialAdmin } from '../../data/account/account.api';
@@ -27,7 +32,6 @@ interface ModeChoice {
   description: string;
 }
 const LAUNCH_MIN_DELAY_MS = 6000;
-const CONTACT_EMAIL = 'fanambynana@duck.com';
 const CONTACT_CLOSE_DELAY_MS = 10_000;
 const KEY_SEGMENT_COUNT = 4;
 const KEY_SEGMENT_LEN = 4;
@@ -318,7 +322,6 @@ export class SetupPage implements OnInit, OnDestroy {
     }
     this.phoneNumber.set(number.join(''));
   }
-  /** National prefix guessed from the machine time zone, then its language region; falls back to the default. */
   private detectPrefix(): string {
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const code = new Intl.Locale(navigator.language).region;
