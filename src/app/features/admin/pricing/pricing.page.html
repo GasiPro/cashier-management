@@ -246,7 +246,7 @@
             <input id="currency-name" type="text" name="customName" [attr.maxlength]="maxCurrencyNameLen"
               [ngModel]="customName()" (ngModelChange)="customName.set($event)"
               (keydown.enter)="addCustomCurrency()"
-              placeholder="ex : Franc local"
+              placeholder="ex : Monnaie locale"
               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A]
                      focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
           </div>

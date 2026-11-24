@@ -566,7 +566,7 @@ export class PricingPage implements OnInit, OnDestroy {
     const code = this.customCode().trim();
     const name = this.customName().trim();
     if (!CURRENCY_CODE_PATTERN.test(code)) {
-      this.currencyError.set('Code invalide : 2 à 6 lettres attendues (ex. : USD, EUR, MGA).');
+      this.currencyError.set('Code invalide : 2 à 6 lettres attendues (ex. : USD, EUR, CNY).');
       return;
     }
     if (name.length > MAX_CURRENCY_NAME_LEN) {

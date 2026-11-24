@@ -213,7 +213,7 @@ pub fn validate_currency_code(code: &str) -> Result<String, String> {
         || !code.chars().all(|c| c.is_ascii_alphabetic())
     {
         return Err(format!(
-            "Code de devise invalide : {MIN_CURRENCY_CODE_LEN} à {MAX_CURRENCY_CODE_LEN} lettres attendues (ex. : USD, EUR, MGA)."
+            "Code de devise invalide : {MIN_CURRENCY_CODE_LEN} à {MAX_CURRENCY_CODE_LEN} lettres attendues (ex. : USD, EUR, CNY)."
         ));
     }
     Ok(code)

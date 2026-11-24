@@ -14,7 +14,6 @@ import { OrganizationStore } from '../../data/settings/organization.store';
 import { activate, getActivated } from '../../data/settings/settings.api';
 import {
   AppMode,
-  DEFAULT_PHONE_PREFIX,
   Organization,
   PHONE_REGIONS,
 } from '../../data/settings/settings.model';
@@ -86,7 +85,7 @@ export class SetupPage implements OnInit, OnDestroy {
   readonly copied = signal(false);
   readonly orgName = signal('');
   readonly orgEmail = signal('');
-  readonly prefixChoice = signal(DEFAULT_PHONE_PREFIX);
+  readonly prefixChoice = signal(OTHER_PREFIX);
   readonly customPrefix = signal('+');
   readonly phoneNumber = signal('');
   readonly adminDisplayName = signal('');
@@ -327,7 +326,7 @@ export class SetupPage implements OnInit, OnDestroy {
     const code = new Intl.Locale(navigator.language).region;
     const region =
       PHONE_REGIONS.find((r) => r.zones.includes(zone)) ?? PHONE_REGIONS.find((r) => !!code && r.codes.includes(code));
-    return region?.prefix ?? DEFAULT_PHONE_PREFIX;
+    return region?.prefix ?? OTHER_PREFIX;
   }
   private focusSegment(index: number): void {
     document.getElementById(`key-seg-${index}`)?.focus();
