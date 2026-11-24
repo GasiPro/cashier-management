@@ -1,31 +1,41 @@
-import { Component, EventEmitter, Output, signal } from '@angular/core';
+import { Component, EventEmitter, Output, input, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter } from 'rxjs';
-export type ToolSlot = 'A' | 'B';
+import { DenominationStore } from '../../../data/pricing/denomination.store';
+import { Billetage, BilletageResult } from './billetage/billetage';
+export type ToolSlot = 'A' | 'B' | 'C';
 const SETTINGS_ROUTE = '/reglages';
 const SLOT_POSITION_CLASS: Record<ToolSlot, string> = {
   A: 'fixed bottom-17 left-20',
   B: 'fixed bottom-17 left-105',
+  C: 'fixed bottom-17 left-190',
 };
 @Component({
   selector: 'app-left-sidebar',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, Billetage],
   templateUrl: './sidebar.html',
 })
 export class LeftSidebar {
   @Output() calculatriceClick = new EventEmitter<void>();
   @Output() memoClick = new EventEmitter<void>();
+  @Output() billetageValidated = new EventEmitter<BilletageResult>();
+  /** Caisse théorique du jour : le billetage n'est proposé que lorsqu'elle est fournie (caisse). */
+  theoreticalCash = input<number | null>(null);
   private currentUrl = signal('');
   calculatriceSlot = signal<ToolSlot | null>(null);
   display = signal('0');
   memoSlot = signal<ToolSlot | null>(null);
   memoText = signal('');
+  billetageSlot = signal<ToolSlot | null>(null);
   private storedValue: number | null = null;
   private pendingOperator: string | null = null;
   private waitingForOperand = false;
-  constructor(private router: Router) {
+  constructor(
+    private router: Router,
+    private denominations: DenominationStore,
+  ) {
     this.currentUrl.set(this.router.url);
     this.router.events
       .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
@@ -69,6 +79,22 @@ export class LeftSidebar {
     const position = SLOT_POSITION_CLASS[this.memoSlot() ?? 'A'];
     return `${position} z-10 w-80 h-96 rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden flex flex-col`;
   }
+  openBilletage(): void {
+    if (this.billetageSlot() !== null) {
+      this.billetageSlot.set(null);
+    } else {
+      this.billetageSlot.set(this.assignSlot());
+      void this.denominations.load();
+    }
+  }
+  closeBilletage(): void {
+    this.billetageSlot.set(null);
+  }
+  billetagePanelClass(): string {
+    const slot = this.billetageSlot();
+    const position = SLOT_POSITION_CLASS[slot ?? 'A'];
+    return `${position} z-10 w-80 h-[36rem] max-h-[calc(100vh-8rem)] rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden flex-col ${slot === null ? 'hidden' : 'flex'}`;
+  }
   memoTextChanged(event: Event): void {
     const target = event.target as HTMLTextAreaElement;
     this.memoText.set(target.value);
@@ -77,10 +103,13 @@ export class LeftSidebar {
     const occupied = new Set<ToolSlot>();
     const calcSlot = this.calculatriceSlot();
     const memoSlot = this.memoSlot();
+    const billetageSlot = this.billetageSlot();
     if (calcSlot) occupied.add(calcSlot);
     if (memoSlot) occupied.add(memoSlot);
+    if (billetageSlot) occupied.add(billetageSlot);
     if (!occupied.has('A')) return 'A';
     if (!occupied.has('B')) return 'B';
+    if (!occupied.has('C')) return 'C';
     return null;
   }
   goToSettings(): void {

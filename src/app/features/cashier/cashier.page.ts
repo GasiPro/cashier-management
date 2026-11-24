@@ -22,6 +22,7 @@ import { markGroupPaid, rejectGroup } from '../../data/order/order.api';
 import { OrderStore } from '../../data/order/order.store';
 import { formatGroupId } from '../../data/order/order.utils';
 import { BottomBar } from '../../layouts/main-layout/bottom-bar/bottom-bar';
+import { BilletageResult } from '../../layouts/main-layout/sidebar/billetage/billetage';
 import { LeftSidebar } from '../../layouts/main-layout/sidebar/sidebar';
 import { Navbar } from '../../layouts/main-layout/navbar/navbar';
 import { CashierStore, PAYMENT_METHOD_LABELS } from './cashier.store';
@@ -274,6 +275,10 @@ export class CashierPage implements OnInit, OnDestroy {
     if (!group) return;
     await this.rejectGroup(group.groupId, this.store.rejectReason());
     this.store.closeRejectDialog();
+  }
+  onBilletageValidated(result: BilletageResult): void {
+    const gap = result.gap === 0 ? 'caisse juste' : `écart ${result.gap > 0 ? '+' : ''}${result.gap.toLocaleString('fr-FR')}`;
+    this.store.notify(`Billetage validé (${gap}).`);
   }
   copyWsAddress(): void {
     navigator.clipboard.writeText(this.wsAddress()).catch(() => {});
