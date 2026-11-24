@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { OrderLine } from '../../../../data/order/order.model';
 import { ReportExportInput, exportReportXlsx } from '../../../../data/report/report-export';
 import { CurrencyStore } from '../../../../data/pricing/currency.store';
+import { BilletageStore } from '../../../../data/report/billetage.store';
 import { submitReport } from '../../../../data/report/report.api';
 import {
   Period,
@@ -28,6 +29,7 @@ import { MoneyPipe } from '../../../../shared/pipes/money.pipe';
 })
 export class ReportPanel {
   private readonly currencyStore = inject(CurrencyStore);
+  readonly verified = inject(BilletageStore).verified;
   paidOrders = input.required<OrderLine[]>();
   pendingCount = input<number>(0);
   @Output() closed = new EventEmitter<void>();
@@ -147,6 +149,7 @@ export class ReportPanel {
     this.showRapportDatePicker.set(false);
   }
   async exportRapportXlsx(): Promise<void> {
+    if (!this.verified()) return;
     this.exportingRapport.set(true);
     try {
       const period = this.rapportPeriod();

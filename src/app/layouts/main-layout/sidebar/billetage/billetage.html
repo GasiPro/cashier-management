@@ -85,7 +85,7 @@
              active:scale-95 transition-all disabled:opacity-40 disabled:active:scale-100">OK</button>
   </div>
   } @else {
-  <div class="flex gap-2">
+  <div class="flex gap-2" [class.invisible]="done()" [attr.aria-hidden]="done()">
     <button type="button" (click)="reset()" [disabled]="lines().length === 0"
       class="flex-1 h-10 rounded-lg border border-gray-200 bg-white text-sm font-semibold text-gray-600
              hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:hover:bg-white">Réinitialiser</button>
