@@ -2,7 +2,8 @@ use crate::config::pricing_config::{MAX_CUSTOM_CURRENCIES, PRESET_CURRENCIES};
 use crate::config::pricing_matrix;
 use crate::domain::pricing::{
     consume_use, find_item_mut, generate_id, push_capped, remove_expired_rules, rule_of,
-    rule_slot, validate_currency_code, validate_currency_name, validate_mor,
+    rule_slot, validate_currency_code, validate_currency_name, validate_denominations,
+    validate_mor,
 };
 use crate::models::pricing::{
     Currency, CurrencyInfo, MorInput, PriceAdjustmentKind, PriceHistoryEntry, PriceLogAction,
@@ -322,4 +323,19 @@ pub fn set_currency(
         record_currency_log(app, &admin, previous, code.clone());
     }
     Ok(currency_info(code, custom))
+}
+pub fn get_denominations(app: &AppHandle) -> Vec<u32> {
+    pricing_repository::load_denominations(app)
+}
+pub fn set_denominations(
+    app: &AppHandle,
+    accounts: &Accounts,
+    values: Vec<u32>,
+    username: &str,
+) -> Result<Vec<u32>, String> {
+    resolve_admin(accounts, username)?;
+    let values = validate_denominations(values)?;
+    pricing_repository::save_denominations(app, values.clone())
+        .map_err(|err| format!("Échec de l'enregistrement de la monnaie : {err}"))?;
+    Ok(values)
 }

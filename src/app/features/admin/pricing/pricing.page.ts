@@ -17,7 +17,7 @@ import type {
 } from '../../../data/pricing/pricing.model';
 import { Badge, BadgeTone } from '../../../shared/ui/badge/badge';
 import { PendingFab } from '../../../shared/ui/pending-fab/pending-fab';
-type PricingTab = 'price' | 'currency' | 'journal';
+type PricingTab = 'price' | 'currency' | 'money' | 'journal';
 interface JournalEntry {
   key: string;
   at: string;
@@ -42,6 +42,9 @@ type MorDrafts = Record<PriceAdjustmentKind, MorDraft | null>;
 interface CurrencyPatch {
   code: string;
   name: string | null;
+}
+interface DenominationPatch {
+  values: number[];
 }
 interface PricePatch {
   price: number;
@@ -81,6 +84,8 @@ const TYPE_FILTERS: { value: TypeFilter; label: string }[] = [
   { value: 'product', label: 'Produits' },
 ];
 const CURRENCY_KEY = 'currency';
+const DENOMINATIONS_KEY = 'denominations';
+const MAX_DENOMINATION = 1_000_000_000;
 const CURRENCY_CODE_PATTERN = /^[A-Za-z]{2,6}$/;
 const MAX_CURRENCY_NAME_LEN = 40;
 const COPIED_FEEDBACK_MS = 1500;
@@ -103,6 +108,7 @@ export class PricingPage implements OnInit, OnDestroy {
   history = signal<PriceHistoryEntry[]>([]);
   log = signal<PriceLogEntry[]>([]);
   currencyInfo = signal<CurrencyInfo | null>(null);
+  denominations = signal<number[]>([]);
   loading = signal(true);
   loadError = signal('');
   tab = signal<PricingTab>('price');
@@ -114,6 +120,7 @@ export class PricingPage implements OnInit, OnDestroy {
   readonly tabs = computed<{ value: PricingTab; label: string; count: string }[]>(() => [
     { value: 'price', label: 'Prix', count: String(this.items().length) },
     { value: 'currency', label: 'Devise', count: this.currency() },
+    { value: 'money', label: 'Monnaie', count: String(this.shownDenominations().length) },
     { value: 'journal', label: 'Journal', count: String(this.journal().length) },
   ]);
   readonly journal = computed<JournalEntry[]>(() => {
@@ -152,17 +159,19 @@ export class PricingPage implements OnInit, OnDestroy {
     this.loading.set(true);
     this.loadError.set('');
     try {
-      const [items, history, log, currency] = await Promise.all([
+      const [items, history, log, currency, denominations] = await Promise.all([
         pricingApi.getPricingMatrix(),
         pricingApi.getPriceHistory(),
         pricingApi.getPriceLog(),
         pricingApi.getCurrency(),
+        pricingApi.getDenominations(),
       ]);
       this.items.set(items);
       this.history.set(history);
       this.log.set(log);
       this.currencyInfo.set(currency);
       this.currencyChoice.set(currency.selected);
+      this.denominations.set(denominations);
     } catch (e) {
       console.error('failed to load pricing', e);
       this.loadError.set(errorMessage(e, 'Impossible de charger la grille tarifaire.'));
@@ -193,6 +202,13 @@ export class PricingPage implements OnInit, OnDestroy {
       console.error('failed to refresh currency', e);
     }
   }
+  private async refreshDenominations(): Promise<void> {
+    try {
+      this.denominations.set(await pricingApi.getDenominations());
+    } catch (e) {
+      console.error('failed to refresh denominations', e);
+    }
+  }
   private setStatus(message: string, isError: boolean): void {
     this.statusMessage.set(message);
     this.statusIsError.set(isError);
@@ -201,6 +217,7 @@ export class PricingPage implements OnInit, OnDestroy {
     this.tab.set(tab);
     this.editingId.set(null);
     this.expandedKey.set(null);
+    this.denominationError.set('');
     this.setStatus('', false);
     if (tab === 'journal') void this.refreshJournal();
   }
@@ -440,6 +457,7 @@ export class PricingPage implements OnInit, OnDestroy {
     this.editingId.set(null);
     void this.refreshJournal();
     void this.refreshCurrency();
+    void this.refreshDenominations();
     this.setStatus('Modifications appliquées.', false);
   }
   cancelEdit(): void {
@@ -576,6 +594,55 @@ export class PricingPage implements OnInit, OnDestroy {
       cashier: [line],
       apply: async () => {
         await pricingApi.setCurrency(code, name);
+      },
+    });
+  }
+  denominationInput = signal<number | null>(null);
+  denominationError = signal('');
+  readonly shownDenominations = computed<number[]>(
+    () => this.pending.get<DenominationPatch>(DENOMINATIONS_KEY)?.payload.values ?? this.denominations(),
+  );
+  readonly pendingDenominations = computed(() => this.pending.get<DenominationPatch>(DENOMINATIONS_KEY) !== undefined);
+  addDenomination(): void {
+    const value = this.denominationInput();
+    if (value === null || !Number.isInteger(value) || value < 1 || value > MAX_DENOMINATION) {
+      this.denominationError.set(`Valeur : entier entre 1 et ${this.money(MAX_DENOMINATION)}.`);
+      return;
+    }
+    if (this.shownDenominations().includes(value)) {
+      this.denominationError.set('Cette valeur existe déjà.');
+      return;
+    }
+    this.denominationInput.set(null);
+    this.stageDenominations([...this.shownDenominations(), value]);
+  }
+  removeDenomination(value: number): void {
+    this.stageDenominations(this.shownDenominations().filter((v) => v !== value));
+  }
+  private stageDenominations(next: number[]): void {
+    this.denominationError.set('');
+    this.setStatus('', false);
+    const values = [...next].sort((a, b) => b - a);
+    const saved = this.denominations();
+    const added = values.filter((v) => !saved.includes(v));
+    const removed = saved.filter((v) => !values.includes(v));
+    if (added.length === 0 && removed.length === 0) {
+      this.pending.unstage(DENOMINATIONS_KEY);
+      return;
+    }
+    const code = this.currency();
+    const lines = [
+      ...added.map((v) => `Monnaie : ajout de ${this.money(v)} ${code}`),
+      ...removed.map((v) => `Monnaie : retrait de ${this.money(v)} ${code}`),
+    ];
+    const patch: DenominationPatch = { values };
+    this.pending.stage({
+      key: DENOMINATIONS_KEY,
+      payload: patch,
+      counter: lines,
+      cashier: lines,
+      apply: async () => {
+        await pricingApi.setDenominations(values);
       },
     });
   }

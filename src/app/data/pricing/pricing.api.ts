@@ -59,3 +59,13 @@ export function setCurrency(code: string, name: string | null): Promise<Currency
     username: getStoredUsername() ?? '',
   });
 }
+export function getDenominations(): Promise<number[]> {
+  return ipcInvoke<number[]>('pricing', { method: 'denomination_get' });
+}
+export function setDenominations(values: number[]): Promise<number[]> {
+  return ipcInvoke<number[]>('pricing', {
+    method: 'denomination_set',
+    values,
+    username: getStoredUsername() ?? '',
+  });
+}

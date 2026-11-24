@@ -2,8 +2,9 @@ use argon2::password_hash::rand_core::{OsRng, RngCore};
 use chrono::DateTime;
 use std::cmp::Ordering;
 use crate::config::pricing_config::{
-    MAX_CURRENCY_CODE_LEN, MAX_CURRENCY_NAME_LEN, MAX_MOR_DAYS, MAX_MOR_ORDERS,
-    MAX_PRICE_HISTORY_ENTRIES, MAX_RATE_PERCENT, MIN_CURRENCY_CODE_LEN, MIN_RATE_PERCENT,
+    MAX_CURRENCY_CODE_LEN, MAX_CURRENCY_NAME_LEN, MAX_DENOMINATIONS, MAX_DENOMINATION_VALUE,
+    MAX_MOR_DAYS, MAX_MOR_ORDERS, MAX_PRICE_HISTORY_ENTRIES, MAX_RATE_PERCENT,
+    MIN_CURRENCY_CODE_LEN, MIN_RATE_PERCENT,
 };
 use crate::models::pricing::{
     PriceAdjustment, PriceAdjustmentKind, PriceHistoryEntry, PricePeak, PriceRule, ServiceItem,
@@ -226,4 +227,17 @@ pub fn validate_currency_name(name: Option<String>, code: &str) -> Result<String
         return Err("Le nom de la devise est trop long.".to_string());
     }
     Ok(name)
+}
+pub fn validate_denominations(mut values: Vec<u32>) -> Result<Vec<u32>, String> {
+    if values.iter().any(|v| *v == 0 || *v > MAX_DENOMINATION_VALUE) {
+        return Err(format!(
+            "Chaque valeur doit être comprise entre 1 et {MAX_DENOMINATION_VALUE}."
+        ));
+    }
+    values.sort_unstable_by(|a, b| b.cmp(a));
+    values.dedup();
+    if values.len() > MAX_DENOMINATIONS {
+        return Err(format!("Trop de valeurs : {MAX_DENOMINATIONS} au maximum."));
+    }
+    Ok(values)
 }

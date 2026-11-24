@@ -37,6 +37,11 @@ pub enum PricingCommand {
         name: Option<String>,
         username: String,
     },
+    DenominationGet,
+    DenominationSet {
+        values: Vec<u32>,
+        username: String,
+    },
 }
 #[tauri::command]
 pub async fn pricing(
@@ -127,6 +132,14 @@ pub async fn pricing(
             )
             .await;
             Ok(serde_json::json!(info))
+        }
+        PricingCommand::DenominationGet => {
+            Ok(serde_json::json!(pricing_service::get_denominations(&app)))
+        }
+        PricingCommand::DenominationSet { values, username } => {
+            let values =
+                pricing_service::set_denominations(&app, &state.accounts, values, &username)?;
+            Ok(serde_json::json!(values))
         }
     }
 }

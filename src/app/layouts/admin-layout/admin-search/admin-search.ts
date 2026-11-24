@@ -28,7 +28,7 @@ const SEARCH_PAGES: SearchPage[] = [
     ],
   },
   {
-    label: 'Comptes et Sécurité',
+    label: 'Comptes & Sécurité',
     route: 'comptes',
     items: [
       'Comptes',
@@ -64,7 +64,7 @@ const SEARCH_PAGES: SearchPage[] = [
     ],
   },
   {
-    label: 'Grille tarifaire',
+    label: 'Prix & Monnaie',
     route: 'grille-tarifaire',
     items: [
       'Tarifs existants',

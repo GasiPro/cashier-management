@@ -12,6 +12,7 @@ struct PricingFile {
     items: Vec<ServiceItem>,
     currency: String,
     custom_currencies: Vec<Currency>,
+    denominations: Vec<u32>,
     history: Vec<PriceHistoryEntry>,
     log: Vec<PriceLogEntry>,
 }
@@ -21,6 +22,7 @@ impl Default for PricingFile {
             items: Vec::new(),
             currency: DEFAULT_CURRENCY.to_string(),
             custom_currencies: Vec::new(),
+            denominations: Vec::new(),
             history: Vec::new(),
             log: Vec::new(),
         }
@@ -98,4 +100,11 @@ pub fn save_currency(
         file.currency = selected;
         file.custom_currencies = custom;
     })
+}
+pub fn load_denominations(app: &AppHandle) -> Vec<u32> {
+    let _guard = lock();
+    read(app).map(|file| file.denominations).unwrap_or_default()
+}
+pub fn save_denominations(app: &AppHandle, values: Vec<u32>) -> Result<(), String> {
+    modify(app, |file| file.denominations = values)
 }
