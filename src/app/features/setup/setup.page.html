@@ -157,7 +157,7 @@
               id="org-phone"
               type="tel"
               autocomplete="tel-national"
-              placeholder="34 00 000 00"
+              placeholder="00 00 000 00"
               [value]="phoneNumber()"
               (input)="setField(phoneNumber, $event)"
               class="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2.5 text-sm
@@ -208,6 +208,17 @@
             [(value)]="adminPassword"
             [(visible)]="showAdminPassword" />
           <p class="text-xs text-gray-400 mt-1.5">{{ minPasswordLen }} caractères minimum, une lettre et un chiffre.</p>
+        </div>
+        <div>
+          <label for="admin-password-confirm" class="block text-xs font-medium text-gray-500 mb-1">Confirmer le mot de passe</label>
+          <app-password-input
+            inputId="admin-password-confirm"
+            name="adminPasswordConfirm"
+            size="sm"
+            autocomplete="new-password"
+            placeholder=""
+            [(value)]="adminPasswordConfirm"
+            [(visible)]="showAdminPassword" />
         </div>
       </section>
       }

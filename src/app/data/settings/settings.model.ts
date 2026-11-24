@@ -12,21 +12,24 @@ export interface Organization {
 export interface PhoneRegion {
   name: string;
   prefix: string;
+  /** ISO country codes and IANA time zones used to detect the region automatically. */
+  codes: string[];
+  zones: string[];
 }
 export const DEFAULT_PHONE_PREFIX = '+261';
 export const PHONE_REGIONS: PhoneRegion[] = [
-  { name: 'Madagascar', prefix: '+261' },
-  { name: 'Comores', prefix: '+269' },
-  { name: 'Maurice', prefix: '+230' },
-  { name: 'Réunion / Mayotte', prefix: '+262' },
-  { name: 'Seychelles', prefix: '+248' },
-  { name: 'France', prefix: '+33' },
-  { name: 'Belgique', prefix: '+32' },
-  { name: 'Suisse', prefix: '+41' },
-  { name: 'Canada / États-Unis', prefix: '+1' },
-  { name: 'Maroc', prefix: '+212' },
-  { name: 'Sénégal', prefix: '+221' },
-  { name: "Côte d'Ivoire", prefix: '+225' },
+  { name: 'Madagascar', prefix: '+261', codes: ['MG'], zones: ['Indian/Antananarivo'] },
+  { name: 'Comores', prefix: '+269', codes: ['KM'], zones: ['Indian/Comoro'] },
+  { name: 'Maurice', prefix: '+230', codes: ['MU'], zones: ['Indian/Mauritius'] },
+  { name: 'Réunion / Mayotte', prefix: '+262', codes: ['RE', 'YT'], zones: ['Indian/Reunion', 'Indian/Mayotte'] },
+  { name: 'Seychelles', prefix: '+248', codes: ['SC'], zones: ['Indian/Mahe'] },
+  { name: 'France', prefix: '+33', codes: ['FR'], zones: ['Europe/Paris'] },
+  { name: 'Belgique', prefix: '+32', codes: ['BE'], zones: ['Europe/Brussels'] },
+  { name: 'Suisse', prefix: '+41', codes: ['CH'], zones: ['Europe/Zurich'] },
+  { name: 'Canada / États-Unis', prefix: '+1', codes: ['CA', 'US'], zones: [] },
+  { name: 'Maroc', prefix: '+212', codes: ['MA'], zones: ['Africa/Casablanca'] },
+  { name: 'Sénégal', prefix: '+221', codes: ['SN'], zones: ['Africa/Dakar'] },
+  { name: "Côte d'Ivoire", prefix: '+225', codes: ['CI'], zones: ['Africa/Abidjan'] },
 ];
 export type ThemeOption = 'clair' | 'sombre' | 'systeme';
 export interface ThemeChoice {

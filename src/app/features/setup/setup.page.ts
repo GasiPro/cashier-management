@@ -88,6 +88,7 @@ export class SetupPage implements OnInit, OnDestroy {
   readonly adminDisplayName = signal('');
   readonly adminUsername = signal('');
   readonly adminPassword = signal('');
+  readonly adminPasswordConfirm = signal('');
   readonly showAdminPassword = signal(false);
   readonly selectedMode = signal<AppMode | null>(null);
   /** Full key in the XXXX-XXXX-XXXX-XXXX form expected by the backend; the dashes are added here, never typed. */
@@ -122,6 +123,7 @@ export class SetupPage implements OnInit, OnDestroy {
     }
     const saved = await this.organization.load();
     if (saved) this.fillOrganization(saved);
+    else this.prefixChoice.set(this.detectPrefix());
     this.stepIndex.set(!this.keyValidated() ? 0 : saved ? 2 : 1);
     this.ready.set(true);
   }
@@ -300,7 +302,9 @@ export class SetupPage implements OnInit, OnDestroy {
     if (displayName.length > MAX_DISPLAY_NAME_LEN) {
       return `Le nom affiché ne peut pas dépasser ${MAX_DISPLAY_NAME_LEN} caractères.`;
     }
-    return credentialsRuleError(this.adminUsername().trim(), this.adminPassword());
+    const rule = credentialsRuleError(this.adminUsername().trim(), this.adminPassword());
+    if (rule) return rule;
+    return this.adminPassword() === this.adminPasswordConfirm() ? '' : 'Les mots de passe ne correspondent pas.';
   }
   private fillOrganization(saved: Organization): void {
     this.orgName.set(saved.name);
@@ -313,6 +317,14 @@ export class SetupPage implements OnInit, OnDestroy {
       this.customPrefix.set(prefix || '+');
     }
     this.phoneNumber.set(number.join(''));
+  }
+  /** National prefix guessed from the machine time zone, then its language region; falls back to the default. */
+  private detectPrefix(): string {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const code = new Intl.Locale(navigator.language).region;
+    const region =
+      PHONE_REGIONS.find((r) => r.zones.includes(zone)) ?? PHONE_REGIONS.find((r) => !!code && r.codes.includes(code));
+    return region?.prefix ?? DEFAULT_PHONE_PREFIX;
   }
   private focusSegment(index: number): void {
     document.getElementById(`key-seg-${index}`)?.focus();
