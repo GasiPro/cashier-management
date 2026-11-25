@@ -5,7 +5,8 @@ import { OrderGroup } from '../../data/order/order.model';
 import { OrderStore } from '../../data/order/order.store';
 import { formatGroupId, getGroupItemsSummary } from '../../data/order/order.utils';
 import { BottomBarNotification } from '../../layouts/main-layout/bottom-bar/bottom-bar';
-import { formatIsoDate, formatRelativeDay } from '../../shared/utils/date';
+import { clockNow, currentDayIso, dayOfIso, localeTime } from '../../core/display/datetime-settings';
+import { formatRelativeDay } from '../../shared/utils/date';
 export type CashierPanel = 'devices' | 'report' | 'history';
 export type PaymentMethod = 'cash' | 'mobile_money';
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -175,13 +176,13 @@ export class CashierStore {
     this.confirmingBlockDeviceId.set(null);
   }
   notify(msg: string, level: NotifyLevel = 'quiet'): void {
-    const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const time = localeTime(clockNow());
     this.notifications.update((list) =>
       [...list, { id: ++this.notificationIdCounter, message: msg, time, alert: level !== 'quiet' }].slice(-30),
     );
     if (level === 'sound') playAlertSound();
   }
   private isToday(iso: string): boolean {
-    return formatIsoDate(new Date(iso)) === formatIsoDate(new Date());
+    return dayOfIso(iso) === currentDayIso();
   }
 }

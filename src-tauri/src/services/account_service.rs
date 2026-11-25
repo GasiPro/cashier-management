@@ -1,3 +1,4 @@
+use crate::config::clock;
 use crate::domain::account;
 use crate::models::account::{
     Account, AccountActivity, AccountActivityEntry, AccountStatus, ActivityKind, StoredAccount,
@@ -16,7 +17,6 @@ pub fn load(app: &AppHandle) -> Vec<StoredAccount> {
     }
     accounts
 }
-/// Creates the first administrator during installation, replacing any account saved by an earlier attempt.
 pub fn create_initial_admin(
     app: &AppHandle,
     username: String,
@@ -39,7 +39,7 @@ pub fn create_initial_admin(
         return Err("Le nom affiché est obligatoire.".to_string());
     }
     let password_hash = account::hash_password(&password)?;
-    let now = chrono::Local::now().to_rfc3339();
+    let now = clock::now_local().to_rfc3339();
     let admin = StoredAccount {
         id: account::generate_id(),
         username,
@@ -122,7 +122,7 @@ pub async fn create_account(
     if account::username_exists(&guard, &username) {
         return Err("Ce nom d'utilisateur est déjà utilisé.".to_string());
     }
-    let now = chrono::Local::now().to_rfc3339();
+    let now = clock::now_local().to_rfc3339();
     let account = StoredAccount {
         id: account::generate_id(),
         username,

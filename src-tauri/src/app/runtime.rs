@@ -1,5 +1,5 @@
 use crate::app::AppState;
-use crate::config::rate_limit;
+use crate::config::{clock, rate_limit};
 use crate::infrastructure::websocket::{self, WsContext};
 use crate::services::{
     account_service, connection_service, pricing_service, report_service, setting_service,
@@ -9,6 +9,8 @@ use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::{AppHandle, Manager};
 pub fn start_caisse(app: &AppHandle) {
     let state = app.state::<AppState>();
+    let datetime = setting_service::get_datetime(app);
+    clock::configure(datetime.auto, datetime.offset_secs, datetime.utc_offset_secs);
     *state.max_connected_devices.lock().unwrap() =
         setting_service::load_settings(app).max_connected_devices;
     *state.accounts.lock().unwrap() = account_service::load(app);

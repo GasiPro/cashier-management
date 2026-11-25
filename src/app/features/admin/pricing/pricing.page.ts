@@ -1,4 +1,5 @@
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { clockNow, localeDate, localeDateTime } from '../../../core/display/datetime-settings';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { errorMessage } from '../../../core/error/error-messages';
@@ -241,7 +242,7 @@ export class PricingPage implements OnInit, OnDestroy {
   formatAt(iso: string): string {
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return iso;
-    return date.toLocaleString('fr-FR', {
+    return localeDateTime(date, {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -276,7 +277,7 @@ export class PricingPage implements OnInit, OnDestroy {
     if (rule.max_orders !== null) parts.push(`${rule.used_orders}/${rule.max_orders} commande(s)`);
     if (rule.days !== null) {
       const end = this.ruleEnd(rule);
-      parts.push(`jusqu'au ${end ? end.toLocaleDateString('fr-FR') : '—'}`);
+      parts.push(`jusqu'au ${end ? localeDate(end) : '—'}`);
     }
     return parts.length ? parts.join(' · ') : 'Sans limite';
   }
@@ -292,7 +293,7 @@ export class PricingPage implements OnInit, OnDestroy {
     if (!rule) return RULE_STATUS.expired;
     const byOrders = rule.max_orders !== null && rule.used_orders >= rule.max_orders;
     const end = this.ruleEnd(rule);
-    const byDays = end !== null && Date.now() >= end.getTime();
+    const byDays = end !== null && clockNow().getTime() >= end.getTime();
     return byOrders || byDays ? RULE_STATUS.expired : RULE_STATUS.active;
   }
   morDetails(entry: JournalEntry): MorDetails | null {
@@ -508,7 +509,7 @@ export class PricingPage implements OnInit, OnDestroy {
     if (counter.length === 0) {
       this.pending.unstage(key);
     } else {
-      const patch: PricePatch = { price, price_editable: editable, rules, drops, at: new Date().toISOString() };
+      const patch: PricePatch = { price, price_editable: editable, rules, drops, at: clockNow().toISOString() };
       this.pending.stage({
         key,
         payload: patch,

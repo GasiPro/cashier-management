@@ -46,6 +46,10 @@ export const ADMIN_ROUTES: Routes = [
         loadComponent: () => import('../settings/display/display.page').then((m) => m.DisplayPage),
       },
       {
+        path: 'date-heure',
+        loadComponent: () => import('./datetime/datetime.page').then((m) => m.DateTimePage),
+      },
+      {
         path: 'mise-a-jour',
         loadComponent: () => import('./update/update.page').then((m) => m.UpdatePage),
       },

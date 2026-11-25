@@ -1,8 +1,12 @@
+use crate::config::clock;
 use crate::config::setting_config::{
-    clamp_font_size, clamp_max_connected_devices, MAX_ORGANIZATION_NAME_LEN, PRODUCT_KEY,
+    clamp_font_size, clamp_max_connected_devices, DATE_FORMATS, MAX_CLOCK_OFFSET_SECS,
+    MAX_ORGANIZATION_NAME_LEN, MAX_TIMEZONE_LEN, MAX_UTC_OFFSET_SECS, PRODUCT_KEY,
 };
 use crate::models::account::UserType;
-use crate::models::setting::{AppMode, AppSettings, DisplayPrefs, Organization, Theme};
+use crate::models::setting::{
+    AppMode, AppSettings, DateTimeSettings, DateTimeSync, DisplayPrefs, Organization, Theme,
+};
 use crate::repositories::{account_repository, setting_repository};
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
@@ -34,6 +38,45 @@ pub fn get_background_color(app: &AppHandle, user_type: UserType, username: &str
 }
 pub fn get_font_size(app: &AppHandle, user_type: UserType, username: &str) -> u32 {
     display_prefs(app, user_type, username).font_size
+}
+pub fn get_datetime(app: &AppHandle) -> DateTimeSettings {
+    setting_repository::load(app).datetime
+}
+pub fn datetime_sync(app: &AppHandle) -> DateTimeSync {
+    DateTimeSync {
+        settings: get_datetime(app),
+        server_ms: chrono::Utc::now().timestamp_millis(),
+    }
+}
+pub fn set_datetime(app: &AppHandle, value: DateTimeSettings) -> Result<DateTimeSettings, String> {
+    let timezone = value.timezone.trim().to_string();
+    let timezone_ok = timezone.chars().count() <= MAX_TIMEZONE_LEN
+        && timezone
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '_' | '-' | '+'));
+    if !timezone_ok {
+        return Err("Fuseau horaire invalide.".to_string());
+    }
+    if !DATE_FORMATS.contains(&value.date_format.as_str()) {
+        return Err("Format de date invalide.".to_string());
+    }
+    if value.utc_offset_secs.abs() > MAX_UTC_OFFSET_SECS {
+        return Err("Fuseau horaire invalide.".to_string());
+    }
+    if value.offset_secs.abs() > MAX_CLOCK_OFFSET_SECS {
+        return Err("Date ou heure hors limites.".to_string());
+    }
+    let saved = DateTimeSettings {
+        auto: value.auto,
+        timezone: if value.auto { String::new() } else { timezone },
+        hour12: value.hour12,
+        date_format: value.date_format,
+        offset_secs: if value.auto { 0 } else { value.offset_secs },
+        utc_offset_secs: if value.auto { 0 } else { value.utc_offset_secs },
+    };
+    update_settings(app, |settings| settings.datetime = saved.clone())?;
+    clock::configure(saved.auto, saved.offset_secs, saved.utc_offset_secs);
+    Ok(saved)
 }
 pub fn is_activated(app: &AppHandle) -> bool {
     let settings = setting_repository::load(app);

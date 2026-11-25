@@ -11,6 +11,7 @@ import {
 } from '../../../data/report/report.calculator';
 import { listReports } from '../../../data/report/report.api';
 import { ReportRecord, formatReportId } from '../../../data/report/report.model';
+import { ClockDatePipe } from '../../../shared/pipes/clock-date.pipe';
 import { TimePipe } from '../../../shared/pipes/time.pipe';
 import { MoneyPipe } from '../../../shared/pipes/money.pipe';
 interface ReportRow {
@@ -45,7 +46,7 @@ function toRow(record: ReportRecord): ReportRow {
 @Component({
   selector: 'app-admin-reports',
   standalone: true,
-  imports: [CommonModule, TimePipe, MoneyPipe],
+  imports: [CommonModule, ClockDatePipe, TimePipe, MoneyPipe],
   templateUrl: './reports.page.html',
 })
 export class ReportsPage implements OnInit, OnDestroy {

@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { localeTime } from '../../core/display/datetime-settings';
 import { save } from '@tauri-apps/plugin-dialog';
 import * as XLSX from 'xlsx';
 import { OrderLine } from '../order/order.model';
@@ -97,8 +98,7 @@ export async function exportReportXlsx(input: ReportExportInput): Promise<Report
     'Heure paiement',
     `Total (${currency})`,
   ]);
-  const formatReportTime = (iso: string): string =>
-    new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const formatReportTime = (iso: string): string => localeTime(iso);
   const sections = sectionsByCounterOf(orders);
   for (const section of sections) {
     const usernameRow = pushRow([section.username]);

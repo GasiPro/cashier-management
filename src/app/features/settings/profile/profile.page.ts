@@ -1,4 +1,5 @@
 import { Component, OnDestroy, OnInit, Signal, WritableSignal, computed, effect, inject, signal, untracked } from '@angular/core';
+import { clockNow, localeTime } from '../../../core/display/datetime-settings';
 import { FormsModule } from '@angular/forms';
 import { MAX_DISPLAY_NAME_LEN, MIN_PASSWORD_LEN } from '../../../core/config/app.constants';
 import { SessionStore } from '../../../core/auth/session.store';
@@ -20,13 +21,11 @@ import { passwordRuleError } from '../../../shared/utils/validators';
 })
 export class ProfilePage implements OnInit, OnDestroy {
   private readonly session = inject(SessionStore);
-  /** Counter accounts are edited through the cashier connection (WebSocket), which CounterStore owns. */
   private readonly counter = this.session.role() === 'comptoir' ? inject(CounterStore) : null;
   readonly viewRole: 'cashier' | 'counter' = this.counter ? 'counter' : 'cashier';
   readonly username = getStoredUsername() ?? (this.counter ? 'Comptoir' : 'Caisse');
   readonly maxDisplayNameLen = MAX_DISPLAY_NAME_LEN;
   readonly minPasswordLen = MIN_PASSWORD_LEN;
-  // ── Cashier account state (talks to the local `account` command) ───────────
   private readonly cashierSavedName = signal(getStoredDisplayName() ?? '');
   private readonly cashierName = signal(getStoredDisplayName() ?? '');
   private readonly cashierPassword = signal('');
@@ -114,7 +113,7 @@ export class ProfilePage implements OnInit, OnDestroy {
     }
   }
   private notify(message: string): void {
-    const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const time = localeTime(clockNow());
     this.cashierNotifications.update((list) =>
       [...list, { id: ++this.notificationId, message, time }].slice(-30),
     );

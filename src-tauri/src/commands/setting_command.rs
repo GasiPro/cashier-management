@@ -1,8 +1,11 @@
-use crate::app::runtime;
+use crate::app::{runtime, AppState};
+use crate::infrastructure::websocket::broadcast_to_approved;
+use crate::models::connection::ServerMessage;
 use crate::models::account::UserType;
-use crate::models::setting::AppMode;
+use crate::models::setting::{AppMode, DateTimeSettings};
 use crate::services::setting_service;
 use serde::Deserialize;
+use tauri::Manager;
 #[derive(Debug, Deserialize)]
 #[serde(tag = "method", rename_all = "snake_case")]
 pub enum SettingsCommand {
@@ -12,6 +15,8 @@ pub enum SettingsCommand {
     BackgroundColorSet { user_type: UserType, username: String, value: String },
     FontSizeGet { user_type: UserType, username: String },
     FontSizeSet { user_type: UserType, username: String, value: u32 },
+    DatetimeGet,
+    DatetimeSet { value: DateTimeSettings },
     ActivationGet,
     ActivationSet { value: String },
     OrganizationGet,
@@ -43,6 +48,19 @@ pub async fn settings(
         SettingsCommand::FontSizeSet { user_type, username, value } => Ok(serde_json::json!(
             setting_service::set_font_size(&app, user_type, &username, value).await?
         )),
+        SettingsCommand::DatetimeGet => Ok(serde_json::json!(setting_service::get_datetime(&app))),
+        SettingsCommand::DatetimeSet { value } => {
+            let saved = setting_service::set_datetime(&app, value)?;
+            let state = app.state::<AppState>();
+            broadcast_to_approved(
+                &state.peers,
+                &ServerMessage::DateTime {
+                    data: setting_service::datetime_sync(&app),
+                },
+            )
+            .await;
+            Ok(serde_json::json!(saved))
+        }
         SettingsCommand::ActivationGet => Ok(serde_json::json!(setting_service::is_activated(&app))),
         SettingsCommand::ActivationSet { value } => Ok(serde_json::json!(
             setting_service::activate(&app, value).await?

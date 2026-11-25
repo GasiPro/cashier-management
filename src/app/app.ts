@@ -12,6 +12,7 @@ import { filter, firstValueFrom } from 'rxjs';
 import { SessionStore } from './core/auth/session.store';
 import { ipcCloseSplash } from './core/ipc/tauri-ipc';
 import { CurrencyStore } from './data/pricing/currency.store';
+import { DateTimeStore } from './data/settings/datetime.store';
 import { initDisplaySettings } from './core/display/display-settings';
 import { NoticeSplash } from './shared/ui/notice-splash/notice-splash';
 const SPLASH_MIN_DELAY_MS = 6000;
@@ -33,6 +34,7 @@ export class App {
   private readonly router = inject(Router);
   constructor() {
     inject(CurrencyStore);
+    inject(DateTimeStore);
     effect(() => {
       void initDisplaySettings(this.session.role());
     });

@@ -1,4 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
+import { clockNow, formatClockTime, localeTime } from '../../core/display/datetime-settings';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { SessionStore } from '../../core/auth/session.store';
@@ -272,7 +273,7 @@ export class CounterStore {
       } else if (msg.type === 'orders') {
         this.orderGroups.set(buildGroups(msg.data as OrderLine[]));
       } else if (msg.type === 'time') {
-        this.currentTime.set(msg.data as string);
+        this.currentTime.set(formatClockTime(clockNow()));
       } else if (msg.type === 'account_data') {
         const account = msg.data as { display_name: string };
         this.accountDisplayName.set(account.display_name);
@@ -712,7 +713,7 @@ export class CounterStore {
     if (g.status === 'PAYE' && g.paidAt) {
       const date = new Date(g.paidAt);
       const dayLabel = formatRelativeDay(g.paidAt);
-      const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const time = localeTime(date);
       return `Encaissé ${dayLabel} à ${time}`;
     }
     const dayLabel = formatRelativeDay(g.createdAt);
@@ -720,7 +721,7 @@ export class CounterStore {
   }
   historiqueTimeLabel(g: OrderGroup): string {
     if (g.status === 'PAYE' && g.paidAt) {
-      const time = new Date(g.paidAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const time = localeTime(g.paidAt);
       return `Encaissé à ${time}`;
     }
     return `Envoyé à ${g.time}`;
@@ -738,15 +739,13 @@ export class CounterStore {
     }
   }
   private showToast(msg: string, level: NotifyLevel = 'quiet'): void {
-    const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const time = localeTime(clockNow());
     this.notifications.update((list) =>
       [...list, { id: ++this.notificationIdCounter, message: msg, time, alert: level !== 'quiet' }].slice(-30),
     );
     if (level === 'sound') playAlertSound();
   }
   private updateClock(): void {
-    this.currentTime.set(
-      new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-    );
+    this.currentTime.set(formatClockTime(clockNow()));
   }
 }

@@ -1,19 +1,15 @@
+use crate::config::clock;
 use crate::models::report::Report;
 use crate::repositories::report_repository;
-use chrono::Utc;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
-
 pub type ReportStore = Arc<SyncMutex<Vec<Report>>>;
-
 pub fn load(app: &AppHandle) -> Vec<Report> {
     report_repository::load(app)
 }
-
 pub fn list_reports(reports: &ReportStore) -> Vec<Report> {
     reports.lock().unwrap().iter().rev().cloned().collect()
 }
-
 pub fn submit_report(
     app: &AppHandle,
     reports: &ReportStore,
@@ -32,7 +28,7 @@ pub fn submit_report(
     guard.push(Report {
         id,
         cashier_username,
-        created_at: Utc::now().to_rfc3339(),
+        created_at: clock::now_utc().to_rfc3339(),
         payload,
     });
     if let Err(err) = report_repository::save(app, &guard) {

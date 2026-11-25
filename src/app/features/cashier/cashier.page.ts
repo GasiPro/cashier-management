@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { DEFAULT_WS } from '../../core/config/app.constants';
 import { WsRegistration } from '../../core/auth/ws-registration';
+import { clockNow, formatClockTime } from '../../core/display/datetime-settings';
 import { errorMessage } from '../../core/error/error-messages';
 import { WsClient } from '../../core/realtime/ws-client';
 import { OrderChange, WsMessage } from '../../core/realtime/ws-protocol';
@@ -104,7 +105,7 @@ export class CashierPage implements OnInit, OnDestroy {
       this.approved = true;
       this.wsConnected.set(true);
       if (msg.type === 'time') {
-        this.currentTime.set(msg.data as string);
+        this.currentTime.set(formatClockTime(clockNow()));
       } else if (msg.type === 'order_notification') {
         this.notifyOrderChange(msg.data);
       } else if (msg.type === 'connection_requests') {

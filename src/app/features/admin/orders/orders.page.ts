@@ -6,7 +6,7 @@ import * as orderApi from '../../../data/order/order.api';
 import { OrderStore } from '../../../data/order/order.store';
 import { OrderGroup, OrderLine } from '../../../data/order/order.model';
 import { buildGroups, formatGroupId, getGroupItemsSummary } from '../../../data/order/order.utils';
-import { startOfDay } from '../../../shared/utils/date';
+import { localeDate, localeTime, msUntilNextDay, startOfTodayMs } from '../../../core/display/datetime-settings';
 import { MoneyPipe } from '../../../shared/pipes/money.pipe';
 type StatusFilter = 'all' | OrderLine['status'];
 type SortKey = 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc';
@@ -41,7 +41,7 @@ export class OrdersPage implements OnDestroy {
       this.markingPaidGroupId.set(null);
     }
   }
-  private readonly todayStart = signal(startOfDay(new Date()));
+  private readonly todayStart = signal(startOfTodayMs());
   private midnightTimer: ReturnType<typeof setTimeout> | null = null;
   constructor() {
     this.scheduleMidnight();
@@ -50,12 +50,10 @@ export class OrdersPage implements OnDestroy {
     if (this.midnightTimer) clearTimeout(this.midnightTimer);
   }
   private scheduleMidnight(): void {
-    const now = new Date();
-    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
     this.midnightTimer = setTimeout(() => {
-      this.todayStart.set(startOfDay(new Date()));
+      this.todayStart.set(startOfTodayMs());
       this.scheduleMidnight();
-    }, nextMidnight - now.getTime() + 1000);
+    }, Math.min(msUntilNextDay() + 1000, 3_600_000));
   }
   showArchive = signal(false);
   toggleArchive(): void {
@@ -168,7 +166,7 @@ export class OrdersPage implements OnDestroy {
   formatDateTime(iso: string): string {
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return iso;
-    return date.toLocaleDateString('fr-FR', {
+    return localeDate(date, {
       day: 'numeric',
       month: 'short',
       hour: '2-digit',
@@ -178,7 +176,7 @@ export class OrdersPage implements OnDestroy {
   formatTime(iso: string): string {
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return iso;
-    return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    return localeTime(date);
   }
   confirmingRejectGroupId = signal<number | null>(null);
   rejectReason = signal('');

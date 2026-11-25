@@ -1,3 +1,4 @@
+use crate::config::clock;
 use crate::config::rate_limit;
 use crate::domain::account;
 use crate::models::account::{Account, AccountStatus, AuthResult, SessionRole, Sessions, UserType};
@@ -58,7 +59,7 @@ async fn authenticate(
         });
     }
     let previous_last_sign_in = account.last_sign_in_at.clone();
-    account.last_sign_in_at = Some(chrono::Local::now().to_rfc3339());
+    account.last_sign_in_at = Some(clock::now_local().to_rfc3339());
     let view = Account::from(&*account);
     if let Err(err) = account_repository::save(app, &guard) {
         if let Some(account) = account::find_account_mut(&mut guard, &username) {

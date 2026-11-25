@@ -1,3 +1,4 @@
+use crate::config::clock;
 use crate::config::pricing_config::{MAX_CUSTOM_CURRENCIES, PRESET_CURRENCIES};
 use crate::config::pricing_matrix;
 use crate::domain::pricing::{
@@ -12,7 +13,6 @@ use crate::models::pricing::{
 use crate::repositories::pricing_repository;
 use crate::services::account_service::Accounts;
 use crate::services::stock_service::{resolve_admin, Admin};
-use chrono::Utc;
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
 pub type PricingStore = Arc<SyncMutex<Vec<ServiceItem>>>;
@@ -20,7 +20,7 @@ const ITEM_NOT_FOUND: &str = "Article introuvable.";
 const CURRENCY_LOG_LABEL: &str = "Devise";
 pub fn load_or_bootstrap(app: &AppHandle) -> Vec<ServiceItem> {
     if let Some(mut items) = pricing_repository::load(app) {
-        if remove_expired_rules(&mut items, Utc::now().timestamp()) {
+        if remove_expired_rules(&mut items, clock::now_utc().timestamp()) {
             let _ = pricing_repository::save(app, &items);
         }
         return items;
@@ -44,7 +44,7 @@ fn edit_item(
     change: impl FnOnce(&mut ServiceItem) -> Result<(), String>,
 ) -> Result<(ServiceItem, ServiceItem, Vec<ServiceItem>), String> {
     let mut guard = pricing.lock().unwrap();
-    remove_expired_rules(&mut guard, Utc::now().timestamp());
+    remove_expired_rules(&mut guard, clock::now_utc().timestamp());
     let item = find_item_mut(&mut guard, id).ok_or_else(|| ITEM_NOT_FOUND.to_string())?;
     let previous = item.clone();
     if let Err(err) = change(&mut *item) {
@@ -78,7 +78,7 @@ fn record_log(
         app,
         PriceLogEntry {
             id: generate_id(),
-            at: Utc::now().to_rfc3339(),
+            at: clock::now_utc().to_rfc3339(),
             admin_username: admin.username.clone(),
             admin_id: admin.id.clone(),
             item_id: item.id.clone(),
@@ -97,7 +97,7 @@ fn record_currency_log(app: &AppHandle, admin: &Admin, before: String, after: St
         app,
         PriceLogEntry {
             id: generate_id(),
-            at: Utc::now().to_rfc3339(),
+            at: clock::now_utc().to_rfc3339(),
             admin_username: admin.username.clone(),
             admin_id: admin.id.clone(),
             item_id: String::new(),
@@ -171,7 +171,7 @@ pub fn update_pricing_item(
     username: &str,
 ) -> Result<(ServiceItem, Vec<ServiceItem>), String> {
     let admin = resolve_admin(accounts, username)?;
-    let created_at = Utc::now().to_rfc3339();
+    let created_at = clock::now_utc().to_rfc3339();
     let mors = [
         (PriceAdjustmentKind::Majoration, majoration),
         (PriceAdjustmentKind::Reduction, reduction),
@@ -220,7 +220,7 @@ pub fn set_mor(
     username: &str,
 ) -> Result<(ServiceItem, Vec<ServiceItem>), String> {
     let admin = resolve_admin(accounts, username)?;
-    let created_at = Utc::now().to_rfc3339();
+    let created_at = clock::now_utc().to_rfc3339();
     let (previous, updated, snapshot) = edit_item(app, pricing, &id, |item| {
         apply_mor(item, kind, input, &created_at)
     })?;
@@ -247,7 +247,7 @@ pub fn consume_uses(
 ) -> Option<Vec<ServiceItem>> {
     let mut guard = pricing.lock().unwrap();
     let backup = guard.clone();
-    let now = Utc::now().timestamp();
+    let now = clock::now_utc().timestamp();
     let mut changed = remove_expired_rules(&mut guard, now);
     for (item_id, kind) in uses {
         changed |= consume_use(&mut guard, item_id, *kind, now);

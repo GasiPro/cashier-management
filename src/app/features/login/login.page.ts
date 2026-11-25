@@ -1,4 +1,5 @@
 import { Component, OnInit, OnDestroy, HostListener, signal } from '@angular/core';
+import { clockNow, localeDate, localeTime } from '../../core/display/datetime-settings';
 import { Router } from '@angular/router';
 import { invoke } from '@tauri-apps/api/core';
 import { Subscription } from 'rxjs';
@@ -175,16 +176,11 @@ export class LoginPage implements OnInit, OnDestroy {
     }
   }
   private updateClock(): void {
-    const now = new Date();
+    const now = clockNow();
     this.currentDateTime =
-      now.toLocaleDateString('fr-FR', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      }) +
+      localeDate(now, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) +
       ' · ' +
-      now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      localeTime(now);
   }
   selectCashier(): void {
     this.cashierPassword.set('');
@@ -279,7 +275,7 @@ export class LoginPage implements OnInit, OnDestroy {
     this.counterError.set('');
     this.counterConnecting.set(true);
     const wsUrl = this.counterWsUrl().trim();
-    const fullUrl = wsUrl.startsWith('ws://') ? wsUrl : `ws://${wsUrl}`;
+    const fullUrl = wsUrl.startsWith('ws:
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     this.closeSubscription?.unsubscribe();

@@ -1,4 +1,5 @@
 import { formatRelativeDay } from '../../shared/utils/date';
+import { localeTime } from '../../core/display/datetime-settings';
 import type { OrderGroup, OrderLine } from './order.model';
 export function buildGroups(orders: OrderLine[]): OrderGroup[] {
   const map = new Map<number, OrderLine[]>();
@@ -13,7 +14,7 @@ export function buildGroups(orders: OrderLine[]): OrderGroup[] {
       lines,
       status: lines[0].status,
       totalAmount: lines.reduce((sum, l) => sum + l.quantity * l.unit_price, 0),
-      time: lines[0].time,
+      time: localeTime(lines[0].created_at),
       createdAt: lines[0].created_at,
       paidAt: lines[0].paid_at,
       counterUsername: lines[0].counter_username,
@@ -71,12 +72,12 @@ export function formatPaidLabel(group: OrderGroup): string {
   if (!group.paidAt) return '';
   const date = new Date(group.paidAt);
   const dayLabel = formatRelativeDay(group.paidAt);
-  const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const time = localeTime(date);
   return `Encaissé ${dayLabel} à ${time}`;
 }
 export function formatPaidTime(group: OrderGroup): string {
   if (!group.paidAt) return '';
-  return new Date(group.paidAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return localeTime(group.paidAt);
 }
 export function formatCreatedLabel(group: OrderGroup): string {
   const dayLabel = formatRelativeDay(group.createdAt);

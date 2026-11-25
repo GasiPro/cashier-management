@@ -1,5 +1,10 @@
 import { Component, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output, SimpleChanges, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import {
+  clockNow,
+  formatClockDate,
+  formatClockTime,
+} from '../../../core/display/datetime-settings';
 export type BottomBarRole = 'cashier' | 'counter';
 export interface BottomBarNotification {
   id: number;
@@ -50,11 +55,9 @@ export class BottomBar implements OnInit, OnChanges, OnDestroy {
     this.clearAutoHide();
   }
   private tick(): void {
-    const now = new Date();
-    this.currentDate.set(now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }));
-    this.currentTime.set(
-      now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    );
+    const now = clockNow();
+    this.currentDate.set(formatClockDate(now));
+    this.currentTime.set(formatClockTime(now));
   }
   get roleLabel(): string {
     return this.role === 'cashier' ? 'Caisse' : 'Comptoir';

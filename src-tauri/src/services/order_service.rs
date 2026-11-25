@@ -1,3 +1,4 @@
+use crate::config::clock;
 use crate::config::default::{DEFAULT_NEXT_GROUP_ID, DEFAULT_NEXT_ORDER_ID};
 use crate::app::AppState;
 use crate::domain::pricing::{
@@ -10,7 +11,6 @@ use crate::models::pricing::{PriceAdjustment, PriceAdjustmentKind, ServiceItem};
 use crate::repositories::order_repository::OrderApi;
 use crate::repositories::{account_repository, pricing_repository};
 use crate::services::{pricing_service, stock_service};
-use chrono::{Local, Utc};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 const ORDER_NOT_FOUND: &str = "Commande introuvable ou déjà traitée.";
@@ -76,9 +76,9 @@ impl OrderService {
     ) -> Result<i64, String> {
         validate_cart(cart)?;
         let catalog = self.catalog();
-        let time = Local::now().format("%H:%M").to_string();
-        let created_at = Utc::now().to_rfc3339();
-        let now = Utc::now().timestamp();
+        let time = clock::now_local().format("%H:%M").to_string();
+        let created_at = clock::now_utc().to_rfc3339();
+        let now = clock::now_utc().timestamp();
         let mut created_group_id = 0;
         let mut adjustments: Vec<PriceAdjustment> = Vec::new();
         self.modify(|state| {
@@ -162,7 +162,7 @@ impl OrderService {
         group_id: i64,
         handled_by: Option<String>,
     ) -> Result<(), String> {
-        let paid_at = Utc::now().to_rfc3339();
+        let paid_at = clock::now_utc().to_rfc3339();
         let handled_by = clean_handler(handled_by);
         self.update_pending_group(group_id, |order| {
             order.status = OrderStatus::Paye;
@@ -194,7 +194,7 @@ impl OrderService {
     ) -> Result<i64, String> {
         validate_amounts(quantity, unit_price)?;
         let catalog = self.catalog();
-        let now = Utc::now().timestamp();
+        let now = clock::now_utc().timestamp();
         let mut group_id = 0;
         let mut adjustment = None;
         let mut counter_username = String::new();
@@ -284,7 +284,7 @@ impl OrderService {
             .find(|a| a.username.eq_ignore_ascii_case(counter_username))
             .map(|a| a.id)
             .unwrap_or_default();
-        let at = Utc::now().to_rfc3339();
+        let at = clock::now_utc().to_rfc3339();
         let uses: Vec<(String, PriceAdjustmentKind)> = adjustments
             .iter()
             .filter(|a| a.new_use)

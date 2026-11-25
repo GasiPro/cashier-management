@@ -1,4 +1,5 @@
 import { Component, OnInit, OnDestroy, signal } from '@angular/core';
+import { clockNow, formatClockTime } from '../../core/display/datetime-settings';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { getStoredDisplayName, getStoredUsername } from '../../core/storage/local-storage';
@@ -31,10 +32,7 @@ export class SettingsPage implements OnInit, OnDestroy {
     }
   }
   private tick(): void {
-    const now = new Date();
-    this.currentTime.set(
-      now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    );
+    this.currentTime.set(formatClockTime(clockNow()));
   }
   goBack(): void {
     this.router.navigate(['/caissier']);

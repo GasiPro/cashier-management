@@ -1,5 +1,5 @@
 use crate::config::setting_config::{
-    DEFAULT_BACKGROUND_COLOR, DEFAULT_FONT_SIZE, DEFAULT_MAX_CONNECTED_DEVICES,
+    DEFAULT_BACKGROUND_COLOR, DEFAULT_DATE_FORMAT, DEFAULT_FONT_SIZE, DEFAULT_MAX_CONNECTED_DEVICES,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -33,6 +33,17 @@ pub struct AppSettings {
     pub product_key: String,
     pub activated: bool,
     pub users: HashMap<String, DisplayPrefs>,
+    pub datetime: DateTimeSettings,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DateTimeSettings {
+    pub auto: bool,
+    pub timezone: String,
+    pub hour12: bool,
+    pub date_format: String,
+    pub offset_secs: i64,
+    pub utc_offset_secs: i32,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -74,6 +85,25 @@ impl Default for AppSettings {
             product_key: String::new(),
             activated: false,
             users: HashMap::new(),
+            datetime: DateTimeSettings::default(),
+        }
+    }
+}
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DateTimeSync {
+    pub settings: DateTimeSettings,
+    pub server_ms: i64,
+}
+impl Default for DateTimeSettings {
+    fn default() -> Self {
+        Self {
+            auto: true,
+            timezone: String::new(),
+            hour12: false,
+            date_format: DEFAULT_DATE_FORMAT.to_string(),
+            offset_secs: 0,
+            utc_offset_secs: 0,
         }
     }
 }

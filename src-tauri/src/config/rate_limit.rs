@@ -1,25 +1,21 @@
+use crate::config::clock;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex as SyncMutex};
-
 const MAX_ATTEMPTS: u32 = 5;
 const BASE_LOCKOUT_SECS: i64 = 5;
 const MAX_LOCKOUT_SECS: i64 = 300;
 const PRUNE_THRESHOLD: usize = 1_000;
-
 #[derive(Debug, Clone, Default)]
 pub(crate) struct AttemptRecord {
     failures: u32,
     locked_until: Option<i64>,
 }
-
 pub(crate) type AttemptTracker = Arc<SyncMutex<HashMap<String, AttemptRecord>>>;
-
 pub(crate) fn new_tracker() -> AttemptTracker {
     Arc::new(SyncMutex::new(HashMap::new()))
 }
-
 pub(crate) fn seconds_until_unlocked(tracker: &AttemptTracker, key: &str) -> Option<i64> {
-    let now = chrono::Local::now().timestamp();
+    let now = clock::now_local().timestamp();
     let guard = tracker.lock().unwrap();
     guard.get(key).and_then(|record| {
         record
@@ -28,9 +24,8 @@ pub(crate) fn seconds_until_unlocked(tracker: &AttemptTracker, key: &str) -> Opt
             .map(|until| until - now)
     })
 }
-
 pub(crate) fn record_failure(tracker: &AttemptTracker, key: &str) {
-    let now = chrono::Local::now().timestamp();
+    let now = clock::now_local().timestamp();
     let mut guard = tracker.lock().unwrap();
     if guard.len() >= PRUNE_THRESHOLD {
         guard.retain(|_, record| record.locked_until.is_some_and(|until| until > now));
@@ -43,7 +38,6 @@ pub(crate) fn record_failure(tracker: &AttemptTracker, key: &str) {
         record.locked_until = Some(now + lockout);
     }
 }
-
 pub(crate) fn record_success(tracker: &AttemptTracker, key: &str) {
     let mut guard = tracker.lock().unwrap();
     guard.remove(key);

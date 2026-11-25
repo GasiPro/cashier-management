@@ -1,4 +1,5 @@
 import { Component, EventEmitter, Output, computed, inject, input, signal } from '@angular/core';
+import { currentDayIso } from '../../../../core/display/datetime-settings';
 import { CommonModule } from '@angular/common';
 import { OrderLine } from '../../../../data/order/order.model';
 import { ReportExportInput, exportReportXlsx } from '../../../../data/report/report-export';
@@ -36,7 +37,7 @@ export class ReportPanel {
   @Output() notify = new EventEmitter<string>();
   exportingRapport = signal(false);
   rapportPeriod = signal<Period>('jour');
-  rapportSelectedDate = signal<string>(formatIsoDate(new Date()));
+  rapportSelectedDate = signal<string>(currentDayIso());
   showRapportDatePicker = signal(false);
   private rapportPeriodBounds = computed(() =>
     periodBounds(this.rapportSelectedDate(), this.rapportPeriod()),
@@ -93,22 +94,22 @@ export class ReportPanel {
     this.showRapportDatePicker.set(false);
   }
   setRapportCurrentPeriod(): void {
-    this.rapportSelectedDate.set(formatIsoDate(new Date()));
+    this.rapportSelectedDate.set(currentDayIso());
     this.showRapportDatePicker.set(false);
   }
   setRapportPreviousPeriod(): void {
-    const todayIso = formatIsoDate(new Date());
+    const todayIso = currentDayIso();
     const previous = previousPeriodBounds(todayIso, this.rapportPeriod());
     this.rapportSelectedDate.set(previous.start);
     this.showRapportDatePicker.set(false);
   }
   isRapportCurrentPeriod(): boolean {
-    const todayIso = formatIsoDate(new Date());
+    const todayIso = currentDayIso();
     const bounds = this.rapportPeriodBounds();
     return todayIso >= bounds.start && todayIso <= bounds.end;
   }
   isRapportPreviousPeriod(): boolean {
-    const todayIso = formatIsoDate(new Date());
+    const todayIso = currentDayIso();
     const previous = previousPeriodBounds(todayIso, this.rapportPeriod());
     const anchor = this.rapportSelectedDate();
     return anchor >= previous.start && anchor <= previous.end;

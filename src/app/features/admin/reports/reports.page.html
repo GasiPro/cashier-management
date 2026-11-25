@@ -68,7 +68,7 @@
               </p>
               <p class="text-xs text-gray-400 mt-0.5 truncate">
                 Par <span class="font-medium text-gray-600">{{ row.record.cashier_username }}</span>,
-                le {{ row.record.created_at | date:'dd/MM/yyyy' }} à {{ row.record.created_at | time }}
+                le {{ row.record.created_at | clockDate }} à {{ row.record.created_at | time }}
               </p>
             </div>
           </button>

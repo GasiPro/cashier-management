@@ -1,3 +1,4 @@
+use crate::config::clock;
 use crate::domain::connection;
 use crate::infrastructure::websocket::{
     is_at_connected_devices_capacity, notify_connected_devices, notify_pending_requests,
@@ -11,7 +12,7 @@ use crate::models::connection::{
 use crate::models::order::Order;
 use crate::repositories::connection_repository;
 use crate::services::pricing_service;
-use crate::services::setting_service::MaxConnectedDevices;
+use crate::services::setting_service::{self, MaxConnectedDevices};
 use std::sync::{Arc, Mutex as SyncMutex};
 use tauri::AppHandle;
 pub type Blacklist = Arc<SyncMutex<Vec<BlacklistEntry>>>;
@@ -42,7 +43,7 @@ pub fn start_connection_session(
     account_id: &str,
     approved: bool,
 ) {
-    let now = chrono::Local::now().to_rfc3339();
+    let now = clock::now_local().to_rfc3339();
     let mut guard = history.lock().unwrap();
     connection::start_session(
         &mut guard,
@@ -74,7 +75,7 @@ pub fn update_connection_session(
     addr: &str,
     event: ConnectionEvent,
 ) {
-    let now = chrono::Local::now().to_rfc3339();
+    let now = clock::now_local().to_rfc3339();
     let mut guard = history.lock().unwrap();
     connection::update_session(&mut guard, addr, event, &now);
     persist_history(app, &guard);
@@ -139,6 +140,7 @@ pub async fn approve_connection(
         ));
     }
     let currency = pricing_service::get_currency_code(app);
+    let datetime = setting_service::datetime_sync(app);
     {
         let mut guard = peers.lock().await;
         let peer = guard
@@ -146,12 +148,13 @@ pub async fn approve_connection(
             .filter(|peer| !peer.approved && !peer.username.is_empty())
             .ok_or_else(|| "Demande de connexion introuvable ou déjà traitée.".to_string())?;
         peer.approved = true;
-        peer.connected_at = Some(chrono::Local::now().to_rfc3339());
+        peer.connected_at = Some(clock::now_local().to_rfc3339());
         peer.send(&ServerMessage::ConnectionApproved);
         peer.send(&ServerMessage::Orders {
             data: scope_orders_for_peer(&orders, peer),
         });
         peer.send(&ServerMessage::Currency { data: currency });
+        peer.send(&ServerMessage::DateTime { data: datetime });
         let username = peer.username.clone();
         trust_counter(&mut guard, socket_addr.ip(), &username);
     }
@@ -310,7 +313,7 @@ fn insert_blacklist_entry(
         entry_type,
         value,
         reason,
-        created_at: chrono::Local::now().to_rfc3339(),
+        created_at: clock::now_local().to_rfc3339(),
     };
     entries.push(entry.clone());
     if let Err(err) = connection_repository::save_blacklist(app, entries) {

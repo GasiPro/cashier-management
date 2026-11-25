@@ -1,3 +1,4 @@
+pub mod clock;
 pub mod account_config;
 pub mod app_info;
 pub mod connection_config;

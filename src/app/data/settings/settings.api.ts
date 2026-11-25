@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { UserRole } from '../../core/auth/session.store';
 import { getStoredUsername } from '../../core/storage/local-storage';
+import { DateTimeSettings } from './datetime.model';
 import { AppMode, DisplaySettings, Organization, ThemeOption } from './settings.model';
 function account(role: UserRole): { user_type: UserRole; username: string } {
   return { user_type: role, username: getStoredUsername() ?? '' };
@@ -34,6 +35,12 @@ export function setFontSize(role: UserRole, value: number): Promise<number> {
   return invoke<number>('settings', {
     command: { method: 'font_size_set', ...account(role), value },
   });
+}
+export function getDateTime(): Promise<DateTimeSettings> {
+  return invoke<DateTimeSettings>('settings', { command: { method: 'datetime_get' } });
+}
+export function setDateTime(value: DateTimeSettings): Promise<DateTimeSettings> {
+  return invoke<DateTimeSettings>('settings', { command: { method: 'datetime_set', value } });
 }
 export function getActivated(): Promise<boolean> {
   return invoke<boolean>('settings', { command: { method: 'activation_get' } });

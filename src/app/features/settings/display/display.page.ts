@@ -1,4 +1,5 @@
 import { Component, OnInit, OnDestroy, signal, computed, inject } from '@angular/core';
+import { clockNow, formatClockTime } from '../../../core/display/datetime-settings';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -76,10 +77,7 @@ export class DisplayPage implements OnInit, OnDestroy {
     }
   }
   private tick(): void {
-    const now = new Date();
-    this.currentTime.set(
-      now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    );
+    this.currentTime.set(formatClockTime(clockNow()));
   }
   private async loadSettings(): Promise<void> {
     this.loading.set(true);

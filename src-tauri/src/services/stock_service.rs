@@ -1,3 +1,4 @@
+use crate::config::clock;
 use crate::config::stock_config::{
     MAX_ITEM_CATEGORY_LEN, MAX_ITEM_LABEL_LEN, MAX_ITEM_PRICE, MAX_QUANTITY,
     MAX_STOCK_HISTORY_ENTRIES,
@@ -167,7 +168,7 @@ fn push_history(
     let id = data.history.iter().map(|e| e.id).max().unwrap_or(0) + 1;
     data.history.push(StockHistoryEntry {
         id,
-        at: chrono::Local::now().to_rfc3339(),
+        at: clock::now_local().to_rfc3339(),
         admin_username: admin.username.clone(),
         admin_id: admin.id.clone(),
         item_id: item.id.clone(),

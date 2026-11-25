@@ -1,3 +1,4 @@
+use crate::config::clock;
 use crate::config::connection_config::{MAX_HISTORY_ENTRIES, SESSION_MAX_HOURS};
 use crate::models::account::numeric_id;
 use crate::models::connection::{
@@ -36,7 +37,6 @@ pub fn is_blacklisted(entries: &[BlacklistEntry], addr: &str) -> bool {
         .iter()
         .any(|e| e.entry_type == BlacklistType::Ip && e.value == ip)
 }
-/// Numeric form under which accounts were blacklisted before ids became UUIDs.
 fn legacy_numeric_id(account_id: &str) -> String {
     let raw = uuid::Uuid::parse_str(account_id)
         .map(|id| id.simple().to_string())
@@ -79,7 +79,7 @@ pub fn remove_blacklist_entry_by_id(entries: &mut Vec<BlacklistEntry>, id: i64) 
     entries.len() != len_before
 }
 pub fn is_today(timestamp: &str) -> bool {
-    timestamp.starts_with(&chrono::Local::now().format("%Y-%m-%d").to_string())
+    timestamp.starts_with(&clock::now_local().format("%Y-%m-%d").to_string())
 }
 fn is_open(entry: &ConnectionHistoryEntry) -> bool {
     matches!(
@@ -161,7 +161,7 @@ pub fn mark_offline(entries: &mut [ConnectionHistoryEntry], addr: &str) {
     }
 }
 pub fn expire_sessions(entries: &mut [ConnectionHistoryEntry]) {
-    let now = chrono::Local::now();
+    let now = clock::now_local();
     for entry in entries
         .iter_mut()
         .filter(|e| e.status == ConnectionEvent::Approved && !e.online)
@@ -182,7 +182,7 @@ pub fn expire_sessions(entries: &mut [ConnectionHistoryEntry]) {
 }
 pub fn close_stale_sessions(entries: &mut Vec<ConnectionHistoryEntry>) {
     entries.retain(|e| is_today(&e.started_at));
-    let now = chrono::Local::now().to_rfc3339();
+    let now = clock::now_local().to_rfc3339();
     for entry in entries.iter_mut().filter(|e| is_open(e)) {
         if entry.connected_at.is_some() {
             entry.disconnected_at = Some(now.clone());

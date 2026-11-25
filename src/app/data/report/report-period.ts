@@ -1,23 +1,18 @@
+import { currentDayIso, dayOfIso } from '../../core/display/datetime-settings';
 export type Period = 'jour' | 'semaine' | 'mois' | 'annee';
-
 export interface PeriodBounds {
   start: string;
   end: string;
 }
-
-/** Days after Monday on which a week ends: 6 = Monday to Sunday, 5 = Monday to Saturday. */
 export const DEFAULT_WEEK_END_OFFSET_DAYS = 6;
-
 export function formatIsoDate(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
-
 export function parseIsoDate(iso: string): Date {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, (m ?? 1) - 1, d ?? 1);
 }
-
 export function startOfIsoWeek(d: Date): Date {
   const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const day = date.getDay();
@@ -25,7 +20,6 @@ export function startOfIsoWeek(d: Date): Date {
   date.setDate(date.getDate() + diff);
   return date;
 }
-
 export function toIsoWeekValue(d: Date): string {
   const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const dayNumber = (target.getDay() + 6) % 7;
@@ -36,7 +30,6 @@ export function toIsoWeekValue(d: Date): string {
   const week = 1 + Math.round((target.getTime() - firstThursday.getTime()) / (7 * 86400000));
   return `${target.getFullYear()}-W${String(week).padStart(2, '0')}`;
 }
-
 export function mondayOfIsoWeek(year: number, week: number): Date {
   const jan4 = new Date(year, 0, 4);
   const jan4Day = (jan4.getDay() + 6) % 7;
@@ -46,7 +39,6 @@ export function mondayOfIsoWeek(year: number, week: number): Date {
   target.setDate(week1Monday.getDate() + (week - 1) * 7);
   return target;
 }
-
 export function periodBounds(
   anchorIso: string,
   period: Period,
@@ -77,7 +69,6 @@ export function periodBounds(
       return { start: anchorIso, end: anchorIso };
   }
 }
-
 export function previousPeriodBounds(
   anchorIso: string,
   period: Period,
@@ -106,45 +97,37 @@ export function previousPeriodBounds(
     }
   }
 }
-
 export function isWithinPeriod(iso: string, bounds: PeriodBounds): boolean {
-  const day = formatIsoDate(new Date(iso));
+  const day = dayOfIso(iso);
   return day >= bounds.start && day <= bounds.end;
 }
-
-/** Anchor date for "this period" (today). */
 export function currentPeriodAnchor(): string {
-  return formatIsoDate(new Date());
+  return currentDayIso();
 }
-
-/** Anchor date for "the previous period" (start of the period before today's). */
 export function previousPeriodAnchor(
   period: Period,
   weekEndOffsetDays: number = DEFAULT_WEEK_END_OFFSET_DAYS,
 ): string {
-  return previousPeriodBounds(formatIsoDate(new Date()), period, weekEndOffsetDays).start;
+  return previousPeriodBounds(currentDayIso(), period, weekEndOffsetDays).start;
 }
-
 export function isCurrentPeriod(
   selectedDate: string,
   period: Period,
   weekEndOffsetDays: number = DEFAULT_WEEK_END_OFFSET_DAYS,
 ): boolean {
-  const todayIso = formatIsoDate(new Date());
+  const todayIso = currentDayIso();
   const bounds = periodBounds(selectedDate, period, weekEndOffsetDays);
   return todayIso >= bounds.start && todayIso <= bounds.end;
 }
-
 export function isPreviousPeriod(
   selectedDate: string,
   period: Period,
   weekEndOffsetDays: number = DEFAULT_WEEK_END_OFFSET_DAYS,
 ): boolean {
-  const todayIso = formatIsoDate(new Date());
+  const todayIso = currentDayIso();
   const previous = previousPeriodBounds(todayIso, period, weekEndOffsetDays);
   return selectedDate >= previous.start && selectedDate <= previous.end;
 }
-
 export function isCustomPeriod(
   selectedDate: string,
   period: Period,
@@ -155,7 +138,6 @@ export function isCustomPeriod(
     !isPreviousPeriod(selectedDate, period, weekEndOffsetDays)
   );
 }
-
 export function currentPeriodLabel(period: Period): string {
   switch (period) {
     case 'semaine':
@@ -168,7 +150,6 @@ export function currentPeriodLabel(period: Period): string {
       return "Aujourd'hui";
   }
 }
-
 export function previousPeriodLabel(period: Period): string {
   switch (period) {
     case 'semaine':
@@ -181,7 +162,6 @@ export function previousPeriodLabel(period: Period): string {
       return 'Hier';
   }
 }
-
 export function comparisonLabel(period: Period): string {
   switch (period) {
     case 'semaine':
@@ -194,7 +174,6 @@ export function comparisonLabel(period: Period): string {
       return 'Veille';
   }
 }
-
 export function reportTitle(period: Period): string {
   switch (period) {
     case 'semaine':
@@ -207,12 +186,9 @@ export function reportTitle(period: Period): string {
       return 'Rapport du jour';
   }
 }
-
 export function weekInputValue(bounds: PeriodBounds): string {
   return toIsoWeekValue(parseIsoDate(bounds.start));
 }
-
-/** Converts a `YYYY-Www` input value to the anchor date (Monday), or null if malformed. */
 export function weekValueToAnchor(value: string): string | null {
   const match = /^(\d{4})-W(\d{2})$/.exec(value);
   if (!match) return null;
@@ -221,13 +197,10 @@ export function weekValueToAnchor(value: string): string | null {
   const monday = mondayOfIsoWeek(year, week);
   return formatIsoDate(monday);
 }
-
 export function monthInputValue(anchorIso: string): string {
   const anchor = parseIsoDate(anchorIso);
   return `${anchor.getFullYear()}-${String(anchor.getMonth() + 1).padStart(2, '0')}`;
 }
-
-/** Converts a `YYYY-MM` input value to the anchor date (first of the month), or null if invalid. */
 export function monthValueToAnchor(value: string): string | null {
   const match = /^(\d{4})-(\d{2})$/.exec(value);
   if (!match) return null;
@@ -236,18 +209,14 @@ export function monthValueToAnchor(value: string): string | null {
   if (month < 1 || month > 12) return null;
   return `${year}-${String(month).padStart(2, '0')}-01`;
 }
-
 export function yearInputValue(anchorIso: string): number {
   return parseIsoDate(anchorIso).getFullYear();
 }
-
-/** Converts a year input value to the anchor date (January 1st), or null if out of range. */
 export function yearValueToAnchor(value: string): string | null {
   const year = Number(value);
   if (!Number.isInteger(year) || year < 2000 || year > 2100) return null;
   return `${year}-01-01`;
 }
-
 export function rangeLabel(bounds: PeriodBounds): string {
   const startLabel = parseIsoDate(bounds.start).toLocaleDateString('fr-FR', {
     day: 'numeric',
@@ -260,11 +229,6 @@ export function rangeLabel(bounds: PeriodBounds): string {
   });
   return bounds.start === bounds.end ? endLabel : `${startLabel} au ${endLabel}`;
 }
-
-/**
- * `ordersBounds` is the span actually covered by the period's paid orders
- * (see `ordersDateBounds`), falling back to the period bounds when there are none.
- */
 export function reportDateLabel(period: Period, anchorIso: string, ordersBounds: PeriodBounds): string {
   const anchor = parseIsoDate(anchorIso);
   switch (period) {
@@ -282,7 +246,6 @@ export function reportDateLabel(period: Period, anchorIso: string, ordersBounds:
       });
   }
 }
-
 export function reportDefaultFileName(period: Period, anchorIso: string, bounds: PeriodBounds): string {
   switch (period) {
     case 'semaine':

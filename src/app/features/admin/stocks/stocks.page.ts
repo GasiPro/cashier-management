@@ -1,4 +1,5 @@
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { localeDateTime } from '../../../core/display/datetime-settings';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { errorMessage } from '../../../core/error/error-messages';
@@ -150,7 +151,7 @@ export class StocksPage implements OnInit, OnDestroy {
   formatAt(iso: string): string {
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return iso;
-    return date.toLocaleString('fr-FR', {
+    return localeDateTime(date, {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',

@@ -1,3 +1,4 @@
+use crate::config::clock;
 use argon2::password_hash::{
     rand_core::{OsRng, RngCore},
     PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
@@ -11,14 +12,11 @@ use crate::models::account::{
     numeric_id, AccountActivity, AccountActivityEntry, AccountStatus, ActivityKind, SessionInfo,
     SessionRole, Sessions, StoredAccount,
 };
-/// Generates a random UUID (v4) used as the account identifier.
 pub fn generate_id() -> String {
     let mut bytes = [0u8; 16];
     OsRng.fill_bytes(&mut bytes);
     uuid::Builder::from_random_bytes(bytes).into_uuid().to_string()
 }
-/// Rewrites legacy 32-character hexadecimal identifiers into the canonical UUID form.
-/// The conversion is lossless and deterministic. Returns true when something changed.
 pub fn normalize_ids(accounts: &mut [StoredAccount]) -> bool {
     let mut changed = false;
     for account in accounts.iter_mut() {
@@ -100,7 +98,7 @@ pub fn find_account_mut<'a>(
 pub fn record_activity(account: &mut StoredAccount, kind: ActivityKind, reason: Option<String>) {
     account.history.push(AccountActivityEntry {
         kind,
-        timestamp: chrono::Local::now().to_rfc3339(),
+        timestamp: clock::now_local().to_rfc3339(),
         reason,
     });
 }
@@ -144,7 +142,7 @@ fn generate_session_token() -> String {
 }
 pub fn mint_session(sessions: &Sessions, username: &str, role: SessionRole) -> String {
     let token = generate_session_token();
-    let now = chrono::Local::now().timestamp();
+    let now = clock::now_local().timestamp();
     let mut guard = sessions.lock().unwrap();
     guard.retain(|_, info| info.expires_at > now);
     guard.insert(
@@ -162,7 +160,7 @@ pub fn consume_session(
     token: &str,
     expected_role: SessionRole,
 ) -> Option<String> {
-    let now = chrono::Local::now().timestamp();
+    let now = clock::now_local().timestamp();
     let mut guard = sessions.lock().unwrap();
     match guard.get(token) {
         Some(info) if info.role == expected_role && info.expires_at > now => {

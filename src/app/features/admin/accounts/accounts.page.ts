@@ -1,4 +1,5 @@
 import { Component, ElementRef, OnInit, signal, computed, ViewChild } from '@angular/core';
+import { localeDate } from '../../../core/display/datetime-settings';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -142,7 +143,7 @@ export class AccountsPage implements OnInit {
   formatAccountDate(isoDate: string): string {
     const date = new Date(isoDate);
     if (Number.isNaN(date.getTime())) return isoDate;
-    return date.toLocaleDateString('fr-FR', {
+    return localeDate(date, {
       day: 'numeric',
       month: 'long',
       year: 'numeric',

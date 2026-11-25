@@ -1,3 +1,4 @@
+use crate::config::clock;
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::panic::AssertUnwindSafe;
@@ -28,7 +29,7 @@ use crate::services::account_service::{self, Accounts};
 use crate::services::connection_service::{self, Blacklist, ConnectionHistory};
 use crate::services::order_service::OrderService;
 use crate::services::pricing_service::{self, PricingStore};
-use crate::services::setting_service::MaxConnectedDevices;
+use crate::services::setting_service::{self, MaxConnectedDevices};
 const INVALID_TOKEN: &str = "Jeton de session invalide ou expiré.";
 const SERVER_NOT_READY: &str = "Serveur non prêt. Réessayez.";
 pub(crate) type Tx = mpsc::UnboundedSender<Message>;
@@ -39,7 +40,7 @@ static ACTIVE_PORT: AtomicU16 = AtomicU16::new(WS_PORT);
 pub(crate) struct TrustedCounter {
     ip: IpAddr,
     username: String,
-    expires_at: chrono::DateTime<chrono::Local>,
+    expires_at: chrono::DateTime<chrono::FixedOffset>,
 }
 pub struct PeerState {
     pub(crate) id: i64,
@@ -151,7 +152,7 @@ pub(crate) fn start_clock(peers: PeerMap) {
         loop {
             tokio::time::sleep(Duration::from_secs(1)).await;
             tick = tick.wrapping_add(1);
-            let current_time = chrono::Local::now().format("%H:%M:%S").to_string();
+            let current_time = clock::now_local().format("%H:%M:%S").to_string();
             broadcast_to_approved(&peers, &ServerMessage::Time { data: current_time }).await;
             if tick % WS_PING_INTERVAL_SECS == 0 {
                 ping_all(&peers).await;
@@ -434,7 +435,7 @@ async fn register_staff(ctx: &WsContext, addr: SocketAddr, token: &str, role: Se
         peer.approved = true;
         peer.is_cashier = role == SessionRole::Cashier;
         peer.is_admin = role == SessionRole::Admin;
-        peer.connected_at = Some(chrono::Local::now().to_rfc3339());
+        peer.connected_at = Some(clock::now_local().to_rfc3339());
         (peer.machine.clone(), peer.device_id.clone(), peer.account_id.clone())
     };
     let user_type = if role == SessionRole::Admin {
@@ -457,6 +458,7 @@ async fn register_staff(ctx: &WsContext, addr: SocketAddr, token: &str, role: Se
     };
     send_to_addr(&ctx.peers, addr, &orders).await;
     send_currency(ctx, addr).await;
+    send_datetime(ctx, addr).await;
     if role == SessionRole::Cashier {
         let pending = ServerMessage::ConnectionRequests {
             data: get_pending_requests_list(&ctx.peers).await,
@@ -488,7 +490,7 @@ async fn register_counter(ctx: &WsContext, addr: SocketAddr, token: &str) {
             peer.username = username.clone();
             peer.account_id = account_service::find_account_id(&ctx.accounts, &username);
             peer.approved = true;
-            peer.connected_at = Some(chrono::Local::now().to_rfc3339());
+            peer.connected_at = Some(clock::now_local().to_rfc3339());
             Some((
                 scope_orders_for_peer(&ctx.order_service.get_orders(), peer),
                 peer.machine.clone(),
@@ -513,6 +515,7 @@ async fn register_counter(ctx: &WsContext, addr: SocketAddr, token: &str) {
     );
     send_to_addr(&ctx.peers, addr, &ServerMessage::Orders { data: scoped }).await;
     send_currency(ctx, addr).await;
+    send_datetime(ctx, addr).await;
     notify_connected_devices(&ctx.peers).await;
 }
 async fn request_connection(ctx: &WsContext, addr: SocketAddr, username: &str, password: &str) {
@@ -596,7 +599,7 @@ async fn request_connection(ctx: &WsContext, addr: SocketAddr, username: &str, p
         };
         peer.username = account_username.clone();
         peer.account_id = account_service::find_account_id(&ctx.accounts, &account_username);
-        peer.requested_at = Some(chrono::Local::now().to_rfc3339());
+        peer.requested_at = Some(clock::now_local().to_rfc3339());
         (peer.machine.clone(), peer.device_id.clone(), peer.account_id.clone())
     };
     start_session(
@@ -621,7 +624,7 @@ async fn approve_trusted_counter(ctx: &WsContext, addr: SocketAddr, username: &s
         peer.username = username.to_string();
         peer.account_id = account_service::find_account_id(&ctx.accounts, username);
         peer.approved = true;
-        peer.connected_at = Some(chrono::Local::now().to_rfc3339());
+        peer.connected_at = Some(clock::now_local().to_rfc3339());
         (
             scope_orders_for_peer(&ctx.order_service.get_orders(), peer),
             peer.machine.clone(),
@@ -642,6 +645,7 @@ async fn approve_trusted_counter(ctx: &WsContext, addr: SocketAddr, username: &s
     send_to_addr(&ctx.peers, addr, &ServerMessage::ConnectionApproved).await;
     send_to_addr(&ctx.peers, addr, &ServerMessage::Orders { data: scoped }).await;
     send_currency(ctx, addr).await;
+    send_datetime(ctx, addr).await;
     notify_pending_requests(&ctx.peers).await;
     notify_connected_devices(&ctx.peers).await;
 }
@@ -650,7 +654,7 @@ fn is_trusted_counter(
     ip: IpAddr,
     username: &str,
 ) -> bool {
-    let now = chrono::Local::now();
+    let now = clock::now_local();
     peers.values().filter(|p| p.is_cashier).any(|p| {
         p.trusted
             .iter()
@@ -662,7 +666,7 @@ pub(crate) fn trust_counter(
     ip: IpAddr,
     username: &str,
 ) {
-    let now = chrono::Local::now();
+    let now = clock::now_local();
     let expires_at = now + chrono::Duration::hours(TRUSTED_COUNTER_TTL_HOURS);
     for peer in peers.values_mut().filter(|p| p.is_cashier) {
         peer.trusted
@@ -797,6 +801,13 @@ async fn send_currency(ctx: &WsContext, addr: SocketAddr) {
     };
     let code = pricing_service::get_currency_code(&app);
     send_to_addr(&ctx.peers, addr, &ServerMessage::Currency { data: code }).await;
+}
+async fn send_datetime(ctx: &WsContext, addr: SocketAddr) {
+    let Some(app) = app_handle(ctx) else {
+        return;
+    };
+    let data = setting_service::datetime_sync(&app);
+    send_to_addr(&ctx.peers, addr, &ServerMessage::DateTime { data }).await;
 }
 fn start_session(
     ctx: &WsContext,
@@ -934,7 +945,7 @@ pub(crate) async fn get_pending_requests_list(peers: &PeerMap) -> Vec<PendingCon
             requested_at: s
                 .requested_at
                 .clone()
-                .unwrap_or_else(|| chrono::Local::now().to_rfc3339()),
+                .unwrap_or_else(|| clock::now_local().to_rfc3339()),
         })
         .collect();
     list.sort_by_key(|entry| entry.id);
@@ -955,7 +966,7 @@ pub(crate) async fn get_connected_devices_list(peers: &PeerMap) -> Vec<Connected
             connected_at: s
                 .connected_at
                 .clone()
-                .unwrap_or_else(|| chrono::Local::now().to_rfc3339()),
+                .unwrap_or_else(|| clock::now_local().to_rfc3339()),
         })
         .collect();
     list.sort_by_key(|entry| entry.id);

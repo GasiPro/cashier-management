@@ -1,6 +1,8 @@
+use crate::config::clock;
 use crate::models::account::{Account, UserType};
 use crate::models::order::{CartItem, Order, OrderChange};
 use crate::models::pricing::ServiceItem;
+use crate::models::setting::DateTimeSync;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::sync::atomic::{AtomicI64, Ordering};
 static NEXT_BLACKLIST_ID: AtomicI64 = AtomicI64::new(1);
@@ -76,7 +78,7 @@ impl<'de> Deserialize<'de> for BlacklistEntry {
             reason: raw.reason,
             created_at: raw
                 .created_at
-                .unwrap_or_else(|| chrono::Local::now().to_rfc3339()),
+                .unwrap_or_else(|| clock::now_local().to_rfc3339()),
         })
     }
 }
@@ -232,6 +234,8 @@ pub enum ServerMessage {
     Pricing { data: Vec<ServiceItem> },
     #[serde(rename = "currency")]
     Currency { data: String },
+    #[serde(rename = "datetime")]
+    DateTime { data: DateTimeSync },
     #[serde(rename = "notice")]
     Notice { data: Vec<String> },
     #[serde(rename = "error_protocol")]

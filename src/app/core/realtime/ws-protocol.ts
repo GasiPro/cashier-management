@@ -1,5 +1,6 @@
 import type { OrderLine } from '../../data/order/order.model';
 import type { ServiceItem } from '../../data/pricing/pricing.model';
+import type { DateTimeSync } from '../../data/settings/datetime.model';
 import type { ConnectedDevice, PendingConnection } from '../../data/device/device.model';
 export interface AccountSummary {
   display_name: string;
@@ -16,6 +17,7 @@ export type WsMessage =
   | { type: 'time'; data: string }
   | { type: 'pricing'; data: ServiceItem[] }
   | { type: 'currency'; data: string }
+  | { type: 'datetime'; data: DateTimeSync }
   | { type: 'connection_requests'; data: PendingConnection[] }
   | { type: 'connection_devices'; data: ConnectedDevice[] }
   | { type: 'connection_pending'; data?: unknown }

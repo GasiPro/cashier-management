@@ -141,6 +141,11 @@ const SEARCH_PAGES: SearchPage[] = [
     items: ['Thème', 'Couleur de fond', 'Taille de police'],
   },
   {
+    label: 'Date et heure',
+    route: 'date-heure',
+    items: ['Automatique', 'Manuel', 'Fuseau horaire', "Format de l'heure", 'Format de la date', '12 heures', '24 heures'],
+  },
+  {
     label: 'Profil',
     route: 'profil',
     items: ["Nom d'utilisateur", 'Nom affiché', 'Nouveau mot de passe', 'Confirmer le nouveau mot de passe'],

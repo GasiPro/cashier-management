@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { OrderStore } from '../../../data/order/order.store';
 import { OrderGroup, OrderLine } from '../../../data/order/order.model';
 import { buildGroups, formatGroupId, getGroupItemsSummary } from '../../../data/order/order.utils';
-import { startOfDay } from '../../../shared/utils/date';
+import { currentDayIso, dayOfIso, localeTime } from '../../../core/display/datetime-settings';
+import { formatIsoDate, parseIsoDate } from '../../../shared/utils/date';
 import { MoneyPipe } from '../../../shared/pipes/money.pipe';
 interface SalesComparisonPoint {
   label: string;
@@ -119,20 +120,20 @@ export class DashboardPage {
     return 'En attente';
   }
   private formatTime(iso: string): string {
-    return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    return localeTime(iso);
   }
   private sumRevenue(orders: OrderLine[]): number {
     return orders.reduce((sum, o) => sum + o.quantity * o.unit_price, 0);
   }
   private isToday(iso: string): boolean {
-    return startOfDay(new Date(iso)) === startOfDay(new Date());
+    return dayOfIso(iso) === currentDayIso();
   }
   private isYesterday(iso: string): boolean {
-    const yesterday = new Date();
+    const yesterday = parseIsoDate(currentDayIso());
     yesterday.setDate(yesterday.getDate() - 1);
-    return startOfDay(new Date(iso)) === startOfDay(yesterday);
+    return dayOfIso(iso) === formatIsoDate(yesterday);
   }
   private isThisYear(iso: string): boolean {
-    return new Date(iso).getFullYear() === new Date().getFullYear();
+    return dayOfIso(iso).slice(0, 4) === currentDayIso().slice(0, 4);
   }
 }
