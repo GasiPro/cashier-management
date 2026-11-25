@@ -1,4 +1,6 @@
 import { currentDayIso, dayOfIso } from '../../core/display/datetime-settings';
+import { activeLocale } from '../../core/i18n/locale';
+import { translate } from '../../core/i18n/translate';
 export type Period = 'jour' | 'semaine' | 'mois' | 'annee';
 export interface PeriodBounds {
   start: string;
@@ -141,49 +143,49 @@ export function isCustomPeriod(
 export function currentPeriodLabel(period: Period): string {
   switch (period) {
     case 'semaine':
-      return 'Cette semaine';
+      return translate('Cette semaine');
     case 'mois':
-      return 'Ce mois-ci';
+      return translate('Ce mois-ci');
     case 'annee':
-      return 'Cette année';
+      return translate('Cette année');
     default:
-      return "Aujourd'hui";
+      return translate('Aujourd\'hui');
   }
 }
 export function previousPeriodLabel(period: Period): string {
   switch (period) {
     case 'semaine':
-      return 'Semaine dernière';
+      return translate('Semaine dernière');
     case 'mois':
-      return 'Mois dernier';
+      return translate('Mois dernier');
     case 'annee':
-      return 'Année dernière';
+      return translate('Année dernière');
     default:
-      return 'Hier';
+      return translate('Hier');
   }
 }
 export function comparisonLabel(period: Period): string {
   switch (period) {
     case 'semaine':
-      return 'Semaine précédente';
+      return translate('Semaine précédente');
     case 'mois':
-      return 'Mois précédent';
+      return translate('Mois précédent');
     case 'annee':
-      return 'Année précédente';
+      return translate('Année précédente');
     default:
-      return 'Veille';
+      return translate('Veille');
   }
 }
 export function reportTitle(period: Period): string {
   switch (period) {
     case 'semaine':
-      return 'Rapport de la semaine';
+      return translate('Rapport de la semaine');
     case 'mois':
-      return 'Rapport du mois';
+      return translate('Rapport du mois');
     case 'annee':
-      return "Rapport de l'année";
+      return translate('Rapport de l\'année');
     default:
-      return 'Rapport du jour';
+      return translate('Rapport du jour');
   }
 }
 export function weekInputValue(bounds: PeriodBounds): string {
@@ -218,11 +220,11 @@ export function yearValueToAnchor(value: string): string | null {
   return `${year}-01-01`;
 }
 export function rangeLabel(bounds: PeriodBounds): string {
-  const startLabel = parseIsoDate(bounds.start).toLocaleDateString('fr-FR', {
+  const startLabel = parseIsoDate(bounds.start).toLocaleDateString(activeLocale(), {
     day: 'numeric',
     month: 'long',
   });
-  const endLabel = parseIsoDate(bounds.end).toLocaleDateString('fr-FR', {
+  const endLabel = parseIsoDate(bounds.end).toLocaleDateString(activeLocale(), {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -233,12 +235,12 @@ export function reportDateLabel(period: Period, anchorIso: string, ordersBounds:
   const anchor = parseIsoDate(anchorIso);
   switch (period) {
     case 'semaine':
-      return `Semaine du ${rangeLabel(ordersBounds)}`;
+      return translate('Semaine du {rangeLabel}', { rangeLabel: rangeLabel(ordersBounds) });
     case 'mois':
     case 'annee':
       return rangeLabel(ordersBounds);
     default:
-      return anchor.toLocaleDateString('fr-FR', {
+      return anchor.toLocaleDateString(activeLocale(), {
         weekday: 'long',
         day: 'numeric',
         month: 'long',

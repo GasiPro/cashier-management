@@ -4,11 +4,12 @@ import { OrderGroup } from '../../../../data/order/order.model';
 import { formatGroupId } from '../../../../data/order/order.utils';
 import { MoneyPipe } from '../../../../shared/pipes/money.pipe';
 import { PAYMENT_METHOD_LABELS, PaymentMethod } from '../../cashier.store';
+import { TranslatePipe } from '../../../../shared/pipes/translate.pipe';
 const MOBILE_MONEY_NUMBER = 'xxxxx';
 @Component({
   selector: 'app-payment-dialog',
   standalone: true,
-  imports: [CommonModule, MoneyPipe],
+  imports: [CommonModule, MoneyPipe, TranslatePipe],
   templateUrl: './payment-dialog.html',
 })
 export class PaymentDialog {

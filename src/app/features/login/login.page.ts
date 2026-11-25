@@ -23,6 +23,7 @@ import { AdminModal } from './components/admin-modal/admin-modal';
 import { CashierSetup } from './components/cashier-setup/cashier-setup';
 import { CounterSetup } from './components/counter-setup/counter-setup';
 import { CounterWaiting } from './components/counter-waiting/counter-waiting';
+import { translate } from '../../core/i18n/translate';
 type Step =
   | 'cashier-setup'
   | 'counter-setup'
@@ -142,7 +143,7 @@ export class LoginPage implements OnInit, OnDestroy {
     const username = this.adminUsername().trim();
     const password = this.adminPassword();
     if (!username || !password) {
-      this.adminError.set('Identifiant et mot de passe requis.');
+      this.adminError.set(translate('Identifiant et mot de passe requis.'));
       return;
     }
     this.adminError.set('');
@@ -152,11 +153,11 @@ export class LoginPage implements OnInit, OnDestroy {
         command: { method: 'admin', username, password },
       });
       if (!result.success || !result.account) {
-        this.adminError.set(result.error ?? 'Identifiants invalides.');
+        this.adminError.set(result.error ?? translate('Identifiants invalides.'));
         return;
       }
       if (result.account.user_type !== 'admin') {
-        this.adminError.set('Ce compte n\'a pas les droits administrateur.');
+        this.adminError.set(translate('Ce compte n\'a pas les droits administrateur.'));
         return;
       }
       setStoredUsername(username);
@@ -169,7 +170,7 @@ export class LoginPage implements OnInit, OnDestroy {
       this.router.navigate(['/admin']);
     } catch (e) {
       console.error('auth failed', e);
-      const message = errorMessage(e, 'Identifiants invalides.');
+      const message = errorMessage(e, translate('Identifiants invalides.'));
       this.adminError.set(message);
     } finally {
       this.authenticatingAdmin.set(false);
@@ -222,11 +223,11 @@ export class LoginPage implements OnInit, OnDestroy {
         command: { method: 'cashier', username, password },
       });
       if (!result.success || !result.account) {
-        this.cashierError.set(result.error ?? 'Identifiants invalides.');
+        this.cashierError.set(result.error ?? translate('Identifiants invalides.'));
         return;
       }
       if (result.account.user_type !== 'caissier') {
-        this.cashierError.set("Ce compte n'a pas accès à la caisse.");
+        this.cashierError.set(translate('Ce compte n\'a pas accès à la caisse.'));
         return;
       }
       setStoredUsername(username);
@@ -238,7 +239,7 @@ export class LoginPage implements OnInit, OnDestroy {
       this.router.navigate(['/caissier'], { replaceUrl: true });
     } catch (e) {
       console.error('auth failed', e);
-      const message = errorMessage(e, 'Échec de la connexion. Réessayez.');
+      const message = errorMessage(e, translate('Échec de la connexion. Réessayez.'));
       this.cashierError.set(message);
     } finally {
       this.authenticatingCashier.set(false);
@@ -275,7 +276,7 @@ export class LoginPage implements OnInit, OnDestroy {
     this.counterError.set('');
     this.counterConnecting.set(true);
     const wsUrl = this.counterWsUrl().trim();
-    const fullUrl = wsUrl.startsWith('ws:
+    const fullUrl = wsUrl.startsWith('ws://') ? wsUrl : `ws://${wsUrl}`;
     this.wsSubscription?.unsubscribe();
     this.openSubscription?.unsubscribe();
     this.closeSubscription?.unsubscribe();
@@ -297,22 +298,21 @@ export class LoginPage implements OnInit, OnDestroy {
       } else if (msg.type === 'connection_rejected') {
         this.failCounterConnection(
           this.counterConnecting()
-            ? "Nom d'utilisateur ou mot de passe incorrect, ou nombre maximal d'appareils atteint."
-            : "Connexion refusée par la caisse.",
+            ? translate('Nom d\'utilisateur ou mot de passe incorrect, ou nombre maximal d\'appareils atteint.')
+            : translate('Connexion refusée par la caisse.'),
         );
       } else if (msg.type === 'connection_blocked') {
-        this.failCounterConnection("Cet appareil ou ce nom d'utilisateur est bloqué par la caisse.");
+        this.failCounterConnection(translate('Cet appareil ou ce nom d\'utilisateur est bloqué par la caisse.'));
       } else if (msg.type === 'error_protocol') {
         this.failCounterConnection(
-          typeof msg.data === 'string' && msg.data.trim() ? msg.data : 'Erreur de protocole. Réessayez.',
+          typeof msg.data === 'string' && msg.data.trim() ? msg.data : translate('Erreur de protocole. Réessayez.'),
         );
       }
     });
     this.closeSubscription = this.ws.onClosed().subscribe(() => {
       if (!this.counterConnecting()) return;
       this.failCounterConnection(
-        `Impossible de joindre le serveur à l'adresse ${wsUrl} : ` +
-          "il est peut-être éteint ou l'adresse est incorrecte.",
+        translate('Impossible de joindre le serveur à l\'adresse {wsUrl} : il est peut-être éteint ou l\'adresse est incorrecte.', { wsUrl: wsUrl }),
       );
     });
     const sendRequest = () => {

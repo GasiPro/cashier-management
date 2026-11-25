@@ -1,9 +1,11 @@
 import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { WsClient } from '../../../core/realtime/ws-client';
+import { TranslatePipe } from '../../pipes/translate.pipe';
 const NOTICE_DELAY_MS = 6000;
 const MAX_VISIBLE_LINES = 6;
 @Component({
+  imports: [TranslatePipe],
   selector: 'app-notice-splash',
   standalone: true,
   templateUrl: './notice-splash.html',

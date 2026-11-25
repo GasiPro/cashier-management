@@ -1,10 +1,10 @@
 import { Component, input, output } from '@angular/core';
 import { Button } from '../button/button';
-
+import { TranslatePipe } from '../../pipes/translate.pipe';
 @Component({
   selector: 'app-confirm-delete',
   standalone: true,
-  imports: [Button],
+  imports: [Button, TranslatePipe],
   templateUrl: './confirm-delete.html',
 })
 export class ConfirmDelete {

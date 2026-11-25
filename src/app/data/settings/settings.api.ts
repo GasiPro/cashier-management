@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { UserRole } from '../../core/auth/session.store';
 import { getStoredUsername } from '../../core/storage/local-storage';
 import { DateTimeSettings } from './datetime.model';
+import { LocaleSettings } from './locale.model';
 import { AppMode, DisplaySettings, Organization, ThemeOption } from './settings.model';
 function account(role: UserRole): { user_type: UserRole; username: string } {
   return { user_type: role, username: getStoredUsername() ?? '' };
@@ -41,6 +42,12 @@ export function getDateTime(): Promise<DateTimeSettings> {
 }
 export function setDateTime(value: DateTimeSettings): Promise<DateTimeSettings> {
   return invoke<DateTimeSettings>('settings', { command: { method: 'datetime_set', value } });
+}
+export function getLocale(): Promise<LocaleSettings> {
+  return invoke<LocaleSettings>('settings', { command: { method: 'locale_get' } });
+}
+export function setLocale(value: LocaleSettings): Promise<LocaleSettings> {
+  return invoke<LocaleSettings>('settings', { command: { method: 'locale_set', value } });
 }
 export function getActivated(): Promise<boolean> {
   return invoke<boolean>('settings', { command: { method: 'activation_get' } });

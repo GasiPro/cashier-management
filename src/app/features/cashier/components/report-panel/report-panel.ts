@@ -22,10 +22,12 @@ import {
 import * as reportCalc from '../../../../data/report/report.calculator';
 import { formatIsoDate, parseIsoDate } from '../../../../shared/utils/date';
 import { MoneyPipe } from '../../../../shared/pipes/money.pipe';
+import { TranslatePipe } from '../../../../shared/pipes/translate.pipe';
+import { translate } from '../../../../core/i18n/translate';
 @Component({
   selector: 'app-report-panel',
   standalone: true,
-  imports: [CommonModule, MoneyPipe],
+  imports: [CommonModule, MoneyPipe, TranslatePipe],
   templateUrl: './report-panel.html',
 })
 export class ReportPanel {
@@ -170,16 +172,16 @@ export class ReportPanel {
       };
       const sent = await this.sendToAdmin(input);
       const result = await exportReportXlsx(input);
-      if (result === 'saved') this.notify.emit('Rapport exporté avec succès !');
+      if (result === 'saved') this.notify.emit(translate('Rapport exporté avec succès !'));
       else if (result === 'dialog_failed') {
-        this.notify.emit("Échec de l'export : impossible d'ouvrir la boîte de dialogue.");
+        this.notify.emit(translate('Échec de l\'export : impossible d\'ouvrir la boîte de dialogue.'));
       } else if (result === 'save_failed') {
-        this.notify.emit("Échec de l'enregistrement du fichier Excel.");
+        this.notify.emit(translate('Échec de l\'enregistrement du fichier Excel.'));
       }
-      if (!sent) this.notify.emit("Échec de l'envoi du rapport à l'administrateur.");
+      if (!sent) this.notify.emit(translate('Échec de l\'envoi du rapport à l\'administrateur.'));
     } catch (e) {
       console.error('export rapport failed', e);
-      this.notify.emit("Échec de l'export du rapport.");
+      this.notify.emit(translate('Échec de l\'export du rapport.'));
     } finally {
       this.exportingRapport.set(false);
     }

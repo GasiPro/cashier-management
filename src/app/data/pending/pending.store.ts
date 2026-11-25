@@ -1,6 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { errorMessage } from '../../core/error/error-messages';
 import { publishNotice } from '../notice/notice.api';
+import { translate } from '../../core/i18n/translate';
 export interface PendingChange<T = unknown> {
   key: string;
   payload: T;
@@ -71,7 +72,7 @@ export class PendingStore {
       }
     } catch (e) {
       console.error('pending apply failed', e);
-      this.error.set(errorMessage(e, "Échec de l'application des modifications. Réessayez."));
+      this.error.set(errorMessage(e, translate('Échec de l\'application des modifications. Réessayez.')));
     }
     if (done.length > 0) {
       this.changes.update((list) => list.filter((c) => !done.includes(c)));

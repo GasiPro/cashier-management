@@ -14,6 +14,8 @@ import { ReportRecord, formatReportId } from '../../../data/report/report.model'
 import { ClockDatePipe } from '../../../shared/pipes/clock-date.pipe';
 import { TimePipe } from '../../../shared/pipes/time.pipe';
 import { MoneyPipe } from '../../../shared/pipes/money.pipe';
+import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
+import { translate } from '../../../core/i18n/translate';
 interface ReportRow {
   record: ReportRecord;
   idLabel: string;
@@ -46,7 +48,7 @@ function toRow(record: ReportRecord): ReportRow {
 @Component({
   selector: 'app-admin-reports',
   standalone: true,
-  imports: [CommonModule, ClockDatePipe, TimePipe, MoneyPipe],
+  imports: [CommonModule, ClockDatePipe, TimePipe, MoneyPipe, TranslatePipe],
   templateUrl: './reports.page.html',
 })
 export class ReportsPage implements OnInit, OnDestroy {
@@ -74,7 +76,7 @@ export class ReportsPage implements OnInit, OnDestroy {
       this.reports.set(await listReports());
     } catch (e) {
       console.error('list reports failed', e);
-      this.loadError.set(errorMessage(e, 'Impossible de charger les rapports.'));
+      this.loadError.set(errorMessage(e, translate('Impossible de charger les rapports.')));
     } finally {
       this.loading.set(false);
     }
@@ -93,7 +95,7 @@ export class ReportsPage implements OnInit, OnDestroy {
       this.copiedTimer = setTimeout(() => this.copiedId.set(null), COPIED_DURATION_MS);
     } catch (e) {
       console.error('copy report id failed', e);
-      this.showNotice("Impossible de copier l'identifiant.", true);
+      this.showNotice(translate('Impossible de copier l\'identifiant.'), true);
     }
   }
   async download(record: ReportRecord): Promise<void> {
@@ -102,15 +104,15 @@ export class ReportsPage implements OnInit, OnDestroy {
     try {
       const result = await exportReportXlsx(record.payload);
       if (result === 'saved') {
-        this.showNotice('Rapport téléchargé.', false);
+        this.showNotice(translate('Rapport téléchargé.'), false);
       } else if (result === 'dialog_failed') {
-        this.showNotice("Échec du téléchargement : impossible d'ouvrir la boîte de dialogue.", true);
+        this.showNotice(translate('Échec du téléchargement : impossible d\'ouvrir la boîte de dialogue.'), true);
       } else if (result === 'save_failed') {
-        this.showNotice("Échec de l'enregistrement du fichier Excel.", true);
+        this.showNotice(translate('Échec de l\'enregistrement du fichier Excel.'), true);
       }
     } catch (e) {
       console.error('download report failed', e);
-      this.showNotice('Échec du téléchargement du rapport.', true);
+      this.showNotice(translate('Échec du téléchargement du rapport.'), true);
     } finally {
       this.downloadingId.set(null);
     }

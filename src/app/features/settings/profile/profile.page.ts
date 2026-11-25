@@ -12,10 +12,12 @@ import { LeftSidebar } from '../../../layouts/main-layout/sidebar/sidebar';
 import { Navbar } from '../../../layouts/main-layout/navbar/navbar';
 import { PasswordInput } from '../../../shared/ui/password-input/password-input';
 import { passwordRuleError } from '../../../shared/utils/validators';
+import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
+import { translate } from '../../../core/i18n/translate';
 @Component({
   selector: 'app-profile',
   standalone: true,
-  imports: [FormsModule, Navbar, LeftSidebar, BottomBar, PasswordInput],
+  imports: [FormsModule, Navbar, LeftSidebar, BottomBar, PasswordInput, TranslatePipe],
   providers: [CounterStore],
   templateUrl: './profile.page.html',
 })
@@ -23,7 +25,7 @@ export class ProfilePage implements OnInit, OnDestroy {
   private readonly session = inject(SessionStore);
   private readonly counter = this.session.role() === 'comptoir' ? inject(CounterStore) : null;
   readonly viewRole: 'cashier' | 'counter' = this.counter ? 'counter' : 'cashier';
-  readonly username = getStoredUsername() ?? (this.counter ? 'Comptoir' : 'Caisse');
+  readonly username = getStoredUsername() ?? (this.counter ? translate('Comptoir') : translate('Caisse'));
   readonly maxDisplayNameLen = MAX_DISPLAY_NAME_LEN;
   readonly minPasswordLen = MIN_PASSWORD_LEN;
   private readonly cashierSavedName = signal(getStoredDisplayName() ?? '');
@@ -37,14 +39,14 @@ export class ProfilePage implements OnInit, OnDestroy {
   private notificationId = 0;
   private readonly cashierFormError = computed(() => {
     if (this.cashierName().trim().length > MAX_DISPLAY_NAME_LEN) {
-      return `Le nom affiché ne peut pas dépasser ${MAX_DISPLAY_NAME_LEN} caractères.`;
+      return translate('Le nom affiché ne peut pas dépasser {MAX_DISPLAY_NAME_LEN} caractères.', { MAX_DISPLAY_NAME_LEN: MAX_DISPLAY_NAME_LEN });
     }
     const password = this.cashierPassword();
     const confirm = this.cashierPasswordConfirm();
     if (password.length === 0 && confirm.length === 0) return '';
     const ruleError = passwordRuleError(password);
     if (ruleError) return ruleError;
-    return password === confirm ? '' : 'Les mots de passe ne correspondent pas.';
+    return password === confirm ? '' : translate('Les mots de passe ne correspondent pas.');
   });
   private readonly cashierCanSubmit = computed(() => !this.cashierSaving() && this.cashierFormError() === '');
   private readonly cashierLabel = computed(() => this.cashierSavedName().trim() || this.username);
@@ -104,10 +106,10 @@ export class ProfilePage implements OnInit, OnDestroy {
       this.cashierName.set(updated.display_name);
       this.cashierPassword.set('');
       this.cashierPasswordConfirm.set('');
-      this.notify('Compte mis à jour.');
+      this.notify(translate('Compte mis à jour.'));
     } catch (e) {
       console.error('account update failed', e);
-      this.cashierError.set(errorMessage(e, 'Échec de la mise à jour du compte. Réessayez.'));
+      this.cashierError.set(errorMessage(e, translate('Échec de la mise à jour du compte. Réessayez.')));
     } finally {
       this.cashierSaving.set(false);
     }

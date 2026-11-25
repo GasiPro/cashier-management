@@ -3,10 +3,10 @@
     <div class="min-w-0">
       <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
         @if (event() === 'approved' && online()) {
-        <span class="relative flex h-2.5 w-2.5 flex-shrink-0" title="En ligne">
+        <span class="relative flex h-2.5 w-2.5 flex-shrink-0" [attr.title]="'En ligne' | t">
           <span class="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping motion-reduce:animate-none"></span>
           <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
-          <span class="sr-only">En ligne</span>
+          <span class="sr-only">{{ 'En ligne' | t }}</span>
         </span>
         }
         <p class="text-sm font-semibold text-[#1A1A1A] truncate">{{ device().username }}</p>
@@ -15,10 +15,10 @@
       <p class="text-xs text-gray-500 mt-1 truncate" [attr.title]="device().machine">{{ device().machine }}</p>
     </div>
     <div class="flex flex-wrap items-center justify-end gap-1.5">
-      <app-badge [tone]="badge().tone">{{ badge().label }}</app-badge>
+      <app-badge [tone]="badge().tone">{{ badge().label | t }}</app-badge>
       @if (event() === 'approved') {
       <app-badge [tone]="online() ? 'success' : 'warning'">
-        {{ online() ? 'En ligne' : 'Hors ligne' }}
+        {{ online() ? ('En ligne' | t) : ('Hors ligne' | t) }}
       </app-badge>
       }
     </div>
@@ -33,12 +33,12 @@
       }
       @if (disconnectedAt()) {
       <div class="flex items-baseline gap-1.5">
-        <dt class="text-gray-400">Déconnexion</dt>
+        <dt class="text-gray-400">{{ 'Déconnexion' | t }}</dt>
         <dd class="font-medium text-gray-600">
           {{ disconnectedAt() | time }}
           @if (autoDisconnected()) {
           <span class="ml-1 italic font-normal text-gray-400"
-            title="La connexion se coupe automatiquement après 12 heures.">Déconnecté automatiquement</span>
+            [attr.title]="'La connexion se coupe automatiquement après 12 heures.' | t">{{ 'Déconnecté automatiquement' | t }}</span>
           }
         </dd>
       </div>
@@ -51,8 +51,8 @@
         <dd class="font-mono text-[11px] text-gray-400 break-all" [attr.title]="id.value">{{ id.value || '—' }}</dd>
         @if (id.value) {
         <button type="button" (click)="copy(id.key, id.value)"
-          [attr.title]="'Copier l\'identifiant ' + id.label.toLowerCase()"
-          [attr.aria-label]="'Copier l\'identifiant ' + id.label.toLowerCase()"
+          [attr.title]="('Copier l\'identifiant {toLowerCase}' | t: { toLowerCase: (id.label.toLowerCase()) })"
+          [attr.aria-label]="('Copier l\'identifiant {toLowerCase}' | t: { toLowerCase: (id.label.toLowerCase()) })"
           class="p-1 rounded text-gray-400 hover:text-[#1E3A5F] hover:bg-[#EFF4FA] transition-colors
                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
           @if (copied() === id.key) {

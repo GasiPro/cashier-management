@@ -3,19 +3,19 @@
   <div class="w-16 h-16 rounded-full bg-[#EFF4FA] flex items-center justify-center mx-auto mb-6">
     <span class="w-7 h-7 rounded-full border-[3px] border-[#1E3A5F] border-t-transparent animate-spin inline-block"></span>
   </div>
-  <h1 class="text-xl font-semibold text-[#1A1A1A] mb-2">En attente d'approbation</h1>
+  <h1 class="text-xl font-semibold text-[#1A1A1A] mb-2">{{ 'En attente d\'approbation' | t }}</h1>
   <p class="text-sm text-gray-500 mb-1">
-    Demande envoyée sous le nom
+    {{ 'Demande envoyée sous le nom' | t }}
   </p>
   <p class="text-sm font-semibold text-[#1E3A5F] mb-6">« {{ username() }} »</p>
   <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-left mb-8">
-    <p class="text-xs font-medium text-amber-700 uppercase tracking-wide mb-0.5">Serveur</p>
+    <p class="text-xs font-medium text-amber-700 uppercase tracking-wide mb-0.5">{{ 'Serveur' | t }}</p>
     <p class="text-sm font-mono text-amber-800 selectable">{{ wsUrl() }}</p>
   </div>
   <button (click)="cancelled.emit()"
     class="text-sm text-gray-400 hover:text-gray-600 transition-colors
            focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
-    Annuler
+    {{ 'Annuler' | t }}
   </button>
 </div>
 } @else {
@@ -25,9 +25,9 @@
       <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
     </svg>
   </div>
-  <h1 class="text-xl font-semibold text-[#1A1A1A] mb-2">Connexion refusée</h1>
+  <h1 class="text-xl font-semibold text-[#1A1A1A] mb-2">{{ 'Connexion refusée' | t }}</h1>
   <p role="alert" aria-live="assertive" class="text-sm text-gray-500 mb-8">
-    {{ error() || "Demande refusée par le caissier." }}
+    {{ error() || ('Demande refusée par le caissier.' | t) }}
   </p>
   <div class="space-y-3">
     <button
@@ -35,14 +35,14 @@
       class="w-full bg-[#1E3A5F] text-white text-sm font-semibold py-3 rounded-lg
              hover:bg-[#16304f] active:scale-95 transition-all
              focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
-      Réessayer
+      {{ 'Réessayer' | t }}
     </button>
     <button
       (click)="cancelled.emit()"
       class="w-full text-sm text-gray-500 border border-gray-200 bg-white py-3 rounded-lg
              hover:bg-gray-50 transition-colors
              focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-      Changer de rôle
+      {{ 'Changer de rôle' | t }}
     </button>
   </div>
 </div>

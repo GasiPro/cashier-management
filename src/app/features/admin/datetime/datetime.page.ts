@@ -16,10 +16,12 @@ import {
   DateTimeSettings,
 } from '../../../data/settings/datetime.model';
 import * as settingsApi from '../../../data/settings/settings.api';
+import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
+import { translate } from '../../../core/i18n/translate';
 @Component({
   selector: 'app-admin-datetime',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, TranslatePipe],
   templateUrl: './datetime.page.html',
 })
 export class DateTimePage implements OnInit, OnDestroy {
@@ -83,7 +85,7 @@ export class DateTimePage implements OnInit, OnDestroy {
       this.applyDrafts(settings);
     } catch (e) {
       console.error('failed to load date and time settings', e);
-      this.setStatus("Impossible de charger la date et l'heure.", true);
+      this.setStatus(translate('Impossible de charger la date et l\'heure.'), true);
     } finally {
       this.loading.set(false);
     }
@@ -118,7 +120,7 @@ export class DateTimePage implements OnInit, OnDestroy {
       let instant: number;
       if (this.manualEdited()) {
         if (!this.dateDraft() || !this.timeDraft()) {
-          this.setStatus('Date ou heure invalide.', true);
+          this.setStatus(translate('Date ou heure invalide.'), true);
           return;
         }
         instant = zonedToInstant(this.dateDraft(), this.timeDraft(), this.timezoneDraft());
@@ -143,10 +145,10 @@ export class DateTimePage implements OnInit, OnDestroy {
       this.saved.set(settings);
       this.applyDrafts(settings);
       applyDateTimeSettings(settings);
-      this.setStatus('Date et heure enregistrées.', false);
+      this.setStatus(translate('Date et heure enregistrées.'), false);
     } catch (e) {
       console.error('failed to save date and time settings', e);
-      this.setStatus(errorMessage(e, "Échec de l'enregistrement. Réessayez."), true);
+      this.setStatus(errorMessage(e, translate('Échec de l\'enregistrement. Réessayez.')), true);
     } finally {
       this.saving.set(false);
     }

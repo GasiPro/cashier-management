@@ -4,16 +4,16 @@
     <div class="flex items-center justify-between gap-3">
       <div>
         <h2 id="display-setting-heading" class="text-base font-semibold text-[#1A1A1A]">
-          Affichage
+          {{ 'Affichage' | t }}
         </h2>
         <p class="text-xs text-gray-400 mt-0.5">
-          Thème, couleur de fond et taille de police.
+          {{ 'Thème, couleur de fond et taille de police.' | t }}
         </p>
       </div>
       <a routerLink="/admin/affichage"
         class="text-sm font-semibold text-[#1E3A5F] hover:underline px-3 py-2 rounded-md
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-        Gérer →
+        {{ 'Gérer →' | t }}
       </a>
     </div>
   </section>
@@ -22,16 +22,34 @@
     <div class="flex items-center justify-between gap-3">
       <div>
         <h2 id="datetime-setting-heading" class="text-base font-semibold text-[#1A1A1A]">
-          Date et heure
+          {{ 'Date et heure' | t }}
         </h2>
         <p class="text-xs text-gray-400 mt-0.5">
-          Mode, fuseau horaire et formats.
+          {{ 'Mode, fuseau horaire et formats.' | t }}
         </p>
       </div>
       <a routerLink="/admin/date-heure"
         class="text-sm font-semibold text-[#1E3A5F] hover:underline px-3 py-2 rounded-md
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-        Gérer →
+        {{ 'Gérer →' | t }}
+      </a>
+    </div>
+  </section>
+  <section aria-labelledby="language-setting-heading"
+    class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <h2 id="language-setting-heading" class="text-base font-semibold text-[#1A1A1A]">
+          {{ 'Langue et région' | t }}
+        </h2>
+        <p class="text-xs text-gray-400 mt-0.5">
+          {{ 'Langue de l\'interface et région des formats.' | t }}
+        </p>
+      </div>
+      <a routerLink="/admin/langue-region"
+        class="text-sm font-semibold text-[#1E3A5F] hover:underline px-3 py-2 rounded-md
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+        {{ 'Gérer →' | t }}
       </a>
     </div>
   </section>
@@ -40,16 +58,16 @@
     <div class="flex items-center justify-between gap-3">
       <div>
         <h2 id="profile-setting-heading" class="text-base font-semibold text-[#1A1A1A]">
-          Profil
+          {{ 'Profil' | t }}
         </h2>
         <p class="text-xs text-gray-400 mt-0.5">
-          Nom affiché et mot de passe de votre compte.
+          {{ 'Nom affiché et mot de passe de votre compte.' | t }}
         </p>
       </div>
       <a routerLink="/admin/profil"
         class="text-sm font-semibold text-[#1E3A5F] hover:underline px-3 py-2 rounded-md
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-        Gérer →
+        {{ 'Gérer →' | t }}
       </a>
     </div>
   </section>

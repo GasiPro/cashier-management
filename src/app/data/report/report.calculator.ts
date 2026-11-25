@@ -2,6 +2,7 @@ import { OrderLine } from '../order/order.model';
 import { isLineDiscounted, isLineIncreased } from '../order/order.utils';
 import { dayOfIso, localeTime } from '../../core/display/datetime-settings';
 import { isWithinPeriod, PeriodBounds } from './report-period';
+import { translate } from '../../core/i18n/translate';
 export const REPORT_ALL_COUNTERS = 'all';
 export const UNKNOWN_COUNTER_LABEL = 'Non renseigné';
 export interface CategoryLine {
@@ -144,7 +145,7 @@ export function buildCategoryGroups(orders: OrderLine[]): CategoryGroup[] {
   const map = new Map<string, Map<string, CategoryLine>>();
   for (const order of orders) {
     const parts = order.service_type.split(' — ');
-    const category = parts.length > 1 ? parts[0] : 'Autre';
+    const category = parts.length > 1 ? parts[0] : translate('Autre');
     const label = parts.length > 1 ? parts[1] : order.service_type;
     if (!map.has(category)) map.set(category, new Map());
     const cat = map.get(category)!;

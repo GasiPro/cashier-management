@@ -14,10 +14,10 @@
         (click)="confirmed.emit()"
         [disabled]="busy()"
         [attr.aria-busy]="busy()">
-        {{ busy() ? busyLabel() : confirmLabel() }}
+        {{ (busy() ? busyLabel() : confirmLabel()) | t }}
       </button>
       <button type="button" app-button variant="ghost" (click)="cancelled.emit()" [disabled]="busy()">
-        {{ cancelLabel() }}
+        {{ cancelLabel() | t }}
       </button>
     </div>
   </div>

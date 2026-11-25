@@ -1,3 +1,4 @@
+import { LocaleSettings } from './locale.model';
 export type DateFormat = 'long' | 'dmy' | 'mdy' | 'ymd';
 export interface DateFormatChoice {
   value: DateFormat;
@@ -19,6 +20,7 @@ export interface DateTimeSettings {
 }
 export interface DateTimeSync {
   settings: DateTimeSettings;
+  locale: LocaleSettings;
   serverMs: number;
 }
 export const DEFAULT_DATETIME_SETTINGS: DateTimeSettings = {

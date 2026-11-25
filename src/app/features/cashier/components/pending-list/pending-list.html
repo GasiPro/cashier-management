@@ -4,28 +4,28 @@
                  text-amber-700 bg-amber-50 border border-amber-200
                  px-2.5 py-1 rounded-full uppercase tracking-wide">
       <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse inline-block"></span>
-      En attente
+      {{ 'En attente' | t }}
     </span>
     <span class="text-sm text-gray-400">
-      ({{ groups().length }}{{ groups().length !== totalCount() ? ' sur ' + totalCount() : '' }})
+      ({{ groups().length }}{{ groups().length !== totalCount() ? (' sur {totalCount}' | t: { totalCount: (totalCount()) }) : '' }})
     </span>
     @if (groups().length > 0) {
     <span class="ml-auto text-sm text-gray-500">
-      Total : <span class="font-semibold text-[#1A1A1A] tabular-nums">{{ totalAmount() | money }}</span>
+      {{ 'Total :' | t }} <span class="font-semibold text-[#1A1A1A] tabular-nums">{{ totalAmount() | money }}</span>
     </span>
     }
   </div>
   @if (totalCount() > 0) {
   <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
     <input type="search" [value]="search()" (input)="searchChange.emit($any($event.target).value)"
-      placeholder="Rechercher (n°, comptoir, article)…" aria-label="Rechercher une commande en attente"
+      [attr.placeholder]="'Rechercher (n°, comptoir, article)…' | t" [attr.aria-label]="'Rechercher une commande en attente' | t"
       class="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white text-gray-700
              focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]" />
     @if (counters().length > 1) {
-    <select (change)="counterChange.emit($any($event.target).value)" aria-label="Filtrer par comptoir"
+    <select (change)="counterChange.emit($any($event.target).value)" [attr.aria-label]="'Filtrer par comptoir' | t"
       class="text-sm border border-gray-200 rounded-lg px-3 py-2.5 bg-white text-gray-700
              focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-      <option [value]="allCounters()" [selected]="selectedCounter() === allCounters()">Tous les comptoirs</option>
+      <option [value]="allCounters()" [selected]="selectedCounter() === allCounters()">{{ 'Tous les comptoirs' | t }}</option>
       @for (counter of counters(); track counter) {
       <option [value]="counter" [selected]="selectedCounter() === counter">{{ counter }}</option>
       }
@@ -40,7 +40,7 @@
                  M9 5a2 2 0 002 2h2a2 2 0 002-2" />
     </svg>
     <p class="text-sm">
-      {{ totalCount() === 0 ? 'Aucune commande en attente.' : 'Aucun résultat.' }}
+      {{ totalCount() === 0 ? ('Aucune commande en attente.' | t) : ('Aucun résultat.' | t) }}
     </p>
   </div>
   }
@@ -50,17 +50,17 @@
                 transition-all flex flex-col justify-between cursor-pointer
                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]"
          role="button" tabindex="0"
-         [attr.aria-label]="'Voir le détail de la commande ' + formatGroupId(group.groupId)"
+         [attr.aria-label]="('Voir le détail de la commande {formatGroupId}' | t: { formatGroupId: (formatGroupId(group.groupId)) })"
          (click)="opened.emit(group)"
          (keydown.enter)="opened.emit(group)"
          (keydown.space)="$event.preventDefault(); opened.emit(group)">
       <div>
         <div class="flex items-start justify-between mb-3">
           <div class="min-w-0">
-            <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Commande</p>
+            <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">{{ 'Commande' | t }}</p>
             <p class="text-3xl font-bold text-[#1E3A5F] tabular-nums leading-tight">{{ formatGroupId(group.groupId) }}</p>
             @if (group.counterUsername) {
-            <p class="text-xs text-gray-400 mt-0.5">Envoyée par <span class="font-medium text-gray-500">{{ group.counterUsername }}</span></p>
+            <p class="text-xs text-gray-400 mt-0.5">{{ 'Envoyée par' | t }} <span class="font-medium text-gray-500">{{ group.counterUsername }}</span></p>
             }
           </div>
           <span class="text-xs text-gray-400 mt-1 whitespace-nowrap">{{ formatCreatedLabel(group) }}</span>
@@ -72,7 +72,7 @@
           <svg class="w-3.5 h-3.5 flex-shrink-0 mt-px" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.008v.008H12v-.008z" />
           </svg>
-          <span class="min-w-0 break-words"><span class="sr-only">Observation : </span>{{ note }}</span>
+          <span class="min-w-0 break-words"><span class="sr-only">{{ 'Observation :' | t }} </span>{{ note }}</span>
         </div>
         }
         @if (groupHasDiscount(group) || groupHasIncrease(group)) {
@@ -80,17 +80,17 @@
           @if (groupHasDiscount(group)) {
           <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700
                        bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full"
-                title="Un ou plusieurs prix ont été réduits par le comptoir">
-            Remise
-            <span class="sr-only">appliquée sur cette commande</span>
+                [attr.title]="'Un ou plusieurs prix ont été réduits par le comptoir' | t">
+            {{ 'Remise' | t }}
+            <span class="sr-only">{{ 'appliquée sur cette commande' | t }}</span>
           </span>
           }
           @if (groupHasIncrease(group)) {
           <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700
                        bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full"
-                title="Un ou plusieurs prix ont été majorés par le comptoir">
-            Majoration
-            <span class="sr-only">appliquée sur cette commande</span>
+                [attr.title]="'Un ou plusieurs prix ont été majorés par le comptoir' | t">
+            {{ 'Majoration' | t }}
+            <span class="sr-only">{{ 'appliquée sur cette commande' | t }}</span>
           </span>
           }
         </div>
@@ -98,15 +98,15 @@
       </div>
       <div class="flex items-center justify-between pt-4 border-t border-gray-100">
         <div>
-          <p class="text-xs text-gray-400">Total à payer</p>
+          <p class="text-xs text-gray-400">{{ 'Total à payer' | t }}</p>
           <p class="text-xl font-bold text-[#1A1A1A] tabular-nums">{{ group.totalAmount | money }}</p>
         </div>
         <button (click)="$event.stopPropagation(); opened.emit(group)"
-          [attr.aria-label]="'Vérifier la commande ' + formatGroupId(group.groupId)"
+          [attr.aria-label]="('Vérifier la commande {formatGroupId}' | t: { formatGroupId: (formatGroupId(group.groupId)) })"
           class="bg-[#1E3A5F] text-white text-sm font-medium px-5 py-2.5 rounded-lg shadow-sm
                  hover:bg-[#16304f] active:scale-95 transition-all
                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
-          Vérifier
+          {{ 'Vérifier' | t }}
         </button>
       </div>
     </div>

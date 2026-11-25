@@ -24,6 +24,8 @@ import {
   PeerId,
 } from '../../../data/device/device.model';
 import { isValidIp } from '../../../shared/utils/validators';
+import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
+import { translate } from '../../../core/i18n/translate';
 interface BlacklistTypeChoice {
   value: BlacklistEntryType;
   label: string;
@@ -57,7 +59,7 @@ const BLACKLIST_TYPES: BlacklistTypeChoice[] = [
 @Component({
   selector: 'app-admin-accounts',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TranslatePipe],
   templateUrl: './accounts.page.html'
 })
 export class AccountsPage implements OnInit {
@@ -103,7 +105,7 @@ export class AccountsPage implements OnInit {
       this.accounts.set(accounts);
     } catch (e) {
       console.error('failed to load accounts', e);
-      this.setAccountStatus(errorMessage(e, 'Impossible de charger la liste des comptes.'), true);
+      this.setAccountStatus(errorMessage(e, translate('Impossible de charger la liste des comptes.')), true);
     } finally {
       this.loadingAccounts.set(false);
     }
@@ -111,10 +113,10 @@ export class AccountsPage implements OnInit {
   async copyAccountId(account: AccountView): Promise<void> {
     try {
       await navigator.clipboard.writeText(account.id);
-      this.setAccountStatus('Identifiant copié.', false);
+      this.setAccountStatus(translate('Identifiant copié.'), false);
     } catch (e) {
       console.error('failed to copy account id', e);
-      this.setAccountStatus("Impossible de copier l'identifiant.", true);
+      this.setAccountStatus(translate('Impossible de copier l\'identifiant.'), true);
     }
   }
   isExpanded(username: string): boolean {
@@ -129,13 +131,13 @@ export class AccountsPage implements OnInit {
   historyLabel(entry: AccountHistoryEntry): string {
     switch (entry.kind) {
       case 'created':
-        return 'Compte créé';
+        return translate('Compte créé');
       case 'suspended':
-        return entry.reason ? `Suspendu — ${entry.reason}` : 'Suspendu';
+        return entry.reason ? translate('Suspendu — {reason}', { reason: entry.reason }) : translate('Suspendu');
       case 'reactivated':
-        return 'Réactivé';
+        return translate('Réactivé');
       case 'modified':
-        return 'Modifié';
+        return translate('Modifié');
       default:
         return entry.kind;
     }
@@ -165,11 +167,11 @@ export class AccountsPage implements OnInit {
     try {
       const updated = await accountApi.suspendAccount(account.username);
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
-      this.setAccountStatus(`Compte « ${updated.username} » suspendu.`, false);
+      this.setAccountStatus(translate('Compte « {username} » suspendu.', { username: updated.username }), false);
       void this.loadActivities(true);
     } catch (e) {
       console.error('suspend_account failed', e);
-      const message = errorMessage(e, 'Échec de la suspension du compte. Réessayez.');
+      const message = errorMessage(e, translate('Échec de la suspension du compte. Réessayez.'));
       this.setAccountStatus(message, true);
     } finally {
       this.togglingStatusUsername.set(null);
@@ -182,11 +184,11 @@ export class AccountsPage implements OnInit {
     try {
       const updated = await accountApi.reactivateAccount(account.username);
       this.accounts.update((list) => list.map((a) => (a.username === updated.username ? updated : a)));
-      this.setAccountStatus(`Compte « ${updated.username} » réactivé.`, false);
+      this.setAccountStatus(translate('Compte « {username} » réactivé.', { username: updated.username }), false);
       void this.loadActivities(true);
     } catch (e) {
       console.error('reactivate_account failed', e);
-      const message = errorMessage(e, 'Échec de la réactivation du compte. Réessayez.');
+      const message = errorMessage(e, translate('Échec de la réactivation du compte. Réessayez.'));
       this.setAccountStatus(message, true);
     } finally {
       this.togglingStatusUsername.set(null);
@@ -241,18 +243,18 @@ export class AccountsPage implements OnInit {
   }
   private validateEditAccountForm(): string {
     if (this.editDisplayName().trim().length > this.maxDisplayNameLen) {
-      return `Le nom affiché ne peut pas dépasser ${this.maxDisplayNameLen} caractères.`;
+      return translate('Le nom affiché ne peut pas dépasser {maxDisplayNameLen} caractères.', { maxDisplayNameLen: this.maxDisplayNameLen });
     }
     const password = this.editPassword();
     if (password.length > 0 || this.editPasswordConfirm().length > 0) {
       if (password.length < this.minPasswordLen) {
-        return `Le mot de passe doit contenir au moins ${this.minPasswordLen} caractères.`;
+        return translate('Le mot de passe doit contenir au moins {minPasswordLen} caractères.', { minPasswordLen: this.minPasswordLen });
       }
       if (!PASSWORD_HAS_LETTER.test(password) || !PASSWORD_HAS_DIGIT.test(password)) {
-        return 'Le mot de passe doit contenir au moins une lettre et un chiffre.';
+        return translate('Le mot de passe doit contenir au moins une lettre et un chiffre.');
       }
       if (password !== this.editPasswordConfirm()) {
-        return 'Les mots de passe ne correspondent pas.';
+        return translate('Les mots de passe ne correspondent pas.');
       }
     }
     return '';
@@ -283,15 +285,15 @@ export class AccountsPage implements OnInit {
       this.showEditPassword.set(false);
       this.setAccountStatus(
         newPassword.length > 0
-          ? `Compte « ${updated.username} » mis à jour, mot de passe modifié.`
-          : `Compte « ${updated.username} » mis à jour.`,
+          ? translate('Compte « {username} » mis à jour, mot de passe modifié.', { username: updated.username })
+          : translate('Compte « {username} » mis à jour.', { username: updated.username }),
         false,
       );
       void this.loadActivities(true);
       document.getElementById(`account-edit-btn-${updated.username}`)?.focus();
     } catch (e) {
       console.error('update_account failed', e);
-      const message = errorMessage(e, 'Échec de la mise à jour du compte. Réessayez.');
+      const message = errorMessage(e, translate('Échec de la mise à jour du compte. Réessayez.'));
       this.editAccountError.set(message);
     } finally {
       this.savingEditAccount.set(false);
@@ -327,11 +329,11 @@ export class AccountsPage implements OnInit {
       await accountApi.deleteAccount(account.username);
       this.accounts.update((list) => list.filter((a) => a.username !== account.username));
       this.confirmingDeleteUsername.set(null);
-      this.setAccountStatus(`Compte « ${account.username} » supprimé définitivement.`, false);
+      this.setAccountStatus(translate('Compte « {username} » supprimé définitivement.', { username: account.username }), false);
       void this.loadActivities(true);
     } catch (e) {
       console.error('delete_account failed', e);
-      const message = errorMessage(e, 'Échec de la suppression du compte. Réessayez.');
+      const message = errorMessage(e, translate('Échec de la suppression du compte. Réessayez.'));
       this.deleteAccountError.set(message);
     } finally {
       this.deletingAccount.set(false);
@@ -379,22 +381,22 @@ export class AccountsPage implements OnInit {
   private validateAccountForm(): string {
     const username = this.trimmedNewUsername();
     if (username.length < this.minUsernameLen) {
-      return `Le nom d'utilisateur doit contenir au moins ${this.minUsernameLen} caractères.`;
+      return translate('Le nom d\'utilisateur doit contenir au moins {minUsernameLen} caractères.', { minUsernameLen: this.minUsernameLen });
     }
     if (username.length > this.maxUsernameLen) {
-      return `Le nom d'utilisateur ne peut pas dépasser ${this.maxUsernameLen} caractères.`;
+      return translate('Le nom d\'utilisateur ne peut pas dépasser {maxUsernameLen} caractères.', { maxUsernameLen: this.maxUsernameLen });
     }
     if (this.accounts().some((a) => a.username.toLowerCase() === username.toLowerCase())) {
-      return "Ce nom d'utilisateur est déjà utilisé.";
+      return translate('Ce nom d\'utilisateur est déjà utilisé.');
     }
     if (this.newPassword().length < this.minPasswordLen) {
-      return `Le mot de passe doit contenir au moins ${this.minPasswordLen} caractères.`;
+      return translate('Le mot de passe doit contenir au moins {minPasswordLen} caractères.', { minPasswordLen: this.minPasswordLen });
     }
     if (!PASSWORD_HAS_LETTER.test(this.newPassword()) || !PASSWORD_HAS_DIGIT.test(this.newPassword())) {
-      return 'Le mot de passe doit contenir au moins une lettre et un chiffre.';
+      return translate('Le mot de passe doit contenir au moins une lettre et un chiffre.');
     }
     if (this.newPassword() !== this.newPasswordConfirm()) {
-      return 'Les mots de passe ne correspondent pas.';
+      return translate('Les mots de passe ne correspondent pas.');
     }
     return '';
   }
@@ -415,12 +417,12 @@ export class AccountsPage implements OnInit {
         user_type: this.newUserType(),
       });
       this.accounts.update((list) => [created, ...list]);
-      this.setAccountStatus(`Compte « ${created.username} » créé.`, false);
+      this.setAccountStatus(translate('Compte « {username} » créé.', { username: created.username }), false);
       this.closeCreatePanel();
       void this.loadActivities(true);
     } catch (e) {
       console.error('create_account failed', e);
-      const message = errorMessage(e, 'Échec de la création du compte. Réessayez.');
+      const message = errorMessage(e, translate('Échec de la création du compte. Réessayez.'));
       this.accountFormError.set(message);
     } finally {
       this.creatingAccount.set(false);
@@ -446,7 +448,7 @@ export class AccountsPage implements OnInit {
     } catch (e) {
       console.error('failed to load account activities', e);
       if (!silent) {
-        this.setAccountStatus(errorMessage(e, "Impossible de charger l'activité des comptes."), true);
+        this.setAccountStatus(errorMessage(e, translate('Impossible de charger l\'activité des comptes.')), true);
       }
     } finally {
       this.loadingActivities.set(false);
@@ -486,7 +488,7 @@ export class AccountsPage implements OnInit {
     return this.blacklist().some((b) => b.type === type && b.value.toLowerCase() === value.toLowerCase());
   }
   blacklistTypeLabel(type: BlacklistEntryType): string {
-    return this.blacklistTypes.find((t) => t.value === type)?.label ?? type;
+    return translate(this.blacklistTypes.find((t) => t.value === type)?.label ?? type);
   }
   setBlacklistType(type: BlacklistEntryType): void {
     this.newBlacklistType.set(type);
@@ -498,7 +500,7 @@ export class AccountsPage implements OnInit {
       this.blacklist.set(await deviceApi.listBlacklist());
     } catch (e) {
       console.error('failed to load blacklist', e);
-      this.setBlacklistStatus(errorMessage(e, 'Impossible de charger la liste noire.'), true);
+      this.setBlacklistStatus(errorMessage(e, translate('Impossible de charger la liste noire.')), true);
     } finally {
       this.loadingBlacklist.set(false);
     }
@@ -506,12 +508,12 @@ export class AccountsPage implements OnInit {
   private validateBlacklistForm(): string {
     const type = this.newBlacklistType();
     const value = this.trimmedBlacklistValue();
-    if (value.length === 0) return this.selectedBlacklistType().emptyError;
-    if (type === 'ip' && !isValidIp(value)) return 'Adresse IP invalide (ex : 192.168.1.42).';
+    if (value.length === 0) return translate(this.selectedBlacklistType().emptyError);
+    if (type === 'ip' && !isValidIp(value)) return translate('Adresse IP invalide (ex : 192.168.1.42).');
     if (value.length > this.maxBlacklistAddrLen) {
-      return `Cette valeur ne peut pas dépasser ${this.maxBlacklistAddrLen} caractères.`;
+      return translate('Cette valeur ne peut pas dépasser {maxBlacklistAddrLen} caractères.', { maxBlacklistAddrLen: this.maxBlacklistAddrLen });
     }
-    if (this.blacklistHas(type, value)) return 'Cette entrée est déjà dans la liste noire.';
+    if (this.blacklistHas(type, value)) return translate('Cette entrée est déjà dans la liste noire.');
     return '';
   }
   async addBlacklistEntry(): Promise<void> {
@@ -532,10 +534,10 @@ export class AccountsPage implements OnInit {
       this.blacklist.set(await deviceApi.listBlacklist());
       this.newBlacklistValue.set('');
       this.newBlacklistReason.set('');
-      this.setBlacklistStatus('Entrée ajoutée à la liste noire.', false);
+      this.setBlacklistStatus(translate('Entrée ajoutée à la liste noire.'), false);
     } catch (e) {
       console.error('add_blacklist_entry failed', e);
-      this.blacklistFormError.set(errorMessage(e, "Échec de l'ajout. Réessayez."));
+      this.blacklistFormError.set(errorMessage(e, translate('Échec de l\'ajout. Réessayez.')));
     } finally {
       this.addingBlacklistEntry.set(false);
     }
@@ -556,10 +558,10 @@ export class AccountsPage implements OnInit {
       await deviceApi.removeBlacklistEntry(entry.id);
       this.blacklist.update((list) => list.filter((b) => b.id !== entry.id));
       this.confirmingRemoveBlacklistId.set(null);
-      this.setBlacklistStatus('Entrée retirée de la liste noire.', false);
+      this.setBlacklistStatus(translate('Entrée retirée de la liste noire.'), false);
     } catch (e) {
       console.error('remove_blacklist_entry failed', e);
-      this.removeBlacklistError.set(errorMessage(e, 'Échec de la suppression. Réessayez.'));
+      this.removeBlacklistError.set(errorMessage(e, translate('Échec de la suppression. Réessayez.')));
     } finally {
       this.removingBlacklistId.set(null);
     }
@@ -589,7 +591,7 @@ export class AccountsPage implements OnInit {
       this.connectedDevicesCount.set(connected);
     } catch (e) {
       console.error('failed to load device settings', e);
-      this.setDevicesStatus(errorMessage(e, 'Impossible de charger les réglages des appareils.'), true);
+      this.setDevicesStatus(errorMessage(e, translate('Impossible de charger les réglages des appareils.')), true);
     } finally {
       this.loadingDevicesSetting.set(false);
     }
@@ -619,13 +621,13 @@ export class AccountsPage implements OnInit {
       this.maxConnectedDevicesDraft.set(applied);
       this.setDevicesStatus(
         applied === 0
-          ? "Nombre d'appareils illimité enregistré."
-          : `Limite enregistrée : ${applied} appareil${applied > 1 ? 's' : ''} maximum.`,
+          ? translate('Nombre d\'appareils illimité enregistré.')
+          : translate('Limite enregistrée : {applied} appareil{applied2} maximum.', { applied: applied, applied2: applied > 1 ? 's' : '' }),
         false,
       );
     } catch (e) {
       console.error('devices_max_set failed', e);
-      this.setDevicesStatus(errorMessage(e, "Échec de l'enregistrement. Réessayez."), true);
+      this.setDevicesStatus(errorMessage(e, translate('Échec de l\'enregistrement. Réessayez.')), true);
     } finally {
       this.savingDevicesSetting.set(false);
     }

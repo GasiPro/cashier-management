@@ -1,6 +1,6 @@
 <ng-template #copyId let-key="key" let-value="value" let-label="label">
-  <button type="button" (click)="copy(key, value)" title="Copier l'ID"
-    [attr.aria-label]="'Copier ID de ' + label"
+  <button type="button" (click)="copy(key, value)" [attr.title]="'Copier l\'ID' | t"
+    [attr.aria-label]="('Copier ID de {label}' | t: { label: (label) })"
     class="inline-flex items-center gap-1 max-w-full font-mono text-[10px] text-gray-400 hover:text-[#1E3A5F] bg-gray-50
            border border-gray-200 rounded px-1.5 py-0.5 transition-colors
            focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
@@ -30,7 +30,7 @@
       [class.bg-white]="model() !== option.value"
       [class.text-gray-600]="model() !== option.value"
       [class.border-gray-200]="model() !== option.value">
-      {{ option.label }}
+      {{ option.label | t }}
     </button>
     }
   </div>
@@ -44,12 +44,12 @@
   <app-pending-fab [slot]="2" (applied)="onApplied()" />
   <section aria-labelledby="stocks-heading" class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
     <div class="mb-4">
-      <h2 id="stocks-heading" class="text-base font-semibold text-[#1A1A1A]">Stocks</h2>
+      <h2 id="stocks-heading" class="text-base font-semibold text-[#1A1A1A]">{{ 'Stocks' | t }}</h2>
       <p class="text-xs text-gray-400 mt-0.5">
-        Disponibilité et quantités. Enregistrez, puis appliquez.
+        {{ 'Disponibilité et quantités. Enregistrez, puis appliquez.' | t }}
       </p>
     </div>
-    <div class="mb-4 flex gap-2" role="group" aria-label="Sections du stock">
+    <div class="mb-4 flex gap-2" role="group" [attr.aria-label]="'Sections du stock' | t">
       @for (option of tabs(); track option.value) {
       <button type="button" (click)="setTab(option.value)" [attr.aria-pressed]="tab() === option.value"
         class="flex-shrink-0 text-xs font-semibold border px-4 py-1.5 rounded-full transition-colors
@@ -60,7 +60,7 @@
         [class.bg-white]="tab() !== option.value"
         [class.text-gray-600]="tab() !== option.value"
         [class.border-gray-200]="tab() !== option.value">
-        {{ option.label }}
+        {{ option.label | t }}
         @if (!loading() && !loadError()) {
         <span class="ml-1 tabular-nums opacity-70">{{ option.count }}</span>
         }
@@ -74,7 +74,7 @@
     </p>
     }
     @if (loading()) {
-    <p class="text-sm text-gray-400 italic py-4">Chargement…</p>
+    <p class="text-sm text-gray-400 italic py-4">{{ 'Chargement…' | t }}</p>
     } @else if (loadError()) {
     <div role="alert" class="py-4 flex items-center gap-3">
       <p class="text-sm text-red-600">{{ loadError() }}</p>
@@ -82,15 +82,15 @@
         class="text-xs font-semibold text-[#1E3A5F] border border-[#1E3A5F]/30 rounded-md px-3 py-1.5
                hover:bg-[#EFF4FA] transition-colors
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-        Réessayer
+        {{ 'Réessayer' | t }}
       </button>
     </div>
     } @else if (tab() === 'journal') {
     @if (history().length === 0) {
-    <p class="text-sm text-gray-400 py-4">Aucune modification.</p>
+    <p class="text-sm text-gray-400 py-4">{{ 'Aucune modification.' | t }}</p>
     } @else {
     <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden"
-      [attr.aria-label]="history().length + ' ligne(s) dans le journal'">
+      [attr.aria-label]="('{length} ligne(s) dans le journal' | t: { length: (history().length) })">
       @for (entry of history(); track entry.id) {
       <li>
         <button type="button" (click)="toggleEntry(entry.id)" [attr.aria-expanded]="expandedId() === entry.id"
@@ -98,9 +98,9 @@
                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div class="flex flex-wrap items-center gap-2 min-w-0">
-              <app-badge [tone]="actionBadges[entry.action].tone">{{ actionBadges[entry.action].label }}</app-badge>
+              <app-badge [tone]="actionBadges[entry.action].tone">{{ actionBadges[entry.action].label | t }}</app-badge>
               <app-badge [tone]="entry.order_group_id === null ? 'info' : 'warning'">
-                {{ entry.order_group_id === null ? 'Manuel' : 'Commande' }}
+                {{ entry.order_group_id === null ? ('Manuel' | t) : ('Commande' | t) }}
               </app-badge>
               <p class="text-sm font-medium text-[#1A1A1A] truncate">{{ entry.item_label }}</p>
               <app-badge [tone]="typeTone(entry.item_type)">{{ typeLabel(entry.item_type) }}</app-badge>
@@ -124,23 +124,23 @@
         @if (expandedId() === entry.id) {
         <dl class="px-3 pb-3 grid gap-x-6 gap-y-2 text-xs sm:grid-cols-2">
           <div>
-            <dt class="text-gray-400">Origine</dt>
+            <dt class="text-gray-400">{{ 'Origine' | t }}</dt>
             <dd class="font-medium text-gray-700">
               @if (entry.action === 'empty') {
               {{ entry.order_group_id === null
-                ? 'Rupture manuelle'
-                : 'Rupture · commande ' + formatGroupId(entry.order_group_id) }}
+                ? ('Rupture manuelle' | t)
+                : ('Rupture · commande {formatGroupId}' | t: { formatGroupId: (formatGroupId(entry.order_group_id)) }) }}
               } @else {
               {{ sourceLabel(entry) }}
               }
             </dd>
           </div>
           <div>
-            <dt class="text-gray-400">Date et heure</dt>
+            <dt class="text-gray-400">{{ 'Date et heure' | t }}</dt>
             <dd class="font-medium text-gray-700 tabular-nums">{{ formatAt(entry.at) }}</dd>
           </div>
           <div>
-            <dt class="text-gray-400">Article</dt>
+            <dt class="text-gray-400">{{ 'Article' | t }}</dt>
             <dd class="flex items-center gap-1.5 min-w-0">
               <span class="font-medium text-gray-700 truncate">{{ entry.item_label }}</span>
               <span class="text-gray-400 truncate">· {{ typeLabel(entry.item_type) }} · {{ entry.item_category }}</span>
@@ -151,8 +151,8 @@
             </dd>
           </div>
           <div>
-            <dt class="text-gray-400">{{ entry.order_group_id === null ? 'Administrateur' : 'Commande validée par' }}</dt>
-            <dd class="font-medium text-gray-700">{{ entry.admin_username || 'Inconnu' }}</dd>
+            <dt class="text-gray-400">{{ entry.order_group_id === null ? ('Administrateur' | t) : ('Commande validée par' | t) }}</dt>
+            <dd class="font-medium text-gray-700">{{ entry.admin_username || ('Inconnu' | t) }}</dd>
             @if (entry.admin_id) {
             <dd class="mt-1">
               <ng-container [ngTemplateOutlet]="copyId"
@@ -161,11 +161,11 @@
             }
           </div>
           <div>
-            <dt class="text-gray-400">Avant</dt>
+            <dt class="text-gray-400">{{ 'Avant' | t }}</dt>
             <dd class="font-medium text-gray-700">{{ entry.before }}</dd>
           </div>
           <div>
-            <dt class="text-gray-400">Après</dt>
+            <dt class="text-gray-400">{{ 'Après' | t }}</dt>
             <dd class="font-medium text-gray-700">{{ entry.after }}</dd>
           </div>
         </dl>
@@ -180,20 +180,20 @@
         fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.85-5.4a7.25 7.25 0 11-14.5 0 7.25 7.25 0 0114.5 0z" />
       </svg>
-      <label for="stocks-search" class="sr-only">Rechercher un article</label>
+      <label for="stocks-search" class="sr-only">{{ 'Rechercher un article' | t }}</label>
       <input id="stocks-search" type="search" name="stocksSearch"
         [ngModel]="searchTerm()" (ngModelChange)="searchTerm.set($event)"
-        placeholder="Rechercher un libellé ou une catégorie…"
+        [attr.placeholder]="'Rechercher un libellé ou une catégorie…' | t"
         class="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm text-[#1A1A1A]
                focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
     </div>
     @if (visibleItems().length === 0) {
     <p class="text-sm text-gray-400 py-4">
-      {{ searchTerm().trim() ? 'Aucun résultat.' : 'Aucun article.' }}
+      {{ searchTerm().trim() ? ('Aucun résultat.' | t) : ('Aucun article.' | t) }}
     </p>
     } @else {
     <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg"
-      [attr.aria-label]="visibleItems().length + ' article(s) affiché(s)'">
+      [attr.aria-label]="('{length} article(s) affiché(s)' | t: { length: (visibleItems().length) })">
       @for (item of visibleItems(); track item.id) {
       <li class="px-3 py-3">
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -201,7 +201,7 @@
             <div class="flex items-center gap-2">
               <p class="text-sm font-medium text-[#1A1A1A] truncate">{{ item.label }}</p>
               <button type="button" [id]="'item-edit-btn-' + item.id" (click)="startItemEdit(item)"
-                title="Modifier l'article" [attr.aria-label]="'Modifier l\'article ' + item.label"
+                [attr.title]="'Modifier l\'article' | t" [attr.aria-label]="('Modifier l\'article {label}' | t: { label: (item.label) })"
                 class="flex-shrink-0 text-gray-400 hover:text-[#1E3A5F] p-1 rounded-md transition-colors
                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -210,10 +210,10 @@
                 </svg>
               </button>
               @if (item.quantity === 0) {
-              <app-badge tone="danger">Rupture</app-badge>
+              <app-badge tone="danger">{{ 'Rupture' | t }}</app-badge>
               }
               @if (isPending(item.id)) {
-              <app-badge tone="warning">En attente</app-badge>
+              <app-badge tone="warning">{{ 'En attente' | t }}</app-badge>
               }
             </div>
             <div class="flex items-center gap-2 min-w-0">
@@ -224,7 +224,7 @@
           </div>
           <button type="button" role="switch" [attr.aria-checked]="item.available"
             (click)="toggleAvailability(item)"
-            [attr.aria-label]="'Disponibilité de ' + item.label"
+            [attr.aria-label]="('Disponibilité de {label}' | t: { label: (item.label) })"
             class="flex items-center gap-2 text-xs font-medium disabled:opacity-40
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
             <span class="relative inline-flex h-5 w-9 flex-shrink-0 rounded-full transition-colors"
@@ -233,36 +233,36 @@
                 [class.translate-x-4]="item.available"></span>
             </span>
             <span class="w-20 text-left" [class.text-emerald-700]="item.available" [class.text-gray-500]="!item.available">
-              {{ item.available ? 'Disponible' : 'Indisponible' }}
+              {{ item.available ? ('Disponible' | t) : ('Indisponible' | t) }}
             </span>
           </button>
           <div class="flex items-center gap-2">
             <span class="text-xs text-gray-600 tabular-nums">{{ quantityLabel(item) }}</span>
             <button type="button" [id]="'stock-edit-btn-' + item.id" (click)="startEdit(item)"
-              [attr.aria-label]="'Modifier le stock de ' + item.label"
+              [attr.aria-label]="('Modifier le stock de {label}' | t: { label: (item.label) })"
               class="text-xs font-semibold text-[#1E3A5F] border border-[#1E3A5F]/30 rounded-md px-3 py-1.5
                      hover:bg-[#EFF4FA] transition-colors
                      focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-              Modifier
+              {{ 'Modifier' | t }}
             </button>
           </div>
         </div>
         @if (editingId() === item.id) {
         <div class="mt-3 bg-[#FAFAFA] border border-gray-200 rounded-lg p-3" role="group"
-          [attr.aria-label]="'Modifier le stock de ' + item.label" (keydown.escape)="cancelEdit()">
+          [attr.aria-label]="('Modifier le stock de {label}' | t: { label: (item.label) })" (keydown.escape)="cancelEdit()">
           <label [for]="'stock-qty-' + item.id" class="block text-xs font-semibold text-gray-500 mb-1">
-            {{ item.type === 'service' ? 'Limite' : 'Quantité en stock' }}
+            {{ item.type === 'service' ? ('Limite' | t) : ('Quantité en stock' | t) }}
           </label>
           <input [id]="'stock-qty-' + item.id" type="number" min="0" step="1" inputmode="numeric" name="stockQuantity"
             [ngModel]="editQuantity()" (ngModelChange)="editQuantity.set($event)"
             (keydown.enter)="saveQuantity(item)"
-            [attr.placeholder]="item.type === 'service' ? 'Illimité' : 'Non suivi'"
+            [attr.placeholder]="item.type === 'service' ? ('Illimité' | t) : ('Non suivi' | t)"
             class="w-full sm:w-48 border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A] bg-white
                    focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
           <p class="text-[11px] text-gray-400 mt-1">
             {{ item.type === 'service'
-              ? 'Vide : illimité. 0 : rupture.'
-              : 'Vide : non suivi. 0 : rupture.' }}
+              ? ('Vide : illimité. 0 : rupture.' | t)
+              : ('Vide : non suivi. 0 : rupture.' | t) }}
           </p>
           @if (editError()) {
           <p role="alert" aria-live="assertive" class="text-xs text-red-600 font-medium mt-2">{{ editError() }}</p>
@@ -272,23 +272,23 @@
               class="bg-[#1E3A5F] text-white text-sm font-semibold px-4 py-2 rounded-md
                      hover:bg-[#16304f] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
                      focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-              Valider
+              {{ 'Valider' | t }}
             </button>
             <button type="button" (click)="cancelEdit()"
               class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
                      focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-              Annuler
+              {{ 'Annuler' | t }}
             </button>
           </div>
         </div>
         }
         @if (itemEditingId() === item.id) {
         <form class="mt-3 bg-[#FAFAFA] border border-gray-200 rounded-lg p-3 space-y-3" novalidate
-          [attr.aria-label]="'Modifier l\'article ' + item.label"
+          [attr.aria-label]="('Modifier l\'article {label}' | t: { label: (item.label) })"
           (ngSubmit)="saveItem(item)" (keydown.escape)="cancelItemEdit()">
           <div class="grid gap-3 sm:grid-cols-2">
             <div>
-              <label [for]="'item-edit-label-' + item.id" class="block text-xs font-semibold text-gray-500 mb-1">Nom</label>
+              <label [for]="'item-edit-label-' + item.id" class="block text-xs font-semibold text-gray-500 mb-1">{{ 'Nom' | t }}</label>
               <input [id]="'item-edit-label-' + item.id" type="text" name="itemLabel"
                 [ngModel]="editLabel()" (ngModelChange)="editLabel.set($event)"
                 [attr.maxlength]="maxLabelLen" autocomplete="off"
@@ -296,7 +296,7 @@
                    focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
             </div>
             <div>
-              <label [for]="'item-edit-category-' + item.id" class="block text-xs font-semibold text-gray-500 mb-1">Catégorie</label>
+              <label [for]="'item-edit-category-' + item.id" class="block text-xs font-semibold text-gray-500 mb-1">{{ 'Catégorie' | t }}</label>
               <input [id]="'item-edit-category-' + item.id" type="text" name="itemCategory" list="stock-categories"
                 [ngModel]="editCategory()" (ngModelChange)="editCategory.set($event)"
                 [attr.maxlength]="maxCategoryLen" autocomplete="off"
@@ -305,11 +305,11 @@
             </div>
           </div>
           <div>
-            <span class="block text-xs font-semibold text-gray-500 mb-1">Type</span>
+            <span class="block text-xs font-semibold text-gray-500 mb-1">{{ 'Type' | t }}</span>
             <ng-container [ngTemplateOutlet]="typePicker"
-              [ngTemplateOutletContext]="{ model: editType, name: 'Type' }" />
+              [ngTemplateOutletContext]="{ model: editType, name: ('Type' | t) }" />
           </div>
-          <p class="text-[11px] text-gray-400">Absent de l'historique.</p>
+          <p class="text-[11px] text-gray-400">{{ 'Absent de l\'historique.' | t }}</p>
           @if (itemEditError()) {
           <p role="alert" aria-live="assertive" class="text-xs text-red-600 font-medium">{{ itemEditError() }}</p>
           }
@@ -318,12 +318,12 @@
               class="bg-[#1E3A5F] text-white text-sm font-semibold px-4 py-2 rounded-md
                      hover:bg-[#16304f] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
                      focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-              Valider
+              {{ 'Valider' | t }}
             </button>
             <button type="button" (click)="cancelItemEdit()"
               class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
                      focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-              Annuler
+              {{ 'Annuler' | t }}
             </button>
           </div>
         </form>
@@ -335,7 +335,7 @@
     }
   </section>
   <button id="stock-add-btn" type="button" (click)="openCreate()"
-    aria-label="Ajouter un article"
+    [attr.aria-label]="'Ajouter un article' | t"
     aria-haspopup="dialog"
     [attr.aria-expanded]="showCreate()"
     class="fixed bottom-6 right-6 sm:right-10 w-12 h-12 rounded-full bg-[#1E3A5F] text-white
@@ -353,8 +353,8 @@
     <div role="dialog" aria-modal="true" aria-labelledby="new-item-heading"
       class="relative bg-white w-full sm:max-w-md sm:rounded-xl rounded-t-xl p-5 sm:p-6 max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between mb-4">
-        <h2 id="new-item-heading" class="text-base font-semibold text-[#1A1A1A]">Nouvel article</h2>
-        <button type="button" (click)="closeCreate()" aria-label="Fermer"
+        <h2 id="new-item-heading" class="text-base font-semibold text-[#1A1A1A]">{{ 'Nouvel article' | t }}</h2>
+        <button type="button" (click)="closeCreate()" [attr.aria-label]="'Fermer' | t"
           class="text-gray-400 hover:text-gray-600 p-1.5 rounded-md transition-colors
                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -364,29 +364,29 @@
       </div>
       <form (ngSubmit)="createItem()" novalidate class="space-y-4">
         <div>
-          <span class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Type</span>
+          <span class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{{ 'Type' | t }}</span>
           <ng-container [ngTemplateOutlet]="typePicker"
-            [ngTemplateOutletContext]="{ model: newType, name: 'Type' }" />
+            [ngTemplateOutletContext]="{ model: newType, name: ('Type' | t) }" />
         </div>
         <div>
-          <label for="new-item-label" class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Nom</label>
+          <label for="new-item-label" class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{{ 'Nom' | t }}</label>
           <input id="new-item-label" type="text" name="newItemLabel"
             [ngModel]="newLabel()" (ngModelChange)="newLabel.set($event)"
-            [attr.maxlength]="maxLabelLen" autocomplete="off" required placeholder="ex : A4 Couleur"
+            [attr.maxlength]="maxLabelLen" autocomplete="off" required [attr.placeholder]="'ex : A4 Couleur' | t"
             class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-[#1A1A1A]
                    focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
         </div>
         <div>
-          <label for="new-item-category" class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Catégorie</label>
+          <label for="new-item-category" class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{{ 'Catégorie' | t }}</label>
           <input id="new-item-category" type="text" name="newItemCategory" list="stock-categories"
             [ngModel]="newCategory()" (ngModelChange)="newCategory.set($event)"
-            [attr.maxlength]="maxCategoryLen" autocomplete="off" required placeholder="ex : Photocopie"
+            [attr.maxlength]="maxCategoryLen" autocomplete="off" required [attr.placeholder]="'ex : Photocopie' | t"
             class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-[#1A1A1A]
                    focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
           <div>
-            <label for="new-item-price" class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Prix ({{ currency.code() }})</label>
+            <label for="new-item-price" class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{{ 'Prix ({code})' | t: { code: (currency.code()) } }}</label>
             <input id="new-item-price" type="number" min="0" step="1" inputmode="numeric" name="newItemPrice"
               [ngModel]="newPrice()" (ngModelChange)="newPrice.set($event)" placeholder="0"
               class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-[#1A1A1A]
@@ -394,17 +394,17 @@
           </div>
           <div>
             <label for="new-item-quantity" class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-              {{ newType() === 'service' ? 'Limite' : 'Quantité' }}
+              {{ newType() === 'service' ? ('Limite' | t) : ('Quantité' | t) }}
             </label>
             <input id="new-item-quantity" type="number" min="0" step="1" inputmode="numeric" name="newItemQuantity"
               [ngModel]="newQuantity()" (ngModelChange)="newQuantity.set($event)"
-              [attr.placeholder]="newType() === 'service' ? 'Illimité' : 'Non suivi'"
+              [attr.placeholder]="newType() === 'service' ? ('Illimité' | t) : ('Non suivi' | t)"
               class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-[#1A1A1A]
                      focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
           </div>
         </div>
         <p class="text-xs text-gray-400">
-          Prix et {{ newType() === 'service' ? 'limite' : 'quantité' }} facultatifs. Article créé disponible.
+          {{ 'Prix et {newType} facultatifs. Article créé disponible.' | t: { newType: (newType() === 'service' ? ('limite' | t) : ('quantité' | t)) } }}
         </p>
         @if (createError()) {
         <p role="alert" aria-live="assertive" class="text-xs text-red-600 font-medium">{{ createError() }}</p>
@@ -415,12 +415,12 @@
                    hover:bg-[#16304f] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
                    disabled:opacity-40 disabled:hover:bg-[#1E3A5F] disabled:active:scale-100
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-            {{ creating() ? 'Ajout…' : "Ajouter l'article" }}
+            {{ creating() ? ('Ajout…' | t) : ('Ajouter l\'article' | t) }}
           </button>
           <button type="button" (click)="closeCreate()" [disabled]="creating()"
             class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-            Annuler
+            {{ 'Annuler' | t }}
           </button>
         </div>
       </form>

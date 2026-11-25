@@ -1,5 +1,6 @@
 use crate::config::setting_config::{
-    DEFAULT_BACKGROUND_COLOR, DEFAULT_DATE_FORMAT, DEFAULT_FONT_SIZE, DEFAULT_MAX_CONNECTED_DEVICES,
+    DEFAULT_BACKGROUND_COLOR, DEFAULT_DATE_FORMAT, DEFAULT_FONT_SIZE, DEFAULT_LANGUAGE,
+    DEFAULT_MAX_CONNECTED_DEVICES, DEFAULT_REGION,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -34,6 +35,13 @@ pub struct AppSettings {
     pub activated: bool,
     pub users: HashMap<String, DisplayPrefs>,
     pub datetime: DateTimeSettings,
+    pub locale: LocaleSettings,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LocaleSettings {
+    pub language: String,
+    pub region: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -86,6 +94,7 @@ impl Default for AppSettings {
             activated: false,
             users: HashMap::new(),
             datetime: DateTimeSettings::default(),
+            locale: LocaleSettings::default(),
         }
     }
 }
@@ -93,7 +102,16 @@ impl Default for AppSettings {
 #[serde(rename_all = "camelCase")]
 pub struct DateTimeSync {
     pub settings: DateTimeSettings,
+    pub locale: LocaleSettings,
     pub server_ms: i64,
+}
+impl Default for LocaleSettings {
+    fn default() -> Self {
+        Self {
+            language: DEFAULT_LANGUAGE.to_string(),
+            region: DEFAULT_REGION.to_string(),
+        }
+    }
 }
 impl Default for DateTimeSettings {
     fn default() -> Self {

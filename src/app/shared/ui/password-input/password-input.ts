@@ -1,7 +1,9 @@
 import { Component, computed, input, model } from '@angular/core';
+import { TranslatePipe } from '../../pipes/translate.pipe';
 export type PasswordInputSize = 'sm' | 'md' | 'lg';
 export type PasswordToggleStyle = 'icon' | 'text';
 @Component({
+  imports: [TranslatePipe],
   selector: 'app-password-input',
   standalone: true,
   templateUrl: './password-input.html',

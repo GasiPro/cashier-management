@@ -1,6 +1,7 @@
 import { formatRelativeDay } from '../../shared/utils/date';
 import { localeTime } from '../../core/display/datetime-settings';
 import type { OrderGroup, OrderLine } from './order.model';
+import { translate } from '../../core/i18n/translate';
 export function buildGroups(orders: OrderLine[]): OrderGroup[] {
   const map = new Map<number, OrderLine[]>();
   for (const o of orders) {
@@ -30,7 +31,7 @@ export function getGroupItemsSummary(group: OrderGroup): string {
   const byCategory = new Map<string, string[]>();
   for (const l of group.lines) {
     const parts = l.service_type.split(' — ');
-    const category = parts.length > 1 ? parts[0] : 'Autre';
+    const category = parts.length > 1 ? parts[0] : translate('Autre');
     const label = parts.length > 1 ? parts[1] : l.service_type;
     if (!byCategory.has(category)) {
       byCategory.set(category, []);
@@ -73,7 +74,7 @@ export function formatPaidLabel(group: OrderGroup): string {
   const date = new Date(group.paidAt);
   const dayLabel = formatRelativeDay(group.paidAt);
   const time = localeTime(date);
-  return `Encaissé ${dayLabel} à ${time}`;
+  return translate('Encaissé {dayLabel} à {time}', { dayLabel: dayLabel, time: time });
 }
 export function formatPaidTime(group: OrderGroup): string {
   if (!group.paidAt) return '';

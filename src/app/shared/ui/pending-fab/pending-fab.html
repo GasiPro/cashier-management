@@ -1,7 +1,7 @@
 @if (store.count() > 0) {
 <button id="pending-fab-btn" type="button" (click)="show()"
-  [title]="'Modifications en attente (' + store.count() + ')'"
-  [attr.aria-label]="store.count() + ' modification(s) en attente'"
+  [title]="('Modifications en attente ({count})' | t: { count: (store.count()) })"
+  [attr.aria-label]="('{count} modification(s) en attente' | t: { count: (store.count()) })"
   aria-haspopup="dialog"
   [attr.aria-expanded]="open()"
   class="fixed right-6 sm:right-10 w-12 h-12 rounded-full bg-white text-amber-600 border border-amber-300
@@ -12,7 +12,7 @@
   [class.bottom-[84px]]="slot() === 2">
   @if (store.hasNew()) {
   <span class="absolute inset-0 rounded-full bg-amber-300/60 animate-ping motion-reduce:hidden" aria-hidden="true"></span>
-  <span class="sr-only" role="status">Nouvelle modification en attente</span>
+  <span class="sr-only" role="status">{{ 'Nouvelle modification en attente' | t }}</span>
   }
   <svg class="relative w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
     <path stroke-linecap="round" stroke-linejoin="round"
@@ -30,8 +30,8 @@
   <div role="dialog" aria-modal="true" aria-labelledby="pending-heading"
     class="relative bg-white w-full sm:max-w-md sm:rounded-xl rounded-t-xl p-5 sm:p-6 max-h-[90vh] overflow-y-auto">
     <div class="flex items-center justify-between mb-1">
-      <h2 id="pending-heading" class="text-base font-semibold text-[#1A1A1A]">Modifications en attente</h2>
-      <button type="button" (click)="close()" [disabled]="store.applying()" aria-label="Fermer"
+      <h2 id="pending-heading" class="text-base font-semibold text-[#1A1A1A]">{{ 'Modifications en attente' | t }}</h2>
+      <button type="button" (click)="close()" [disabled]="store.applying()" [attr.aria-label]="'Fermer' | t"
         class="text-gray-400 hover:text-gray-600 p-1.5 rounded-md transition-colors disabled:opacity-40
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -40,17 +40,17 @@
       </button>
     </div>
     <p class="text-sm text-gray-700 mb-1">
-      Total : <span class="font-semibold tabular-nums">{{ store.count() }}</span>
-      modification{{ store.count() > 1 ? 's' : '' }}
+      {{ 'Total :' | t }} <span class="font-semibold tabular-nums">{{ store.count() }}</span>
+      {{ 'modification{count}' | t: { count: (store.count() > 1 ? 's' : '') } }}
     </p>
     <p class="text-xs text-gray-400 mb-4">
       @if (store.phase() === 'editing') {
-      Non appliqué. Enregistrez, puis appliquez.
+      {{ 'Non appliqué. Enregistrez, puis appliquez.' | t }}
       } @else {
-      Enregistré. Appliquez pour envoyer.
+      {{ 'Enregistré. Appliquez pour envoyer.' | t }}
       }
     </p>
-    <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg mb-4" aria-label="Liste des modifications">
+    <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg mb-4" [attr.aria-label]="'Liste des modifications' | t">
       @for (change of store.changes(); track change.key) {
       <li class="flex items-start gap-2 px-3 py-2.5">
         <div class="min-w-0 flex-1 space-y-1">
@@ -58,13 +58,13 @@
           <p class="text-sm text-[#1A1A1A]">{{ line }}</p>
           }
           <app-badge [tone]="store.isSaved(change.key) ? 'success' : 'warning'">
-            {{ store.isSaved(change.key) ? 'Enregistré' : 'À enregistrer' }}
+            {{ store.isSaved(change.key) ? ('Enregistré' | t) : ('À enregistrer' | t) }}
           </app-badge>
         </div>
         <div class="flex items-center gap-1 flex-shrink-0">
           @if (!store.isSaved(change.key)) {
           <button type="button" (click)="store.save(change.key)" [disabled]="store.applying()"
-            title="Enregistrer cette modification" aria-label="Enregistrer cette modification"
+            [attr.title]="'Enregistrer cette modification' | t" [attr.aria-label]="'Enregistrer cette modification' | t"
             class="text-gray-400 hover:text-emerald-600 p-1.5 rounded-md transition-colors disabled:opacity-40
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -73,7 +73,7 @@
           </button>
           }
           <button type="button" (click)="remove(change.key)" [disabled]="store.applying()"
-            title="Retirer cette modification" aria-label="Retirer cette modification"
+            [attr.title]="'Retirer cette modification' | t" [attr.aria-label]="'Retirer cette modification' | t"
             class="text-gray-400 hover:text-red-600 p-1.5 rounded-md transition-colors disabled:opacity-40
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -94,7 +94,7 @@
                hover:bg-[#16304f] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
                disabled:opacity-40 disabled:active:scale-100
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-        Tout enregistrer
+        {{ 'Tout enregistrer' | t }}
       </button>
       } @else {
       <button id="pending-primary-btn" type="button" (click)="submit()" [disabled]="store.applying()"
@@ -103,13 +103,13 @@
                hover:bg-emerald-700 active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
                disabled:opacity-40 disabled:active:scale-100
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700">
-        {{ store.applying() ? 'Application…' : 'Appliquer' }}
+        {{ store.applying() ? ('Application…' | t) : ('Appliquer' | t) }}
       </button>
       }
       <button type="button" (click)="discardAll()" [disabled]="store.applying()"
         class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors disabled:opacity-40
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-        Tout annuler
+        {{ 'Tout annuler' | t }}
       </button>
     </div>
   </div>

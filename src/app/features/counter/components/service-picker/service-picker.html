@@ -1,4 +1,4 @@
-<h1 class="text-xl font-bold tracking-tight text-[#1A1A1A] mb-5">Nouvelle commande</h1>
+<h1 class="text-xl font-bold tracking-tight text-[#1A1A1A] mb-5">{{ 'Nouvelle commande' | t }}</h1>
 <div class="flex gap-2.5 mb-4">
   @for (tf of store.typeFilters; track tf.value) {
   <button (click)="store.setTypeFilter(tf.value)" [class]="store.activeTypeFilter === tf.value
@@ -6,7 +6,7 @@
         : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'" class="flex-shrink-0 text-xs font-semibold border px-4 py-2 rounded-full
              transition-colors whitespace-nowrap
              focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-    {{ tf.label }}
+    {{ tf.label | t }}
   </button>
   }
 </div>

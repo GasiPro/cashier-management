@@ -9,16 +9,16 @@
         <div class="flex items-center justify-between gap-3">
           <div>
             <h2 id="display-setting-heading" class="text-base font-semibold text-[#1A1A1A]">
-              Affichage
+              {{ 'Affichage' | t }}
             </h2>
             <p class="text-xs text-gray-400 mt-0.5">
-              Thème, couleur de fond et taille de police.
+              {{ 'Thème, couleur de fond et taille de police.' | t }}
             </p>
           </div>
           <button type="button" (click)="goToDisplaySettings()"
             class="text-sm font-semibold text-[#1E3A5F] hover:underline px-3 py-2 rounded-md
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-            Gérer →
+            {{ 'Gérer →' | t }}
           </button>
         </div>
       </section>
@@ -27,16 +27,16 @@
         <div class="flex items-center justify-between gap-3">
           <div>
             <h2 id="profile-setting-heading" class="text-base font-semibold text-[#1A1A1A]">
-              Profil
+              {{ 'Profil' | t }}
             </h2>
             <p class="text-xs text-gray-400 mt-0.5">
-              Nom affiché et mot de passe de votre compte.
+              {{ 'Nom affiché et mot de passe de votre compte.' | t }}
             </p>
           </div>
           <button type="button" (click)="goToProfile()"
             class="text-sm font-semibold text-[#1E3A5F] hover:underline px-3 py-2 rounded-md
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-            Gérer →
+            {{ 'Gérer →' | t }}
           </button>
         </div>
       </section>

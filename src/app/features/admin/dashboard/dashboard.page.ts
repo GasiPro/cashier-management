@@ -6,6 +6,8 @@ import { buildGroups, formatGroupId, getGroupItemsSummary } from '../../../data/
 import { currentDayIso, dayOfIso, localeTime } from '../../../core/display/datetime-settings';
 import { formatIsoDate, parseIsoDate } from '../../../shared/utils/date';
 import { MoneyPipe } from '../../../shared/pipes/money.pipe';
+import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
+import { translate } from '../../../core/i18n/translate';
 interface SalesComparisonPoint {
   label: string;
   today: number;
@@ -31,7 +33,7 @@ const DONUT_CIRCUMFERENCE = 2 * Math.PI * 15.9155;
 @Component({
   selector: 'app-admin-dashboard',
   standalone: true,
-  imports: [CommonModule, MoneyPipe],
+  imports: [CommonModule, MoneyPipe, TranslatePipe],
   templateUrl: './dashboard.page.html',
 })
 export class DashboardPage {
@@ -64,7 +66,7 @@ export class DashboardPage {
     const max = Math.max(today, yesterday, 1);
     this.salesComparison.set([
       {
-        label: 'Ventes',
+        label: translate('Ventes'),
         today,
         yesterday,
         todayPct: (today / max) * 100,
@@ -80,9 +82,9 @@ export class DashboardPage {
     const total = paidCount + pendingCount + rejectedCount;
     this.performanceScore.set(total === 0 ? 0 : Math.round((paidCount / total) * 100));
     const rawSlices: Omit<PerformanceSlice, 'dashArray' | 'dashOffset'>[] = [
-      { label: 'Payées', value: total === 0 ? 0 : Math.round((paidCount / total) * 100), color: '#059669' },
-      { label: 'En attente', value: total === 0 ? 0 : Math.round((pendingCount / total) * 100), color: '#D97706' },
-      { label: 'Refusées', value: total === 0 ? 0 : Math.round((rejectedCount / total) * 100), color: '#DC2626' },
+      { label: translate('Payées'), value: total === 0 ? 0 : Math.round((paidCount / total) * 100), color: '#059669' },
+      { label: translate('En attente'), value: total === 0 ? 0 : Math.round((pendingCount / total) * 100), color: '#D97706' },
+      { label: translate('Refusées'), value: total === 0 ? 0 : Math.round((rejectedCount / total) * 100), color: '#DC2626' },
     ].filter((slice) => slice.value > 0);
     this.performanceSlices.set(this.buildDonutSlices(rawSlices));
   }
@@ -112,12 +114,12 @@ export class DashboardPage {
   }
   private formatStatusLabel(group: OrderGroup): string {
     if (group.status === 'PAYE' && group.paidAt) {
-      return `Encaissée à ${this.formatTime(group.paidAt)}`;
+      return translate('Encaissée à {formatTime}', { formatTime: this.formatTime(group.paidAt) });
     }
     if (group.status === 'REJETEE') {
-      return 'Refusée';
+      return translate('Refusée');
     }
-    return 'En attente';
+    return translate('En attente');
   }
   private formatTime(iso: string): string {
     return localeTime(iso);

@@ -8,13 +8,13 @@
        (click)="$event.stopPropagation()">
     <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
       <div>
-        <h2 id="account-panel-heading" class="text-base font-semibold text-[#1A1A1A]">Mon compte</h2>
+        <h2 id="account-panel-heading" class="text-base font-semibold text-[#1A1A1A]">{{ 'Mon compte' | t }}</h2>
         <p class="text-xs text-gray-400 mt-0.5 selectable">{{ store.username }}</p>
       </div>
       <button (click)="store.closeAccountPanel()" autofocus
         class="text-gray-400 hover:text-gray-600 p-1
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
-        aria-label="Fermer les réglages du compte">
+        [attr.aria-label]="'Fermer les réglages du compte' | t">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
@@ -24,7 +24,7 @@
       <div>
         <label for="account-display-name"
           class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-          Nom affiché
+          {{ 'Nom affiché' | t }}
         </label>
         <input id="account-display-name" type="text"
           name="accountDisplayName"
@@ -32,17 +32,17 @@
           (ngModelChange)="store.editDisplayName.set($event)"
           [attr.maxlength]="store.maxDisplayNameLen"
           aria-describedby="account-display-name-help"
-          placeholder="ex : Comptoir 1"
+          [attr.placeholder]="'ex : Comptoir 1' | t"
           class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A]
                  focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
         <p id="account-display-name-help" class="text-xs text-gray-400 mt-1.5">
-          Facultatif — visible par la caisse à la place de l'identifiant.
+          {{ 'Facultatif — visible par la caisse à la place de l\'identifiant.' | t }}
         </p>
       </div>
       <div>
         <label for="account-password"
           class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-          Nouveau mot de passe
+          {{ 'Nouveau mot de passe' | t }}
         </label>
         <div class="flex items-center gap-2">
           <input id="account-password" [type]="store.showEditPassword() ? 'text' : 'password'"
@@ -52,12 +52,12 @@
             autocomplete="new-password"
             [attr.minlength]="store.minPasswordLen"
             aria-describedby="account-password-help"
-            placeholder="Laisser vide pour ne pas changer"
+            [attr.placeholder]="'Laisser vide pour ne pas changer' | t"
             class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A]
                    focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
           <button type="button" (click)="store.toggleEditPasswordVisibility()"
             [attr.aria-pressed]="store.showEditPassword()"
-            [attr.aria-label]="store.showEditPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'"
+            [attr.aria-label]="store.showEditPassword() ? ('Masquer le mot de passe' | t) : ('Afficher le mot de passe' | t)"
             class="flex-shrink-0 border border-gray-200 bg-white rounded-lg p-2.5
                    hover:bg-gray-50 transition-colors
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
@@ -74,15 +74,14 @@
           </button>
         </div>
         <p id="account-password-help" class="text-xs text-gray-400 mt-1.5">
-          Laissez vide pour conserver le mot de passe actuel. Sinon, au moins {{ store.minPasswordLen }}
-          caractères, avec une lettre et un chiffre.
+          {{ 'Laissez vide pour conserver le mot de passe actuel. Sinon, au moins {minPasswordLen} caractères, avec une lettre et un chiffre.' | t: { minPasswordLen: (store.minPasswordLen) } }}
         </p>
       </div>
       @if (store.editPassword().length > 0) {
       <div>
         <label for="account-password-confirm"
           class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-          Confirmer le nouveau mot de passe
+          {{ 'Confirmer le nouveau mot de passe' | t }}
         </label>
         <input id="account-password-confirm"
           [type]="store.showEditPassword() ? 'text' : 'password'"
@@ -104,13 +103,13 @@
                  hover:bg-[#16304f] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
                  disabled:opacity-40 disabled:hover:bg-[#1E3A5F] disabled:active:scale-100
                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-          {{ store.savingAccount() ? 'Enregistrement…' : 'Enregistrer' }}
+          {{ store.savingAccount() ? ('Enregistrement…' | t) : ('Enregistrer' | t) }}
         </button>
         <button type="button" (click)="store.closeAccountPanel()"
           [disabled]="store.savingAccount()"
           class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-          Annuler
+          {{ 'Annuler' | t }}
         </button>
       </div>
     </div>

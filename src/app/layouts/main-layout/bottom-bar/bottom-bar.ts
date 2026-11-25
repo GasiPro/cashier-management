@@ -5,6 +5,8 @@ import {
   formatClockDate,
   formatClockTime,
 } from '../../../core/display/datetime-settings';
+import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
+import { translate } from '../../../core/i18n/translate';
 export type BottomBarRole = 'cashier' | 'counter';
 export interface BottomBarNotification {
   id: number;
@@ -15,7 +17,7 @@ export interface BottomBarNotification {
 @Component({
   selector: 'app-bottom-bar',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TranslatePipe],
   templateUrl: './bottom-bar.html',
 })
 export class BottomBar implements OnInit, OnChanges, OnDestroy {
@@ -60,11 +62,11 @@ export class BottomBar implements OnInit, OnChanges, OnDestroy {
     this.currentTime.set(formatClockTime(now));
   }
   get roleLabel(): string {
-    return this.role === 'cashier' ? 'Caisse' : 'Comptoir';
+    return this.role === 'cashier' ? translate('Caisse') : translate('Comptoir');
   }
   get resolvedNotificationLabel(): string {
     if (this.notificationLabel) return this.notificationLabel;
-    return 'Notifications';
+    return translate('Notifications');
   }
   get displayNotificationCount(): string {
     const count = this.unreadCount();

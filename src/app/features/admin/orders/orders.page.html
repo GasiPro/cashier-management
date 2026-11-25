@@ -3,16 +3,16 @@
     <div class="mb-1 flex items-start justify-between gap-3">
       <div>
         <h2 id="orders-heading" class="text-base font-semibold text-[#1A1A1A]">
-          Commandes
+          {{ 'Commandes' | t }}
         </h2>
         <p class="text-xs text-gray-400 mt-0.5">
-          {{ showArchive() ? 'Jours précédents.' : 'Commandes du jour.' }}
+          {{ showArchive() ? ('Jours précédents.' | t) : ('Commandes du jour.' | t) }}
         </p>
       </div>
       <div class="flex-shrink-0 flex items-center gap-2.5">
         <span class="w-1.5 h-1.5 rounded-full flex-shrink-0"
           [class.bg-emerald-500]="wsConnected()" [class.bg-gray-300]="!wsConnected()"
-          [attr.title]="wsConnected() ? 'Connecté' : null"></span>
+          [attr.title]="wsConnected() ? ('Connecté' | t) : null"></span>
         <button type="button" (click)="toggleArchive()" [attr.aria-pressed]="showArchive()"
           class="flex items-center gap-1.5 text-xs font-semibold border px-3 py-1.5 rounded-full transition-colors
                  whitespace-nowrap hover:border-gray-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
@@ -26,13 +26,13 @@
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
           </svg>
-          Aujourd'hui
+          {{ 'Aujourd\'hui' | t }}
           } @else {
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round"
               d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
           </svg>
-          Archives
+          {{ 'Archives' | t }}
           <span class="tabular-nums opacity-70">({{ archiveCount() }})</span>
           }
         </button>
@@ -40,23 +40,23 @@
     </div>
     <div class="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-3">
       <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
-        <p class="text-[11px] text-gray-400 uppercase tracking-wide">Total</p>
+        <p class="text-[11px] text-gray-400 uppercase tracking-wide">{{ 'Total' | t }}</p>
         <p class="text-lg font-semibold text-[#1A1A1A] tabular-nums mt-0.5">{{ totalCount() }}</p>
       </div>
       <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
-        <p class="text-[11px] text-gray-400 uppercase tracking-wide">Payées</p>
+        <p class="text-[11px] text-gray-400 uppercase tracking-wide">{{ 'Payées' | t }}</p>
         <p class="text-lg font-semibold text-emerald-700 tabular-nums mt-0.5">{{ paidCount() }}</p>
       </div>
       <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
-        <p class="text-[11px] text-gray-400 uppercase tracking-wide">En attente</p>
+        <p class="text-[11px] text-gray-400 uppercase tracking-wide">{{ 'En attente' | t }}</p>
         <p class="text-lg font-semibold text-amber-700 tabular-nums mt-0.5">{{ pendingCount() }}</p>
       </div>
       <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
-        <p class="text-[11px] text-gray-400 uppercase tracking-wide">Refusées</p>
+        <p class="text-[11px] text-gray-400 uppercase tracking-wide">{{ 'Refusées' | t }}</p>
         <p class="text-lg font-semibold text-red-700 tabular-nums mt-0.5">{{ rejectedCount() }}</p>
       </div>
       <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
-        <p class="text-[11px] text-gray-400 uppercase tracking-wide">Chiffre encaissé</p>
+        <p class="text-[11px] text-gray-400 uppercase tracking-wide">{{ 'Chiffre encaissé' | t }}</p>
         <p class="text-lg font-semibold text-[#1E3A5F] tabular-nums mt-0.5">{{ totalRevenue() | money }}</p>
       </div>
     </div>
@@ -65,14 +65,14 @@
         fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35m1.85-5.4a7.25 7.25 0 11-14.5 0 7.25 7.25 0 0114.5 0z" />
       </svg>
-      <label for="order-search" class="sr-only">Rechercher une commande</label>
+      <label for="order-search" class="sr-only">{{ 'Rechercher une commande' | t }}</label>
       <input id="order-search" type="search" name="orderSearch"
         [ngModel]="searchTerm()" (ngModelChange)="searchTerm.set($event)"
-        placeholder="Rechercher un n° de commande, un comptoir ou un article…"
+        [attr.placeholder]="'Rechercher un n° de commande, un comptoir ou un article…' | t"
         class="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm text-[#1A1A1A]
                focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
     </div>
-    <div class="mt-4 mb-0.5 flex gap-2 overflow-x-auto pb-[14px]" role="group" aria-label="Filtrer par statut">
+    <div class="mt-4 mb-0.5 flex gap-2 overflow-x-auto pb-[14px]" role="group" [attr.aria-label]="'Filtrer par statut' | t">
       <button type="button" (click)="setStatusFilter('all')" [attr.aria-pressed]="isStatusFilterActive('all')"
         class="flex-shrink-0 text-xs font-semibold border px-4 py-1.5 rounded-full transition-colors
                whitespace-nowrap hover:border-gray-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
@@ -82,7 +82,7 @@
         [class.bg-white]="!isStatusFilterActive('all')"
         [class.text-gray-600]="!isStatusFilterActive('all')"
         [class.border-gray-200]="!isStatusFilterActive('all')">
-        Tous
+        {{ 'Tous' | t }}
         <span class="ml-1 tabular-nums opacity-70">({{ totalCount() }})</span>
       </button>
       <button type="button" (click)="setStatusFilter('EN_ATTENTE')" [attr.aria-pressed]="isStatusFilterActive('EN_ATTENTE')"
@@ -94,7 +94,7 @@
         [class.bg-white]="!isStatusFilterActive('EN_ATTENTE')"
         [class.text-gray-600]="!isStatusFilterActive('EN_ATTENTE')"
         [class.border-gray-200]="!isStatusFilterActive('EN_ATTENTE')">
-        En attente
+        {{ 'En attente' | t }}
         <span class="ml-1 tabular-nums opacity-70">({{ pendingCount() }})</span>
       </button>
       <button type="button" (click)="setStatusFilter('PAYE')" [attr.aria-pressed]="isStatusFilterActive('PAYE')"
@@ -106,7 +106,7 @@
         [class.bg-white]="!isStatusFilterActive('PAYE')"
         [class.text-gray-600]="!isStatusFilterActive('PAYE')"
         [class.border-gray-200]="!isStatusFilterActive('PAYE')">
-        Payées
+        {{ 'Payées' | t }}
         <span class="ml-1 tabular-nums opacity-70">({{ paidCount() }})</span>
       </button>
       <button type="button" (click)="setStatusFilter('REJETEE')" [attr.aria-pressed]="isStatusFilterActive('REJETEE')"
@@ -118,7 +118,7 @@
         [class.bg-white]="!isStatusFilterActive('REJETEE')"
         [class.text-gray-600]="!isStatusFilterActive('REJETEE')"
         [class.border-gray-200]="!isStatusFilterActive('REJETEE')">
-        Refusées
+        {{ 'Refusées' | t }}
         <span class="ml-1 tabular-nums opacity-70">({{ rejectedCount() }})</span>
       </button>
     </div>
@@ -127,21 +127,21 @@
       <button type="button" (click)="resetFilters()"
         class="text-xs text-gray-400 hover:text-[#1E3A5F] transition-colors underline underline-offset-2
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
-        Réinitialiser les filtres
+        {{ 'Réinitialiser les filtres' | t }}
       </button>
       } @else {
       <span></span>
       }
       <div class="flex items-center gap-2">
-        <label for="order-sort" class="text-xs text-gray-400 whitespace-nowrap">Trier par</label>
+        <label for="order-sort" class="text-xs text-gray-400 whitespace-nowrap">{{ 'Trier par' | t }}</label>
         <select id="order-sort" name="orderSort"
           [ngModel]="sortKey()" (ngModelChange)="sortKey.set($event)"
           class="text-xs border border-gray-200 rounded-md pl-2 pr-7 py-1.5 text-gray-600 bg-white
                  focus:outline-none focus:border-[#1E3A5F] transition-colors">
-          <option value="date-desc">Plus récentes</option>
-          <option value="date-asc">Plus anciennes</option>
-          <option value="amount-desc">Montant décroissant</option>
-          <option value="amount-asc">Montant croissant</option>
+          <option value="date-desc">{{ 'Plus récentes' | t }}</option>
+          <option value="date-asc">{{ 'Plus anciennes' | t }}</option>
+          <option value="amount-desc">{{ 'Montant décroissant' | t }}</option>
+          <option value="amount-asc">{{ 'Montant croissant' | t }}</option>
         </select>
       </div>
     </div>
@@ -153,13 +153,13 @@
     }
     @if (totalCount() === 0) {
     <p class="text-sm text-gray-400 py-4">
-      {{ showArchive() ? 'Aucune archive.' : 'Aucune commande.' }}
+      {{ showArchive() ? ('Aucune archive.' | t) : ('Aucune commande.' | t) }}
     </p>
     } @else if (filteredGroups().length === 0) {
-    <p class="text-sm text-gray-400 py-4">Aucune commande ne correspond à ces filtres.</p>
+    <p class="text-sm text-gray-400 py-4">{{ 'Aucune commande ne correspond à ces filtres.' | t }}</p>
     } @else {
     <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg"
-      [attr.aria-label]="filteredGroups().length + ' commande(s) affichée(s)'">
+      [attr.aria-label]="('{length} commande(s) affichée(s)' | t: { length: (filteredGroups().length) })">
       @for (group of filteredGroups(); track group.groupId) {
       <li>
         <div class="flex items-center gap-3 px-3 py-2.5">
@@ -167,7 +167,7 @@
             (click)="toggleExpand(group)"
             [attr.aria-expanded]="isExpanded(group)"
             [attr.aria-controls]="'order-detail-panel-' + group.groupId"
-            [attr.aria-label]="(isExpanded(group) ? 'Masquer le détail de la commande ' : 'Voir le détail de la commande ') + formatGroupId(group.groupId)"
+            [attr.aria-label]="(isExpanded(group) ? ('Masquer le détail de la commande ' | t) : ('Voir le détail de la commande ' | t)) + formatGroupId(group.groupId)"
             class="min-w-0 flex-1 flex items-center gap-3 text-left
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded-md">
             <svg class="w-3.5 h-3.5 text-gray-300 flex-shrink-0 transition-transform"
@@ -183,7 +183,7 @@
                 </span>
                 @if (group.handledBy) {
                 <span class="inline-flex items-center gap-1 min-w-0 text-[11px] text-gray-400"
-                  [attr.title]="(group.status === 'PAYE' ? 'Encaissée par ' : 'Refusée par ') + group.handledBy">
+                  [attr.title]="(group.status === 'PAYE' ? ('Encaissée par ' | t) : ('Refusée par ' | t)) + group.handledBy">
                   <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round"
                       d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
@@ -209,8 +209,8 @@
             (click)="markGroupAsPaid(group)"
             [disabled]="markingPaidGroupId() !== null"
             [attr.aria-busy]="markingPaidGroupId() === group.groupId"
-            [attr.aria-label]="'Marquer la commande ' + formatGroupId(group.groupId) + ' comme payée'"
-            title="Marquer comme payée"
+            [attr.aria-label]="('Marquer la commande {formatGroupId} comme payée' | t: { formatGroupId: (formatGroupId(group.groupId)) })"
+            [attr.title]="'Marquer comme payée' | t"
             class="text-gray-400 hover:text-emerald-600 p-2 rounded-md transition-colors flex-shrink-0
                    disabled:opacity-40
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500">
@@ -222,7 +222,7 @@
             (click)="confirmingRejectGroupId() === group.groupId ? cancelRejectGroup() : requestRejectGroup(group)"
             [attr.aria-expanded]="confirmingRejectGroupId() === group.groupId"
             [attr.aria-controls]="'order-reject-panel-' + group.groupId"
-            [attr.aria-label]="'Refuser la commande ' + formatGroupId(group.groupId)"
+            [attr.aria-label]="('Refuser la commande {formatGroupId}' | t: { formatGroupId: (formatGroupId(group.groupId)) })"
             class="text-gray-400 hover:text-red-600 p-2 rounded-md transition-colors flex-shrink-0
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -233,21 +233,21 @@
         </div>
         @if (confirmingRejectGroupId() === group.groupId) {
         <div [id]="'order-reject-panel-' + group.groupId" role="group"
-          [attr.aria-label]="'Confirmer le refus de la commande ' + formatGroupId(group.groupId)"
+          [attr.aria-label]="('Confirmer le refus de la commande {formatGroupId}' | t: { formatGroupId: (formatGroupId(group.groupId)) })"
           (keydown.escape)="cancelRejectGroup()"
           class="px-3 pb-3">
           <div class="bg-red-50 border border-red-200 rounded-lg p-3">
             <p class="text-xs text-red-800">
-              Refuser {{ formatGroupId(group.groupId) }} de {{ group.counterUsername }} ? <strong>Irréversible.</strong>
+              {{ 'Refuser {formatGroupId} de {counterUsername} ?' | t: { formatGroupId: (formatGroupId(group.groupId)), counterUsername: (group.counterUsername) } }} <strong>{{ 'Irréversible.' | t }}</strong>
             </p>
             <label [attr.for]="'order-reject-raison-' + group.groupId"
               class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mt-3 mb-1.5">
-              Motif (optionnel)
+              {{ 'Motif (optionnel)' | t }}
             </label>
             <input [id]="'order-reject-raison-' + group.groupId" type="text"
               [name]="'orderRejectRaison-' + group.groupId"
               [ngModel]="rejectReason()" (ngModelChange)="rejectReason.set($event)"
-              placeholder="ex : Erreur de saisie"
+              [attr.placeholder]="'ex : Erreur de saisie' | t"
               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-[#1A1A1A] bg-white
                      focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
             @if (rejectGroupError()) {
@@ -264,13 +264,13 @@
                        hover:bg-red-700 active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
                        disabled:opacity-40 disabled:hover:bg-red-600 disabled:active:scale-100
                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600">
-                {{ rejectingGroup() ? 'Refus…' : 'Refuser la commande' }}
+                {{ rejectingGroup() ? ('Refus…' | t) : ('Refuser la commande' | t) }}
               </button>
               <button type="button" (click)="cancelRejectGroup()"
                 [disabled]="rejectingGroup()"
                 class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-                Annuler
+                {{ 'Annuler' | t }}
               </button>
             </div>
           </div>
@@ -278,16 +278,16 @@
         }
         @if (isExpanded(group)) {
         <div [id]="'order-detail-panel-' + group.groupId" role="group"
-          [attr.aria-label]="'Détail de la commande ' + formatGroupId(group.groupId)"
+          [attr.aria-label]="('Détail de la commande {formatGroupId}' | t: { formatGroupId: (formatGroupId(group.groupId)) })"
           class="px-3 pb-4">
           <div class="bg-gray-50 border border-gray-200 rounded-lg overflow-x-auto">
             <table class="w-full text-sm min-w-[320px] table-auto">
               <thead>
                 <tr class="border-b border-gray-200">
-                  <th class="text-left px-3 py-2 text-[11px] text-gray-400 font-medium uppercase tracking-wide">Article</th>
-                  <th class="text-right px-3 py-2 text-[11px] text-gray-400 font-medium uppercase tracking-wide">Qté</th>
-                  <th class="text-right px-3 py-2 text-[11px] text-gray-400 font-medium uppercase tracking-wide">PU</th>
-                  <th class="text-right px-3 py-2 text-[11px] text-gray-400 font-medium uppercase tracking-wide">Sous-total</th>
+                  <th class="text-left px-3 py-2 text-[11px] text-gray-400 font-medium uppercase tracking-wide">{{ 'Article' | t }}</th>
+                  <th class="text-right px-3 py-2 text-[11px] text-gray-400 font-medium uppercase tracking-wide">{{ 'Qté' | t }}</th>
+                  <th class="text-right px-3 py-2 text-[11px] text-gray-400 font-medium uppercase tracking-wide">{{ 'PU' | t }}</th>
+                  <th class="text-right px-3 py-2 text-[11px] text-gray-400 font-medium uppercase tracking-wide">{{ 'Sous-total' | t }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -305,13 +305,13 @@
             </table>
           </div>
           <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400">
-            <span>Comptoir : <span class="text-gray-600 font-medium">{{ group.counterUsername }}</span></span>
-            <span>Créée à {{ formatDateTime(group.createdAt) }}</span>
+            <span>{{ 'Comptoir :' | t }} <span class="text-gray-600 font-medium">{{ group.counterUsername }}</span></span>
+            <span>{{ 'Créée à {formatDateTime}' | t: { formatDateTime: (formatDateTime(group.createdAt)) } }}</span>
             @if (group.status === 'PAYE' && group.paidAt) {
-            <span>Encaissée à {{ formatTime(group.paidAt) }}</span>
+            <span>{{ 'Encaissée à {formatTime}' | t: { formatTime: (formatTime(group.paidAt)) } }}</span>
             }
             @if (group.status === 'REJETEE' && group.raison) {
-            <span>Motif : <span class="text-gray-600">{{ group.raison }}</span></span>
+            <span>{{ 'Motif :' | t }} <span class="text-gray-600">{{ group.raison }}</span></span>
             }
           </div>
           @if (group.observation) {

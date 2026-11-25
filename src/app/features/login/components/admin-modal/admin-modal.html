@@ -3,8 +3,8 @@
      (click)="closed.emit()">
   <div class="w-full max-w-sm bg-white rounded-lg shadow-xl p-6" (click)="$event.stopPropagation()">
     <div class="flex items-center justify-between mb-5">
-      <h2 id="admin-modal-title" class="text-lg font-semibold text-[#1A1A1A]">Accès administrateur</h2>
-      <button type="button" (click)="closed.emit()" aria-label="Fermer"
+      <h2 id="admin-modal-title" class="text-lg font-semibold text-[#1A1A1A]">{{ 'Accès administrateur' | t }}</h2>
+      <button type="button" (click)="closed.emit()" [attr.aria-label]="'Fermer' | t"
         class="text-gray-400 hover:text-gray-600 transition-colors
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -15,7 +15,7 @@
     <div class="space-y-4">
       <div>
         <label for="admin-username" class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
-          Identifiant
+          {{ 'Identifiant' | t }}
         </label>
         <input
           id="admin-username"
@@ -31,7 +31,7 @@
       </div>
       <div>
         <label for="admin-password" class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
-          Mot de passe
+          {{ 'Mot de passe' | t }}
         </label>
         <div class="flex items-center gap-2">
           <input
@@ -47,7 +47,7 @@
                    focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
           <button type="button" (click)="togglePasswordVisibility()"
             [attr.aria-pressed]="showPassword()"
-            [attr.aria-label]="showPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'"
+            [attr.aria-label]="showPassword() ? ('Masquer le mot de passe' | t) : ('Afficher le mot de passe' | t)"
             class="flex-shrink-0 border border-gray-200 bg-white rounded-lg p-3
                    hover:bg-gray-50 transition-colors
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
@@ -74,7 +74,7 @@
         class="w-full bg-[#1E3A5F] text-white text-sm font-semibold py-3 rounded-lg
                hover:bg-[#16304f] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
-        {{ authenticating() ? 'Connexion…' : 'Entrer' }}
+        {{ authenticating() ? ('Connexion…' | t) : ('Entrer' | t) }}
       </button>
     </div>
   </div>

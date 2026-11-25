@@ -11,6 +11,7 @@ import { OrderDetailModal } from './components/order-detail-modal/order-detail-m
 import { ConnectionStatus } from './components/connection-status/connection-status';
 import { ConnectionOverlay } from './components/connection-status/connection-overlay';
 import { ServerPanel } from './components/server-panel/server-panel';
+import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 @Component({
   selector: 'app-counter',
   standalone: true,
@@ -25,8 +26,7 @@ import { ServerPanel } from './components/server-panel/server-panel';
     OrderDetailModal,
     ConnectionStatus,
     ConnectionOverlay,
-    ServerPanel,
-  ],
+    ServerPanel, TranslatePipe],
   providers: [CounterStore],
   templateUrl: './counter.page.html',
 })

@@ -3,7 +3,7 @@
     <thead>
       <tr class="border-b border-gray-100 bg-gray-50">
         @for (col of columns(); track $index) {
-        <th [class]="headerClasses(col)">{{ col.label }}</th>
+        <th [class]="headerClasses(col)">{{ col.label | t }}</th>
         }
       </tr>
     </thead>

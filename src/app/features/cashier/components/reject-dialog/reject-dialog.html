@@ -7,17 +7,17 @@
        (click)="$event.stopPropagation()">
     <div class="px-6 py-4 border-b border-gray-100 shrink-0">
       <h2 id="reject-order-heading" class="text-base font-semibold text-[#1A1A1A]">
-        Refuser la commande {{ formatGroupId(group.groupId) }}
+        {{ 'Refuser la commande {formatGroupId}' | t: { formatGroupId: (formatGroupId(group.groupId)) } }}
       </h2>
-      <p class="text-xs text-gray-400 mt-0.5">La raison est facultative.</p>
+      <p class="text-xs text-gray-400 mt-0.5">{{ 'La raison est facultative.' | t }}</p>
     </div>
     <div class="px-6 py-4">
       <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5" for="reject-order-raison">
-        Raison (facultatif)
+        {{ 'Raison (facultatif)' | t }}
       </label>
       <textarea id="reject-order-raison" rows="3" [value]="reason()"
         (input)="reasonChange.emit($any($event.target).value)"
-        placeholder="Ex. rupture de stock, client parti…"
+        [attr.placeholder]="'Ex. rupture de stock, client parti…' | t"
         class="w-full text-sm border border-gray-200 rounded-md px-3 py-2 text-gray-700 resize-none
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"></textarea>
     </div>
@@ -26,13 +26,13 @@
         class="flex-1 px-4 py-3 rounded-lg text-sm font-semibold border border-gray-200 text-gray-600
                hover:bg-gray-50 active:scale-95 transition-all
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
-        Annuler
+        {{ 'Annuler' | t }}
       </button>
       <button (click)="confirmed.emit()" autofocus
         class="flex-1 bg-red-600 text-white text-sm font-semibold py-3 rounded-lg
                hover:bg-red-700 active:scale-95 transition-all
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400">
-        Confirmer le refus
+        {{ 'Confirmer le refus' | t }}
       </button>
     </div>
   </div>

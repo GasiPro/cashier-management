@@ -3,11 +3,13 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { SessionStore } from '../../../core/auth/session.store';
 import { OrganizationStore } from '../../../data/settings/organization.store';
+import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
+import { translate } from '../../../core/i18n/translate';
 export type NavbarRole = 'cashier' | 'counter';
 @Component({
   selector: 'app-navbar',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TranslatePipe],
   templateUrl: './navbar.html',
 })
 export class Navbar {
@@ -18,7 +20,7 @@ export class Navbar {
   showMenuButton = input<boolean>(true);
   showBackButton = input<boolean>(false);
   showMenu = signal(false);
-  readonly roleLabel = computed(() => (this.role() === 'cashier' ? 'Caisse' : 'Comptoir'));
+  readonly roleLabel = computed(() => (this.role() === 'cashier' ? translate('Caisse') : translate('Comptoir')));
   readonly containerMaxWidthClass = computed(() => (this.role() === 'cashier' ? 'max-w-5xl' : 'max-w-6xl'));
   readonly menuId = computed(() => `${this.role()}-menu`);
   constructor(

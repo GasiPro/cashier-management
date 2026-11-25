@@ -5,6 +5,7 @@ import {
   PASSWORD_HAS_DIGIT,
   PASSWORD_HAS_LETTER,
 } from '../../core/config/app.constants';
+import { translate } from '../../core/i18n/translate';
 const IPV4_OCTET = '(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)';
 const IPV4_REGEX = new RegExp(`^${IPV4_OCTET}(\\.${IPV4_OCTET}){3}$`);
 const HOSTNAME_REGEX = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*$/;
@@ -60,19 +61,19 @@ export function hasLetterAndDigit(password: string): boolean {
 }
 export function passwordRuleError(password: string): string {
   if (password.length < MIN_PASSWORD_LEN) {
-    return `Mot de passe : ${MIN_PASSWORD_LEN} caractères minimum.`;
+    return translate('Mot de passe : {MIN_PASSWORD_LEN} caractères minimum.', { MIN_PASSWORD_LEN: MIN_PASSWORD_LEN });
   }
   if (!hasLetterAndDigit(password)) {
-    return 'Mot de passe : une lettre et un chiffre requis.';
+    return translate('Mot de passe : une lettre et un chiffre requis.');
   }
   return '';
 }
 export function credentialsRuleError(username: string, password: string): string {
   if (username.length < MIN_USERNAME_LEN) {
-    return `Identifiant : ${MIN_USERNAME_LEN} caractères minimum.`;
+    return translate('Identifiant : {MIN_USERNAME_LEN} caractères minimum.', { MIN_USERNAME_LEN: MIN_USERNAME_LEN });
   }
   if (username.length > MAX_USERNAME_LEN) {
-    return `Identifiant : ${MAX_USERNAME_LEN} caractères maximum.`;
+    return translate('Identifiant : {MAX_USERNAME_LEN} caractères maximum.', { MAX_USERNAME_LEN: MAX_USERNAME_LEN });
   }
   return passwordRuleError(password);
 }

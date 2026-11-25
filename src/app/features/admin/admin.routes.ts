@@ -50,6 +50,10 @@ export const ADMIN_ROUTES: Routes = [
         loadComponent: () => import('./datetime/datetime.page').then((m) => m.DateTimePage),
       },
       {
+        path: 'langue-region',
+        loadComponent: () => import('./language/language.page').then((m) => m.LanguagePage),
+      },
+      {
         path: 'mise-a-jour',
         loadComponent: () => import('./update/update.page').then((m) => m.UpdatePage),
       },

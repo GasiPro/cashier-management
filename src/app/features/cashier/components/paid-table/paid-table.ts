@@ -9,10 +9,11 @@ import {
   groupHasIncrease,
 } from '../../../../data/order/order.utils';
 import { MoneyPipe } from '../../../../shared/pipes/money.pipe';
+import { TranslatePipe } from '../../../../shared/pipes/translate.pipe';
 @Component({
   selector: 'app-paid-table',
   standalone: true,
-  imports: [CommonModule, MoneyPipe],
+  imports: [CommonModule, MoneyPipe, TranslatePipe],
   templateUrl: './paid-table.html',
   host: { class: 'block' },
 })

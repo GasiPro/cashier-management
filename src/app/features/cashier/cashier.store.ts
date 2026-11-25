@@ -7,6 +7,7 @@ import { formatGroupId, getGroupItemsSummary } from '../../data/order/order.util
 import { BottomBarNotification } from '../../layouts/main-layout/bottom-bar/bottom-bar';
 import { clockNow, currentDayIso, dayOfIso, localeTime } from '../../core/display/datetime-settings';
 import { formatRelativeDay } from '../../shared/utils/date';
+import { translate } from '../../core/i18n/translate';
 export type CashierPanel = 'devices' | 'report' | 'history';
 export type PaymentMethod = 'cash' | 'mobile_money';
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
@@ -120,7 +121,7 @@ export class CashierStore {
     const days: HistoriqueDayGroup[] = [];
     const byLabel = new Map<string, HistoriqueDayGroup>();
     for (const group of this.filteredHistoriqueGroups()) {
-      const dayLabel = group.paidAt ? formatRelativeDay(group.paidAt) : 'Date inconnue';
+      const dayLabel = group.paidAt ? formatRelativeDay(group.paidAt) : translate('Date inconnue');
       let bucket = byLabel.get(dayLabel);
       if (!bucket) {
         bucket = { dayLabel, groups: [], count: 0, totalAmount: 0 };

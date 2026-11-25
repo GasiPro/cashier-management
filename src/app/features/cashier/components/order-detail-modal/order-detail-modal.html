@@ -7,12 +7,12 @@
        (click)="$event.stopPropagation()">
     <div class="flex items-start justify-between px-6 py-4 border-b border-gray-100 shrink-0">
       <div class="min-w-0">
-        <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">{{ isGroupPending(group) ? 'Vérification' : 'Commande' }}</p>
+        <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">{{ isGroupPending(group) ? ('Vérification' | t) : ('Commande' | t) }}</p>
         <h2 id="group-detail-heading" class="text-xl font-bold text-[#1E3A5F] tabular-nums leading-tight">
           {{ formatGroupId(group.groupId) }}
         </h2>
         @if (group.counterUsername) {
-        <p class="text-xs text-gray-400 mt-0.5">Envoyée par <span class="font-medium text-gray-500">{{ group.counterUsername }}</span></p>
+        <p class="text-xs text-gray-400 mt-0.5">{{ 'Envoyée par' | t }} <span class="font-medium text-gray-500">{{ group.counterUsername }}</span></p>
         }
         <p class="text-xs text-gray-400 mt-0.5">
           {{ isGroupPending(group) ? formatCreatedLabel(group) : formatPaidLabel(group) }}
@@ -21,7 +21,7 @@
       <button (click)="closed.emit()" autofocus
         class="text-gray-400 hover:text-gray-600 p-1 flex-shrink-0
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
-        aria-label="Fermer le détail de la commande">
+        [attr.aria-label]="'Fermer le détail de la commande' | t">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
@@ -35,21 +35,21 @@
           @if (isLineDiscounted(line)) {
           <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700
                        bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full flex-shrink-0"
-                title="Prix réduit par le comptoir">
-            Remise
+                [attr.title]="'Prix réduit par le comptoir' | t">
+            {{ 'Remise' | t }}
           </span>
           } @else if (isLineIncreased(line)) {
           <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700
                        bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full flex-shrink-0"
-                title="Prix majoré par le comptoir">
-            Majoration
+                [attr.title]="'Prix majoré par le comptoir' | t">
+            {{ 'Majoration' | t }}
           </span>
           }
         </span>
         <span class="text-sm text-gray-500 font-medium whitespace-nowrap tabular-nums">
           @if (isLineDiscounted(line) || isLineIncreased(line)) {
           <span class="line-through text-gray-300 mr-1" aria-hidden="true">{{ line.original_unit_price | money }}</span>
-          <span class="sr-only">Prix initial {{ line.original_unit_price | money }}, prix {{ isLineDiscounted(line) ? 'réduit' : 'majoré' }},</span>
+          <span class="sr-only">{{ 'Prix initial {original_unit_price}, prix {isLineDiscounted},' | t: { original_unit_price: (line.original_unit_price | money), isLineDiscounted: (isLineDiscounted(line) ? ('réduit' | t) : ('majoré' | t)) } }}</span>
           }
           {{ line.unit_price | money }} × {{ line.quantity }}
         </span>
@@ -59,7 +59,7 @@
           <svg class="w-3.5 h-3.5 flex-shrink-0 mt-px" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.008v.008H12v-.008z" />
           </svg>
-          <span class="min-w-0 break-words"><span class="sr-only">Observation : </span>{{ line.observation }}</span>
+          <span class="min-w-0 break-words"><span class="sr-only">{{ 'Observation :' | t }} </span>{{ line.observation }}</span>
         </div>
         }
       </div>
@@ -69,48 +69,48 @@
       @if (isGroupPending(group)) {
       <dl class="grid grid-cols-3 gap-2 mb-4 text-center">
         <div class="bg-gray-50 rounded-lg px-2 py-2">
-          <dt class="text-[10px] text-gray-400 uppercase tracking-wide">Articles</dt>
+          <dt class="text-[10px] text-gray-400 uppercase tracking-wide">{{ 'Articles' | t }}</dt>
           <dd class="text-sm font-semibold text-gray-700 tabular-nums">{{ totalQuantity(group) }}</dd>
         </div>
         <div class="bg-gray-50 rounded-lg px-2 py-2">
-          <dt class="text-[10px] text-gray-400 uppercase tracking-wide">Prix modifiés</dt>
+          <dt class="text-[10px] text-gray-400 uppercase tracking-wide">{{ 'Prix modifiés' | t }}</dt>
           <dd class="text-xs font-semibold text-gray-700 leading-5">{{ priceAdjustmentLabel(group) }}</dd>
         </div>
         <div class="bg-gray-50 rounded-lg px-2 py-2">
-          <dt class="text-[10px] text-gray-400 uppercase tracking-wide">Observations</dt>
+          <dt class="text-[10px] text-gray-400 uppercase tracking-wide">{{ 'Observations' | t }}</dt>
           <dd class="text-sm font-semibold text-gray-700 tabular-nums">{{ getGroupObservations(group).length }}</dd>
         </div>
       </dl>
       }
       <div class="flex items-center justify-between mb-4">
         <span class="text-sm text-gray-500 flex items-center gap-1.5">
-          Total à payer
+          {{ 'Total à payer' | t }}
           @if (groupHasDiscount(group)) {
-          <span class="text-amber-600" title="Cette commande inclut une remise" aria-label="Remise appliquée">●</span>
+          <span class="text-amber-600" [attr.title]="'Cette commande inclut une remise' | t" [attr.aria-label]="'Remise appliquée' | t">●</span>
           }
           @if (groupHasIncrease(group)) {
-          <span class="text-sky-600" title="Cette commande inclut une majoration" aria-label="Majoration appliquée">●</span>
+          <span class="text-sky-600" [attr.title]="'Cette commande inclut une majoration' | t" [attr.aria-label]="'Majoration appliquée' | t">●</span>
           }
         </span>
         <span class="text-xl font-bold text-[#1A1A1A] tabular-nums">{{ group.totalAmount | money }}</span>
       </div>
       @if (isGroupPending(group)) {
       <div class="flex items-center gap-2">
-        <button (click)="rejectRequested.emit(group)" title="Refuser la commande"
+        <button (click)="rejectRequested.emit(group)" [attr.title]="'Refuser la commande' | t"
           [disabled]="busyGroupId() !== null"
-          [attr.aria-label]="'Refuser la commande ' + formatGroupId(group.groupId)"
+          [attr.aria-label]="('Refuser la commande {formatGroupId}' | t: { formatGroupId: (formatGroupId(group.groupId)) })"
           class="flex-shrink-0 px-4 py-3 rounded-lg text-sm font-semibold border border-gray-200 text-gray-500
                  hover:bg-red-50 hover:text-red-600 hover:border-red-200 active:scale-95 transition-all
                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
-          Refuser
+          {{ 'Refuser' | t }}
         </button>
         <button (click)="payRequested.emit(group.groupId)"
           [disabled]="busyGroupId() !== null"
-          [attr.aria-label]="'Procéder au paiement de la commande ' + formatGroupId(group.groupId)"
+          [attr.aria-label]="('Procéder au paiement de la commande {formatGroupId}' | t: { formatGroupId: (formatGroupId(group.groupId)) })"
           class="flex-1 bg-[#1E3A5F] text-white text-sm font-semibold py-3 rounded-lg
                  hover:bg-[#16304f] active:scale-95 transition-all
                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
-          Procéder au paiement
+          {{ 'Procéder au paiement' | t }}
         </button>
       </div>
       }

@@ -7,21 +7,21 @@
        (click)="$event.stopPropagation()">
     <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
       <div>
-        <h2 id="historique-heading" class="text-base font-semibold text-[#1A1A1A]">Historique</h2>
-        <p class="text-xs text-gray-400 mt-0.5" aria-live="polite">{{ groups().length }} encaissement{{ groups().length > 1 ? 's' : '' }}</p>
+        <h2 id="historique-heading" class="text-base font-semibold text-[#1A1A1A]">{{ 'Historique' | t }}</h2>
+        <p class="text-xs text-gray-400 mt-0.5" aria-live="polite">{{ '{length} encaissement{length2}' | t: { length: (groups().length), length2: (groups().length > 1 ? 's' : '') } }}</p>
       </div>
       <button (click)="closed.emit()" autofocus
         class="text-gray-400 hover:text-gray-600 p-1
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded"
-        aria-label="Fermer l'historique">
+        [attr.aria-label]="'Fermer l\'historique' | t">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
     </div>
     @if (usernames().length > 1) {
-    <div class="px-6 pt-4" role="group" aria-label="Filtrer l'historique par comptoir">
-      <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Comptoir</p>
+    <div class="px-6 pt-4" role="group" [attr.aria-label]="'Filtrer l\'historique par comptoir' | t">
+      <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{{ 'Comptoir' | t }}</p>
       <div class="flex flex-wrap gap-2">
         <button (click)="userFilterChange.emit(allCounters())"
           [attr.aria-pressed]="selectedUser() === allCounters()"
@@ -30,7 +30,7 @@
             : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
           class="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors
                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-          Tous
+          {{ 'Tous' | t }}
         </button>
         @for (user of usernames(); track user) {
         <button (click)="userFilterChange.emit(user)"
@@ -48,7 +48,7 @@
     }
     @if (groups().length > 0) {
     <div class="mx-6 mt-4 flex items-center justify-between bg-[#F7F9FC] border border-gray-100 rounded-lg px-4 py-2.5">
-      <span class="text-xs font-medium text-gray-500">Total encaissé</span>
+      <span class="text-xs font-medium text-gray-500">{{ 'Total encaissé' | t }}</span>
       <span class="text-sm font-bold text-[#1A1A1A] tabular-nums">{{ totalAmount() | money }}</span>
     </div>
     }
@@ -56,9 +56,9 @@
       @if (groups().length === 0) {
       <p class="text-sm text-gray-400 italic py-4">
         @if (!hasPaidGroups()) {
-          Aucun encaissement.
+          {{ 'Aucun encaissement.' | t }}
         } @else {
-          Aucun encaissement pour ce comptoir.
+          {{ 'Aucun encaissement pour ce comptoir.' | t }}
         }
       </p>
       } @else {
@@ -77,7 +77,7 @@
                         hover:bg-gray-50 transition-colors
                         focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]"
                  role="button" tabindex="0"
-                 [attr.aria-label]="'Voir le détail de la commande ' + formatGroupId(group.groupId)"
+                 [attr.aria-label]="('Voir le détail de la commande {formatGroupId}' | t: { formatGroupId: (formatGroupId(group.groupId)) })"
                  (click)="groupOpened.emit(group)"
                  (keydown.enter)="groupOpened.emit(group)"
                  (keydown.space)="$event.preventDefault(); groupOpened.emit(group)">
@@ -85,7 +85,7 @@
                 <div class="flex items-baseline gap-2 min-w-0">
                   <span class="font-mono font-semibold text-sm text-gray-700">{{ formatGroupId(group.groupId) }}</span>
                   <span class="text-[11px] text-gray-400 whitespace-nowrap">
-                    {{ historiqueItemCount(group) }} article{{ historiqueItemCount(group) > 1 ? 's' : '' }}
+                    {{ '{historiqueItemCount} article{historiqueItemCount2}' | t: { historiqueItemCount: (historiqueItemCount(group)), historiqueItemCount2: (historiqueItemCount(group) > 1 ? 's' : '') } }}
                   </span>
                 </div>
                 <span class="font-semibold text-[#1A1A1A] tabular-nums text-sm whitespace-nowrap">{{ group.totalAmount | money }}</span>
@@ -97,23 +97,23 @@
                 <svg class="w-3.5 h-3.5 flex-shrink-0 mt-px" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.008v.008H12v-.008z" />
                 </svg>
-                <span class="min-w-0 break-words"><span class="sr-only">Observation : </span>{{ note }}</span>
+                <span class="min-w-0 break-words"><span class="sr-only">{{ 'Observation :' | t }} </span>{{ note }}</span>
               </div>
               }
               @if (groupHasDiscount(group)) {
               <span class="inline-flex items-center gap-1 mb-1 text-[10px] font-semibold text-amber-700
                            bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full"
-                    title="Un ou plusieurs prix ont été réduits par le comptoir">
-                Remise
-                <span class="sr-only">appliquée sur cette commande</span>
+                    [attr.title]="'Un ou plusieurs prix ont été réduits par le comptoir' | t">
+                {{ 'Remise' | t }}
+                <span class="sr-only">{{ 'appliquée sur cette commande' | t }}</span>
               </span>
               }
               @if (groupHasIncrease(group)) {
               <span class="inline-flex items-center gap-1 mb-1 text-[10px] font-semibold text-sky-700
                            bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full"
-                    title="Un ou plusieurs prix ont été majorés par le comptoir">
-                Majoration
-                <span class="sr-only">appliquée sur cette commande</span>
+                    [attr.title]="'Un ou plusieurs prix ont été majorés par le comptoir' | t">
+                {{ 'Majoration' | t }}
+                <span class="sr-only">{{ 'appliquée sur cette commande' | t }}</span>
               </span>
               }
               <div class="flex items-center justify-between gap-2">

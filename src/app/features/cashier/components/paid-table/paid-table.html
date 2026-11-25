@@ -2,22 +2,22 @@
   <div class="flex items-center gap-2 mb-5">
     <span class="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200
              px-2.5 py-1 rounded-full uppercase tracking-wide">
-      Encaissées
+      {{ 'Encaissées' | t }}
     </span>
     <span class="text-sm text-gray-400">({{ totalCount() }})</span>
   </div>
   @if (totalCount() === 0) {
-  <p class="text-sm text-gray-400 italic py-4">Aucun encaissement réalisé pour le moment.</p>
+  <p class="text-sm text-gray-400 italic py-4">{{ 'Aucun encaissement réalisé pour le moment.' | t }}</p>
   } @else {
   <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto">
     <table class="w-full text-sm min-w-[340px] table-auto">
       <thead>
         <tr class="border-b border-gray-100 bg-gray-50">
           <th class="text-left px-3 sm:px-4 py-3.5 text-xs text-gray-400 font-medium uppercase tracking-wide w-12">N°</th>
-          <th class="text-left px-3 sm:px-4 py-3.5 text-xs text-gray-400 font-medium uppercase tracking-wide">Détails</th>
-          <th class="text-left px-3 sm:px-4 py-3.5 text-xs text-gray-400 font-medium uppercase tracking-wide hidden sm:table-cell">Comptoir</th>
-          <th class="text-right px-3 sm:px-4 py-3.5 text-xs text-gray-400 font-medium uppercase tracking-wide whitespace-nowrap">Montant</th>
-          <th class="text-right px-3 sm:px-4 py-3.5 text-xs text-gray-400 font-medium uppercase tracking-wide hidden sm:table-cell">Payé à</th>
+          <th class="text-left px-3 sm:px-4 py-3.5 text-xs text-gray-400 font-medium uppercase tracking-wide">{{ 'Détails' | t }}</th>
+          <th class="text-left px-3 sm:px-4 py-3.5 text-xs text-gray-400 font-medium uppercase tracking-wide hidden sm:table-cell">{{ 'Comptoir' | t }}</th>
+          <th class="text-right px-3 sm:px-4 py-3.5 text-xs text-gray-400 font-medium uppercase tracking-wide whitespace-nowrap">{{ 'Montant' | t }}</th>
+          <th class="text-right px-3 sm:px-4 py-3.5 text-xs text-gray-400 font-medium uppercase tracking-wide hidden sm:table-cell">{{ 'Payé à' | t }}</th>
         </tr>
       </thead>
       <tbody>
@@ -25,7 +25,7 @@
         <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors cursor-pointer
                    focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#1E3A5F]"
             tabindex="0"
-            [attr.aria-label]="'Voir le détail de la commande ' + formatGroupId(group.groupId)"
+            [attr.aria-label]="('Voir le détail de la commande {formatGroupId}' | t: { formatGroupId: (formatGroupId(group.groupId)) })"
             (click)="opened.emit(group)"
             (keydown.enter)="opened.emit(group)"
             (keydown.space)="$event.preventDefault(); opened.emit(group)">
@@ -35,17 +35,17 @@
             @if (groupHasDiscount(group)) {
             <span class="inline-flex items-center gap-1 ml-1 text-[10px] font-semibold text-amber-700
                          bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full align-middle"
-                  title="Un ou plusieurs prix ont été réduits par le comptoir">
-              Remise
-              <span class="sr-only">appliquée sur cette commande</span>
+                  [attr.title]="'Un ou plusieurs prix ont été réduits par le comptoir' | t">
+              {{ 'Remise' | t }}
+              <span class="sr-only">{{ 'appliquée sur cette commande' | t }}</span>
             </span>
             }
             @if (groupHasIncrease(group)) {
             <span class="inline-flex items-center gap-1 ml-1 text-[10px] font-semibold text-sky-700
                          bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full align-middle"
-                  title="Un ou plusieurs prix ont été majorés par le comptoir">
-              Majoration
-              <span class="sr-only">appliquée sur cette commande</span>
+                  [attr.title]="'Un ou plusieurs prix ont été majorés par le comptoir' | t">
+              {{ 'Majoration' | t }}
+              <span class="sr-only">{{ 'appliquée sur cette commande' | t }}</span>
             </span>
             }
           </td>

@@ -3,10 +3,11 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CounterStore } from '../../counter.store';
 import { MoneyPipe } from '../../../../shared/pipes/money.pipe';
+import { TranslatePipe } from '../../../../shared/pipes/translate.pipe';
 @Component({
   selector: 'app-order-history',
   standalone: true,
-  imports: [CommonModule, FormsModule, MoneyPipe],
+  imports: [CommonModule, FormsModule, MoneyPipe, TranslatePipe],
   host: { class: 'contents' },
   templateUrl: './order-history.html',
 })

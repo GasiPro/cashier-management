@@ -36,6 +36,8 @@ import { PaymentDialog } from './components/payment-dialog/payment-dialog';
 import { PendingList } from './components/pending-list/pending-list';
 import { RejectDialog } from './components/reject-dialog/reject-dialog';
 import { ReportPanel } from './components/report-panel/report-panel';
+import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { translate } from '../../core/i18n/translate';
 const ORDER_UPDATE_COALESCE_MS = 1500;
 @Component({
   selector: 'app-cashier',
@@ -53,13 +55,12 @@ const ORDER_UPDATE_COALESCE_MS = 1500;
     PaymentDialog,
     HistoryPanel,
     ReportPanel,
-    DevicesPanel,
-  ],
+    DevicesPanel, TranslatePipe],
   providers: [CashierStore],
   templateUrl: './cashier.page.html',
 })
 export class CashierPage implements OnInit, OnDestroy {
-  username = getStoredUsername() ?? 'Caisse';
+  username = getStoredUsername() ?? translate('Caisse');
   private accountDisplayName = getStoredDisplayName() ?? '';
   /** Name shown in the navbar — the account display name when one exists, otherwise the username. */
   get displayLabel(): string {
@@ -143,15 +144,15 @@ export class CashierPage implements OnInit, OnDestroy {
       this.updateTimers.delete(groupId);
     }
     if (change.kind === 'created') {
-      this.store.notify(`Nouvelle commande ${label}${from}.`, 'sound');
+      this.store.notify(translate('Nouvelle commande {label}{from}.', { label: label, from: from }), 'sound');
     } else if (change.kind === 'deleted') {
-      this.store.notify(`Commande ${label} supprimée${from}.`);
+      this.store.notify(translate('Commande {label} supprimée{from}.', { label: label, from: from }));
     } else if (change.kind === 'updated') {
       this.updateTimers.set(
         groupId,
         setTimeout(() => {
           this.updateTimers.delete(groupId);
-          this.store.notify(`Commande ${label} modifiée${from}.`);
+          this.store.notify(translate('Commande {label} modifiée{from}.', { label: label, from: from }));
         }, ORDER_UPDATE_COALESCE_MS),
       );
     }
@@ -163,7 +164,7 @@ export class CashierPage implements OnInit, OnDestroy {
     const fresh = requests.filter((r) => !known.has(r.id));
     if (fresh.length === 0) return;
     const names = fresh.map((r) => deviceDisplayName(r)).join(', ');
-    this.store.notify(`Nouvelle demande de connexion : « ${names} ».`, 'sound');
+    this.store.notify(translate('Nouvelle demande de connexion : « {names} ».', { names: names }), 'sound');
   }
   logout(): void {
     this.ws.send({ type: 'logout' });
@@ -192,10 +193,10 @@ export class CashierPage implements OnInit, OnDestroy {
     const req = this.devices.pendingConnections().find((r) => r.id === id);
     try {
       await approveConnection(id);
-      this.store.notify(`« ${req ? deviceDisplayName(req) : 'Appareil'} » approuvé.`);
+      this.store.notify(translate('« {deviceDisplayName} » approuvé.', { deviceDisplayName: req ? deviceDisplayName(req) : translate('Appareil') }));
     } catch (e) {
       console.error('connection_approve failed', e);
-      this.store.notify(errorMessage(e, "Impossible d'approuver cet appareil."));
+      this.store.notify(errorMessage(e, translate('Impossible d\'approuver cet appareil.')));
     } finally {
       this.store.busyDeviceId.set(null);
     }
@@ -206,10 +207,10 @@ export class CashierPage implements OnInit, OnDestroy {
     const req = this.devices.pendingConnections().find((r) => r.id === id);
     try {
       await rejectConnection(id);
-      this.store.notify(`« ${req ? deviceDisplayName(req) : 'Appareil'} » refusé.`);
+      this.store.notify(translate('« {deviceDisplayName} » refusé.', { deviceDisplayName: req ? deviceDisplayName(req) : translate('Appareil') }));
     } catch (e) {
       console.error('connection_reject failed', e);
-      this.store.notify(errorMessage(e, 'Impossible de refuser cet appareil.'));
+      this.store.notify(errorMessage(e, translate('Impossible de refuser cet appareil.')));
     } finally {
       this.store.busyDeviceId.set(null);
     }
@@ -220,10 +221,10 @@ export class CashierPage implements OnInit, OnDestroy {
     const dev = this.devices.connectedDevices().find((d) => d.id === id);
     try {
       await disconnectDevice(id);
-      this.store.notify(`« ${dev ? deviceDisplayName(dev) : 'Appareil'} » déconnecté.`);
+      this.store.notify(translate('« {deviceDisplayName} » déconnecté.', { deviceDisplayName: dev ? deviceDisplayName(dev) : translate('Appareil') }));
     } catch (e) {
       console.error('connection_disconnect failed', e);
-      this.store.notify(errorMessage(e, 'Impossible de déconnecter cet appareil.'));
+      this.store.notify(errorMessage(e, translate('Impossible de déconnecter cet appareil.')));
     } finally {
       this.store.busyDeviceId.set(null);
     }
@@ -235,10 +236,10 @@ export class CashierPage implements OnInit, OnDestroy {
     try {
       await blockDevice(id);
       this.store.confirmingBlockDeviceId.set(null);
-      this.store.notify(`« ${dev ? deviceDisplayName(dev) : 'Appareil'} » bloqué et déconnecté.`);
+      this.store.notify(translate('« {deviceDisplayName} » bloqué et déconnecté.', { deviceDisplayName: dev ? deviceDisplayName(dev) : translate('Appareil') }));
     } catch (e) {
       console.error('connection_block failed', e);
-      this.store.notify(errorMessage(e, 'Impossible de bloquer cet appareil.'));
+      this.store.notify(errorMessage(e, translate('Impossible de bloquer cet appareil.')));
     } finally {
       this.store.busyDeviceId.set(null);
     }
@@ -248,12 +249,12 @@ export class CashierPage implements OnInit, OnDestroy {
     this.store.busyGroupId.set(groupId);
     try {
       await markGroupPaid(groupId);
-      const method = PAYMENT_METHOD_LABELS[this.store.paymentMethod()];
+      const method = translate(PAYMENT_METHOD_LABELS[this.store.paymentMethod()]);
       this.store.closePaymentDialog();
-      this.store.notify(`Commande ${formatGroupId(groupId)} encaissée (${method}).`);
+      this.store.notify(translate('Commande {formatGroupId} encaissée ({method}).', { formatGroupId: formatGroupId(groupId), method: method }));
     } catch (e) {
       console.error('group_mark_paid failed', e);
-      this.store.notify(errorMessage(e, "Impossible d'encaisser cette commande."));
+      this.store.notify(errorMessage(e, translate('Impossible d\'encaisser cette commande.')));
     } finally {
       this.store.busyGroupId.set(null);
     }
@@ -263,10 +264,10 @@ export class CashierPage implements OnInit, OnDestroy {
     this.store.busyGroupId.set(groupId);
     try {
       await rejectGroup(groupId, raison?.trim() ? raison.trim() : null);
-      this.store.notify(`Commande ${formatGroupId(groupId)} refusée.`);
+      this.store.notify(translate('Commande {formatGroupId} refusée.', { formatGroupId: formatGroupId(groupId) }));
     } catch (e) {
       console.error('group_reject failed', e);
-      this.store.notify(errorMessage(e, 'Impossible de refuser cette commande.'));
+      this.store.notify(errorMessage(e, translate('Impossible de refuser cette commande.')));
     } finally {
       this.store.busyGroupId.set(null);
     }
@@ -278,8 +279,8 @@ export class CashierPage implements OnInit, OnDestroy {
     this.store.closeRejectDialog();
   }
   onBilletageValidated(result: BilletageResult): void {
-    const gap = result.gap === 0 ? 'caisse juste' : `écart ${result.gap > 0 ? '+' : ''}${result.gap.toLocaleString('fr-FR')}`;
-    this.store.notify(`Billetage validé (${gap}).`);
+    const gap = result.gap === 0 ? translate('caisse juste') : translate('écart {gap}{toLocaleString}', { gap: result.gap > 0 ? '+' : '', toLocaleString: result.gap.toLocaleString('fr-FR') });
+    this.store.notify(translate('Billetage validé ({gap}).', { gap: gap }));
   }
   copyWsAddress(): void {
     navigator.clipboard.writeText(this.wsAddress()).catch(() => {});

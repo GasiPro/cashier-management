@@ -8,8 +8,8 @@
         class="w-10 h-10 rounded-full border-2 border-gray-200 border-t-[#1E3A5F]
                animate-spin [animation-duration:2.2s] motion-reduce:animate-none inline-block mb-8"></span>
       <p class="text-xl leading-relaxed">
-        <span class="block">Ravi de vous compter parmi nous.</span>
-        <span class="block text-gray-500">Lancement imminent...</span>
+        <span class="block">{{ 'Ravi de vous compter parmi nous.' | t }}</span>
+        <span class="block text-gray-500">{{ 'Lancement imminent...' | t }}</span>
       </p>
     </div>
   </main>
@@ -17,8 +17,8 @@
   <form class="flex-1 min-h-0 flex flex-col" (submit)="next($event)" novalidate>
     <header
       class="border border-gray-300 bg-white rounded px-4 py-2.5 flex items-center justify-between gap-4"
-      aria-label="Étapes de l'installation">
-      <span class="text-xs font-semibold uppercase tracking-widest text-gray-500">Installation</span>
+      [attr.aria-label]="'Étapes de l\'installation' | t">
+      <span class="text-xs font-semibold uppercase tracking-widest text-gray-500">{{ 'Installation' | t }}</span>
       <ol class="flex items-center gap-5">
         @for (step of steps; track step.id; let i = $index) {
         <li
@@ -32,7 +32,7 @@
               : i === stepIndex()
                 ? 'border-2 border-[#1E3A5F] text-[#1E3A5F]'
                 : 'border border-gray-300 text-gray-400'">{{ i < stepIndex() ? '✓' : i + 1 }}</span>
-          {{ step.label }}
+          {{ step.label | t }}
         </li>
         }
       </ol>
@@ -40,15 +40,15 @@
     <main class="flex-1 min-h-0 overflow-y-auto px-2 py-5">
       @switch (currentStep()) {
       @case ('key') {
-      <section class="max-w-md mx-auto" aria-label="Clé de produit">
-        <h1 class="text-xl font-semibold mb-1">Nous vous souhaitons la bienvenue,</h1>
-        <p class="text-sm text-gray-500 mb-5">veuillez insérer votre clé de produit</p>
+      <section class="max-w-md mx-auto" [attr.aria-label]="'Clé de produit' | t">
+        <h1 class="text-xl font-semibold mb-1">{{ 'Nous vous souhaitons la bienvenue,' | t }}</h1>
+        <p class="text-sm text-gray-500 mb-5">{{ 'veuillez insérer votre clé de produit' | t }}</p>
         @if (keyValidated()) {
         <p class="border border-gray-300 bg-white rounded-lg px-4 py-3 text-sm" role="status">
-          Clé de produit validée.
+          {{ 'Clé de produit validée.' | t }}
         </p>
         } @else {
-        <div class="flex items-center gap-2" role="group" aria-label="Clé de produit">
+        <div class="flex items-center gap-2" role="group" [attr.aria-label]="'Clé de produit' | t">
           @for (i of segmentIndexes; track i) {
           <input
             type="password"
@@ -57,12 +57,12 @@
             autocomplete="off"
             spellcheck="false"
             maxlength="4"
-            placeholder="XXXX"
+            [attr.placeholder]="'XXXX' | t"
             [value]="segments()[i]"
             (input)="onSegmentInput(i, $event)"
             (keydown)="onSegmentKeydown(i, $event)"
             (paste)="onPaste($event)"
-            [attr.aria-label]="'Clé de produit, groupe ' + (i + 1) + ' sur 4'"
+            [attr.aria-label]="('Clé de produit, groupe {n} sur 4' | t: { n: ((i + 1)) })"
             [attr.aria-invalid]="error() ? true : null"
             class="flex-1 min-w-0 border border-gray-200 rounded-lg px-2 py-3 text-base font-mono tracking-widest text-center
                    focus:outline-none focus:border-[#1E3A5F] transition-colors placeholder-gray-300" />
@@ -77,11 +77,11 @@
           class="w-full mt-4 text-sm text-gray-500 border border-gray-200 bg-white py-2.5 rounded-lg
                  hover:bg-gray-50 transition-colors
                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-          Demander une clé
+          {{ 'Demander une clé' | t }}
         </button>
         @if (showContact()) {
         <div class="mt-3 border border-gray-200 bg-white rounded-lg px-4 py-3 text-center">
-          <p class="text-sm text-gray-500 mb-1">veuillez contacter</p>
+          <p class="text-sm text-gray-500 mb-1">{{ 'veuillez contacter' | t }}</p>
           <p class="text-base font-mono text-[#1E3A5F] selectable mb-2">{{ contactEmail }}</p>
           <button
             type="button"
@@ -89,7 +89,7 @@
             class="text-sm font-medium text-gray-600 border border-gray-200 rounded-lg px-4 py-1.5
                    hover:bg-gray-50 transition-colors
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-            {{ copied() ? 'Copié' : 'Copier' }}
+            {{ copied() ? ('Copié' | t) : ('Copier' | t) }}
           </button>
         </div>
         }
@@ -97,13 +97,13 @@
       </section>
       }
       @case ('organization') {
-      <section class="max-w-md mx-auto space-y-3" aria-label="Organisation">
+      <section class="max-w-md mx-auto space-y-3" [attr.aria-label]="'Organisation' | t">
         <div class="mb-4">
-          <h1 class="text-xl font-semibold mb-1">Organisation</h1>
-          <p class="text-sm text-gray-500">Informations de l'entreprise.</p>
+          <h1 class="text-xl font-semibold mb-1">{{ 'Organisation' | t }}</h1>
+          <p class="text-sm text-gray-500">{{ 'Informations de l\'entreprise.' | t }}</p>
         </div>
         <div>
-          <label for="org-name" class="block text-xs font-medium text-gray-500 mb-1">Nom de l'organisation</label>
+          <label for="org-name" class="block text-xs font-medium text-gray-500 mb-1">{{ 'Nom de l\'organisation' | t }}</label>
           <input
             id="org-name"
             type="text"
@@ -115,7 +115,7 @@
                    focus:outline-none focus:border-[#1E3A5F] transition-colors" />
         </div>
         <div>
-          <label for="org-email" class="block text-xs font-medium text-gray-500 mb-1">Adresse e-mail</label>
+          <label for="org-email" class="block text-xs font-medium text-gray-500 mb-1">{{ 'Adresse e-mail' | t }}</label>
           <input
             id="org-email"
             type="email"
@@ -127,19 +127,19 @@
                    focus:outline-none focus:border-[#1E3A5F] transition-colors" />
         </div>
         <div>
-          <label for="org-phone" class="block text-xs font-medium text-gray-500 mb-1">Téléphone</label>
+          <label for="org-phone" class="block text-xs font-medium text-gray-500 mb-1">{{ 'Téléphone' | t }}</label>
           <div class="flex gap-2">
             <select
-              aria-label="Indicatif régional"
+              [attr.aria-label]="'Indicatif régional' | t"
               (change)="setField(prefixChoice, $event)"
               class="shrink-0 border border-gray-200 bg-white rounded-lg px-2 py-2.5 text-sm
                      focus:outline-none focus:border-[#1E3A5F] transition-colors">
               @for (region of regions; track region.prefix) {
               <option [value]="region.prefix" [selected]="prefixChoice() === region.prefix">
-                {{ region.name }} ({{ region.prefix }})
+                {{ region.name | t }} ({{ region.prefix }})
               </option>
               }
-              <option [value]="otherPrefix" [selected]="prefixChoice() === otherPrefix">Autre</option>
+              <option [value]="otherPrefix" [selected]="prefixChoice() === otherPrefix">{{ 'Autre' | t }}</option>
             </select>
             @if (prefixChoice() === otherPrefix) {
             <input
@@ -147,7 +147,7 @@
               inputmode="tel"
               maxlength="5"
               placeholder="+000"
-              aria-label="Indicatif"
+              [attr.aria-label]="'Indicatif' | t"
               [value]="customPrefix()"
               (input)="setField(customPrefix, $event)"
               class="w-20 shrink-0 border border-gray-200 rounded-lg px-2 py-2.5 text-sm text-center
@@ -167,13 +167,13 @@
       </section>
       }
       @case ('admin') {
-      <section class="max-w-md mx-auto space-y-3" aria-label="Administrateur">
+      <section class="max-w-md mx-auto space-y-3" [attr.aria-label]="'Administrateur' | t">
         <div class="mb-4">
-          <h1 class="text-xl font-semibold mb-1">Administrateur</h1>
-          <p class="text-sm text-gray-500">Créez le premier compte administrateur.</p>
+          <h1 class="text-xl font-semibold mb-1">{{ 'Administrateur' | t }}</h1>
+          <p class="text-sm text-gray-500">{{ 'Créez le premier compte administrateur.' | t }}</p>
         </div>
         <div>
-          <label for="admin-display-name" class="block text-xs font-medium text-gray-500 mb-1">Nom affiché</label>
+          <label for="admin-display-name" class="block text-xs font-medium text-gray-500 mb-1">{{ 'Nom affiché' | t }}</label>
           <input
             id="admin-display-name"
             type="text"
@@ -185,7 +185,7 @@
                    focus:outline-none focus:border-[#1E3A5F] transition-colors" />
         </div>
         <div>
-          <label for="admin-username" class="block text-xs font-medium text-gray-500 mb-1">Nom d'utilisateur</label>
+          <label for="admin-username" class="block text-xs font-medium text-gray-500 mb-1">{{ 'Nom d\'utilisateur' | t }}</label>
           <input
             id="admin-username"
             type="text"
@@ -198,7 +198,7 @@
                    focus:outline-none focus:border-[#1E3A5F] transition-colors" />
         </div>
         <div>
-          <label for="admin-password" class="block text-xs font-medium text-gray-500 mb-1">Mot de passe</label>
+          <label for="admin-password" class="block text-xs font-medium text-gray-500 mb-1">{{ 'Mot de passe' | t }}</label>
           <app-password-input
             inputId="admin-password"
             name="adminPassword"
@@ -207,10 +207,10 @@
             placeholder=""
             [(value)]="adminPassword"
             [(visible)]="showAdminPassword" />
-          <p class="text-xs text-gray-400 mt-1.5">{{ minPasswordLen }} caractères minimum, une lettre et un chiffre.</p>
+          <p class="text-xs text-gray-400 mt-1.5">{{ '{minPasswordLen} caractères minimum, une lettre et un chiffre.' | t: { minPasswordLen: (minPasswordLen) } }}</p>
         </div>
         <div>
-          <label for="admin-password-confirm" class="block text-xs font-medium text-gray-500 mb-1">Confirmer le mot de passe</label>
+          <label for="admin-password-confirm" class="block text-xs font-medium text-gray-500 mb-1">{{ 'Confirmer le mot de passe' | t }}</label>
           <app-password-input
             inputId="admin-password-confirm"
             name="adminPasswordConfirm"
@@ -223,12 +223,12 @@
       </section>
       }
       @case ('mode') {
-      <section class="max-w-md mx-auto" aria-label="Type de poste">
+      <section class="max-w-md mx-auto" [attr.aria-label]="'Type de poste' | t">
         <div class="mb-4">
-          <h1 class="text-xl font-semibold mb-1">Type de poste</h1>
-          <p class="text-sm text-gray-500">Choisissez le rôle de cet ordinateur.</p>
+          <h1 class="text-xl font-semibold mb-1">{{ 'Type de poste' | t }}</h1>
+          <p class="text-sm text-gray-500">{{ 'Choisissez le rôle de cet ordinateur.' | t }}</p>
         </div>
-        <div class="space-y-3" role="radiogroup" aria-label="Type de poste">
+        <div class="space-y-3" role="radiogroup" [attr.aria-label]="'Type de poste' | t">
           @for (choice of choices; track choice.value) {
           <button
             type="button"
@@ -240,13 +240,13 @@
               ? 'w-full text-left border-2 border-[#1E3A5F] bg-[#EFF4FA] rounded-xl px-5 py-3 transition-colors'
               : 'w-full text-left border border-gray-200 bg-white rounded-xl px-5 py-3 hover:border-[#1E3A5F] transition-colors'"
             class="disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
-            <p class="text-xs font-medium text-gray-400 uppercase tracking-widest">{{ choice.label }}</p>
-            <h2 class="text-base font-semibold">{{ choice.title }}</h2>
-            <p class="text-sm text-gray-500 mt-0.5">{{ choice.description }}</p>
+            <p class="text-xs font-medium text-gray-400 uppercase tracking-widest">{{ choice.label | t }}</p>
+            <h2 class="text-base font-semibold">{{ choice.title | t }}</h2>
+            <p class="text-sm text-gray-500 mt-0.5">{{ choice.description | t }}</p>
           </button>
           }
         </div>
-        <p class="text-xs text-gray-500 mt-3">Ce choix est définitif pour cette installation.</p>
+        <p class="text-xs text-gray-500 mt-3">{{ 'Ce choix est définitif pour cette installation.' | t }}</p>
       </section>
       }
       }
@@ -260,7 +260,7 @@
         class="w-28 border border-gray-300 bg-white text-sm font-medium py-2.5 rounded-lg
                hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
-        Précédent
+        {{ 'Précédent' | t }}
       </button>
       <button
         type="submit"
@@ -269,7 +269,7 @@
         class="w-28 bg-[#1E3A5F] text-white text-sm font-semibold py-2.5 rounded-lg
                hover:bg-[#16304f] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
-        {{ busy() ? 'Patientez…' : isLastStep() ? 'Terminer' : 'Suivant' }}
+        {{ busy() ? ('Patientez…' | t) : isLastStep() ? ('Terminer' | t) : ('Suivant' | t) }}
       </button>
     </footer>
   </form>

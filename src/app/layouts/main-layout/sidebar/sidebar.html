@@ -1,7 +1,7 @@
 <nav class="w-16 h-screen sticky top-0 left-0 bg-white border-r border-gray-200 flex flex-col items-center py-4 gap-2 flex-shrink-0 z-50"
-     aria-label="Navigation principale">
+     [attr.aria-label]="'Navigation principale' | t">
   <div class="flex-1"></div>
-  <button (click)="openCalculatrice()" [attr.aria-current]="calculatriceSlot() !== null ? 'page' : null" title="Calculatrice" aria-label="Calculatrice"
+  <button (click)="openCalculatrice()" [attr.aria-current]="calculatriceSlot() !== null ? 'page' : null" [attr.title]="'Calculatrice' | t" [attr.aria-label]="'Calculatrice' | t"
     [class]="iconButtonClass(calculatriceSlot() !== null)"
     class="group relative w-10 h-10 rounded-full flex items-center justify-center transition-colors
            focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
@@ -11,10 +11,10 @@
     </svg>
     <span class="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md
                  bg-[#1A1A1A] px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-40">
-      Calculatrice
+      {{ 'Calculatrice' | t }}
     </span>
   </button>
-  <button (click)="openMemo()" [attr.aria-current]="memoSlot() !== null ? 'page' : null" title="Mémo" aria-label="Mémo"
+  <button (click)="openMemo()" [attr.aria-current]="memoSlot() !== null ? 'page' : null" [attr.title]="'Mémo' | t" [attr.aria-label]="'Mémo' | t"
     [class]="iconButtonClass(memoSlot() !== null)"
     class="group relative w-10 h-10 rounded-full flex items-center justify-center transition-colors
            focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
@@ -23,11 +23,11 @@
     </svg>
     <span class="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md
                  bg-[#1A1A1A] px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-40">
-      Mémo
+      {{ 'Mémo' | t }}
     </span>
   </button>
   @if (theoreticalCash() !== null) {
-  <button (click)="openBilletage()" [attr.aria-current]="billetageSlot() !== null ? 'page' : null" title="Billetage" aria-label="Billetage"
+  <button (click)="openBilletage()" [attr.aria-current]="billetageSlot() !== null ? 'page' : null" [attr.title]="'Billetage' | t" [attr.aria-label]="'Billetage' | t"
     [class]="iconButtonClass(billetageSlot() !== null)"
     class="group relative w-10 h-10 rounded-full flex items-center justify-center transition-colors
            focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
@@ -36,11 +36,11 @@
     </svg>
     <span class="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md
                  bg-[#1A1A1A] px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-40">
-      Billetage
+      {{ 'Billetage' | t }}
     </span>
   </button>
   }
-  <button (click)="goToSettings()" [attr.aria-current]="isSettingsActive() ? 'page' : null" title="Réglages" aria-label="Réglages"
+  <button (click)="goToSettings()" [attr.aria-current]="isSettingsActive() ? 'page' : null" [attr.title]="'Réglages' | t" [attr.aria-label]="'Réglages' | t"
     [class]="iconButtonClass(isSettingsActive())"
     class="group relative w-10 h-10 rounded-full flex items-center justify-center transition-colors
            focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
@@ -50,16 +50,16 @@
     </svg>
     <span class="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md
                  bg-[#1A1A1A] px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-40">
-      Réglages
+      {{ 'Réglages' | t }}
     </span>
   </button>
 </nav>
 <div *ngIf="calculatriceSlot() !== null"
      [class]="calculatricePanelClass()"
-     role="dialog" aria-label="Calculatrice">
+     role="dialog" [attr.aria-label]="'Calculatrice' | t">
     <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-      <span class="text-sm font-semibold text-[#1A1A1A]">Calculatrice</span>
-      <button (click)="closeCalculatrice()" title="Fermer" aria-label="Fermer la calculatrice"
+      <span class="text-sm font-semibold text-[#1A1A1A]">{{ 'Calculatrice' | t }}</span>
+      <button (click)="closeCalculatrice()" [attr.title]="'Fermer' | t" [attr.aria-label]="'Fermer la calculatrice' | t"
         class="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -114,10 +114,10 @@
   </div>
 <div *ngIf="memoSlot() !== null"
      [class]="memoPanelClass()"
-     role="dialog" aria-label="Mémo">
+     role="dialog" [attr.aria-label]="'Mémo' | t">
   <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
-    <span class="text-sm font-semibold text-[#1A1A1A]">Memo</span>
-    <button (click)="closeMemo()" title="Fermer" aria-label="Fermer le mémo"
+    <span class="text-sm font-semibold text-[#1A1A1A]">{{ 'Memo' | t }}</span>
+    <button (click)="closeMemo()" [attr.title]="'Fermer' | t" [attr.aria-label]="'Fermer le mémo' | t"
       class="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -125,15 +125,15 @@
     </button>
   </div>
   <textarea [value]="memoText()" (input)="memoTextChanged($event)"
-    placeholder="Écrivez une note…"
+    [attr.placeholder]="'Écrivez une note…' | t"
     class="flex-1 w-full resize-none px-4 py-3 text-sm text-[#1A1A1A] placeholder-gray-400
            focus:outline-none"></textarea>
 </div>
 @if (theoreticalCash() !== null) {
-<div [class]="billetagePanelClass()" role="dialog" aria-label="Billetage">
+<div [class]="billetagePanelClass()" role="dialog" [attr.aria-label]="'Billetage' | t">
   <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
-    <span class="text-sm font-semibold text-[#1A1A1A]">Billetage</span>
-    <button (click)="closeBilletage()" title="Fermer" aria-label="Fermer le billetage"
+    <span class="text-sm font-semibold text-[#1A1A1A]">{{ 'Billetage' | t }}</span>
+    <button (click)="closeBilletage()" [attr.title]="'Fermer' | t" [attr.aria-label]="'Fermer le billetage' | t"
       class="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />

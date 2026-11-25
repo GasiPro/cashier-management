@@ -15,6 +15,7 @@ import {
   revenueOf,
   sectionsByCounterOf,
 } from './report.calculator';
+import { translate } from '../../core/i18n/translate';
 export interface ReportExportInput {
   title: string;
   dateLabel: string;
@@ -43,35 +44,35 @@ export async function exportReportXlsx(input: ReportExportInput): Promise<Report
   pushRow([input.title]);
   pushRow([input.dateLabel]);
   if (input.counterLabel) {
-    pushRow([`Comptoir : ${input.counterLabel}`]);
+    pushRow([translate('Comptoir : {counterLabel}', { counterLabel: input.counterLabel })]);
   }
   pushRow([]);
-  const revenueRow = pushRow(["Chiffre d'affaires", revenue]);
+  const revenueRow = pushRow([translate('Chiffre d\'affaires'), revenue]);
   currencyCells.push({ r: revenueRow, c: 1 });
   const trend = input.trend;
   const comparisonLabel = input.comparisonLabel;
-  const previousRevenueRow = pushRow([`Chiffre d'affaires (${comparisonLabel.toLowerCase()})`, trend.previousRevenue]);
+  const previousRevenueRow = pushRow([translate('Chiffre d\'affaires ({toLowerCase})', { toLowerCase: comparisonLabel.toLowerCase() }), trend.previousRevenue]);
   currencyCells.push({ r: previousRevenueRow, c: 1 });
   if (trend.changePercent !== null) {
-    pushRow([`Évolution vs ${comparisonLabel.toLowerCase()}`, `${trend.changePercent >= 0 ? '+' : ''}${trend.changePercent}%`]);
+    pushRow([translate('Évolution vs {toLowerCase}', { toLowerCase: comparisonLabel.toLowerCase() }), `${trend.changePercent >= 0 ? '+' : ''}${trend.changePercent}%`]);
   }
-  pushRow(['Transactions', clientsCountOf(orders)]);
-  const avgBasketRow = pushRow(['Panier moyen', averageBasketOf(orders)]);
+  pushRow([translate('Transactions'), clientsCountOf(orders)]);
+  const avgBasketRow = pushRow([translate('Panier moyen'), averageBasketOf(orders)]);
   currencyCells.push({ r: avgBasketRow, c: 1 });
-  pushRow(['Articles vendus', itemsCountOf(orders)]);
+  pushRow([translate('Articles vendus'), itemsCountOf(orders)]);
   if (input.pendingCount !== undefined) {
-    pushRow(['Commandes en attente', input.pendingCount]);
+    pushRow([translate('Commandes en attente'), input.pendingCount]);
   }
   if (input.rejectedCount !== undefined) {
-    pushRow(['Commandes refusées', input.rejectedCount]);
+    pushRow([translate('Commandes refusées'), input.rejectedCount]);
   }
   if (input.timeRange) {
-    pushRow(['Plage horaire', input.timeRange]);
+    pushRow([translate('Plage horaire'), input.timeRange]);
   }
   const counters = byCounterOf(orders);
   if (counters.length > 1) {
     pushRow([]);
-    pushRow(['Comptoir', 'Transactions', `Total (${currency})`]);
+    pushRow([translate('Comptoir'), translate('Transactions'), translate('Total ({currency})', { currency: currency })]);
     for (const counter of counters) {
       const r = pushRow([counter.username, counter.clients, counter.total]);
       currencyCells.push({ r, c: 2 });
@@ -80,23 +81,23 @@ export async function exportReportXlsx(input: ReportExportInput): Promise<Report
   const adjustments = adjustmentsSummaryOf(orders);
   if (adjustments.discountCount > 0 || adjustments.increaseCount > 0) {
     pushRow([]);
-    pushRow(['Remises appliquées', adjustments.discountCount]);
-    pushRow(['Majorations appliquées', adjustments.increaseCount]);
-    const netImpactRow = pushRow([`Impact net des ajustements (${currency})`, adjustments.netImpact]);
+    pushRow([translate('Remises appliquées'), adjustments.discountCount]);
+    pushRow([translate('Majorations appliquées'), adjustments.increaseCount]);
+    const netImpactRow = pushRow([translate('Impact net des ajustements ({currency})', { currency: currency }), adjustments.netImpact]);
     currencyCells.push({ r: netImpactRow, c: 1 });
   }
   pushRow([]);
   const headerRow = pushRow([
-    'Catégorie',
-    'Service',
-    'N° Commande',
-    'Comptoir',
-    `Prix unitaire (${currency})`,
-    `Prix appliqué (${currency})`,
-    'Quantité',
-    'Heure commande',
-    'Heure paiement',
-    `Total (${currency})`,
+    translate('Catégorie'),
+    translate('Service'),
+    translate('N° Commande'),
+    translate('Comptoir'),
+    translate('Prix unitaire ({currency})', { currency: currency }),
+    translate('Prix appliqué ({currency})', { currency: currency }),
+    translate('Quantité'),
+    translate('Heure commande'),
+    translate('Heure paiement'),
+    translate('Total ({currency})', { currency: currency }),
   ]);
   const formatReportTime = (iso: string): string => localeTime(iso);
   const sections = sectionsByCounterOf(orders);
@@ -126,11 +127,11 @@ export async function exportReportXlsx(input: ReportExportInput): Promise<Report
       ]);
       currencyCells.push({ r, c: 4 }, { r, c: 5 }, { r, c: 9 });
     }
-    const subtotalRow = pushRow(['', '', '', '', '', '', '', '', `Total ${section.username}`, section.total]);
+    const subtotalRow = pushRow(['', '', '', '', '', '', '', '', translate('Total {username}', { username: section.username }), section.total]);
     currencyCells.push({ r: subtotalRow, c: 9 });
     pushRow([]);
   }
-  const totalRow = pushRow(['', '', '', '', '', '', '', '', 'Total général', revenue]);
+  const totalRow = pushRow(['', '', '', '', '', '', '', '', translate('Total général'), revenue]);
   currencyCells.push({ r: totalRow, c: 9 });
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
   worksheet['!cols'] = [
@@ -160,12 +161,12 @@ export async function exportReportXlsx(input: ReportExportInput): Promise<Report
     if (cell) cell.z = currencyFormat;
   }
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Rapport');
+  XLSX.utils.book_append_sheet(workbook, worksheet, translate('Rapport'));
   let destinationPath: string | null;
   try {
     destinationPath = await save({
       defaultPath: input.defaultFileName,
-      filters: [{ name: 'Classeur Excel', extensions: ['xlsx'] }],
+      filters: [{ name: translate('Classeur Excel'), extensions: ['xlsx'] }],
     });
   } catch (e) {
     console.error('export dialog failed', e);

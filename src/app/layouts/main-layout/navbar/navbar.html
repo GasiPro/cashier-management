@@ -2,7 +2,7 @@
   <div [class]="containerMaxWidthClass() + ' mx-auto flex items-center justify-between gap-4'">
     <div class="flex items-center gap-3 min-w-0">
       @if (showBackButton()) {
-      <button (click)="goBack()" aria-label="Retour" class="text-gray-400 hover:text-gray-600 transition-colors
+      <button (click)="goBack()" [attr.aria-label]="'Retour' | t" class="text-gray-400 hover:text-gray-600 transition-colors
                      focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
@@ -25,7 +25,7 @@
     <div class="flex items-center gap-2 sm:gap-3">
       <div class="relative">
         <button (click)="toggleMenu()" [attr.aria-expanded]="showMenu()" aria-haspopup="menu"
-                [attr.aria-controls]="menuId()" aria-label="Menu"
+                [attr.aria-controls]="menuId()" [attr.aria-label]="'Menu' | t"
           class="relative flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg
                  text-gray-600 hover:bg-gray-50 transition-colors
                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
@@ -41,7 +41,7 @@
         </button>
         @if (showMenu()) {
         <div class="fixed inset-0 z-40" (click)="closeMenu()" (keydown.escape)="closeMenu()"></div>
-        <div [id]="menuId()" role="menu" aria-label="Menu principal"
+        <div [id]="menuId()" role="menu" [attr.aria-label]="'Menu principal' | t"
           class="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-2 overflow-hidden"
           (click)="closeMenu()">
           <ng-content select="[navbarMenuItems]"></ng-content>

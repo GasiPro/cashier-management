@@ -19,6 +19,8 @@ import {
 } from '../../data/settings/settings.model';
 import { PasswordInput } from '../../shared/ui/password-input/password-input';
 import { credentialsRuleError, formatPhone, isValidEmail, isValidPhone } from '../../shared/utils/validators';
+import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { translate } from '../../core/i18n/translate';
 type SetupStep = 'key' | 'organization' | 'admin' | 'mode';
 interface StepInfo {
   id: SetupStep;
@@ -42,7 +44,7 @@ function cleanKey(value: string): string {
 @Component({
   selector: 'app-setup',
   standalone: true,
-  imports: [PasswordInput],
+  imports: [PasswordInput, TranslatePipe],
   templateUrl: './setup.page.html',
 })
 export class SetupPage implements OnInit, OnDestroy {
@@ -215,12 +217,12 @@ export class SetupPage implements OnInit, OnDestroy {
     if (!this.keyValidated()) {
       try {
         if (!(await activate(this.productKey()))) {
-          this.error.set('Clé de produit invalide');
+          this.error.set(translate('Clé de produit invalide'));
           return;
         }
       } catch (e) {
         console.error('activation failed', e);
-        this.error.set('Activation impossible. Veuillez réessayer.');
+        this.error.set(translate('Activation impossible. Veuillez réessayer.'));
         return;
       }
       this.keyValidated.set(true);
@@ -243,7 +245,7 @@ export class SetupPage implements OnInit, OnDestroy {
       });
     } catch (e) {
       console.error('failed to save organization', e);
-      this.error.set(errorMessage(e, "Impossible d'enregistrer l'organisation. Veuillez réessayer."));
+      this.error.set(errorMessage(e, translate('Impossible d\'enregistrer l\'organisation. Veuillez réessayer.')));
       return;
     }
     if (await this.modeStore.load()) {
@@ -266,7 +268,7 @@ export class SetupPage implements OnInit, OnDestroy {
       });
     } catch (e) {
       console.error('failed to create initial admin', e);
-      this.error.set(errorMessage(e, "Impossible de créer l'administrateur. Veuillez réessayer."));
+      this.error.set(errorMessage(e, translate('Impossible de créer l\'administrateur. Veuillez réessayer.')));
       return;
     }
     this.stepIndex.set(3);
@@ -278,7 +280,7 @@ export class SetupPage implements OnInit, OnDestroy {
       await this.modeStore.choose(value);
     } catch (e) {
       console.error('failed to set app mode', e);
-      this.error.set(errorMessage(e, "Impossible d'enregistrer le mode. Veuillez réessayer."));
+      this.error.set(errorMessage(e, translate('Impossible d\'enregistrer le mode. Veuillez réessayer.')));
       return;
     }
     await this.launch();
@@ -294,20 +296,20 @@ export class SetupPage implements OnInit, OnDestroy {
     await this.router.navigate(['/login'], { replaceUrl: true });
   }
   private organizationProblem(): string {
-    if (!this.orgName().trim()) return "Veuillez saisir le nom de l'organisation.";
-    if (!isValidEmail(this.orgEmail())) return 'Adresse e-mail invalide.';
-    if (!isValidPhone(this.phonePrefix(), this.phoneNumber())) return 'Numéro de téléphone invalide.';
+    if (!this.orgName().trim()) return translate('Veuillez saisir le nom de l\'organisation.');
+    if (!isValidEmail(this.orgEmail())) return translate('Adresse e-mail invalide.');
+    if (!isValidPhone(this.phonePrefix(), this.phoneNumber())) return translate('Numéro de téléphone invalide.');
     return '';
   }
   private adminProblem(): string {
     const displayName = this.adminDisplayName().trim();
-    if (!displayName) return 'Veuillez saisir le nom affiché.';
+    if (!displayName) return translate('Veuillez saisir le nom affiché.');
     if (displayName.length > MAX_DISPLAY_NAME_LEN) {
-      return `Le nom affiché ne peut pas dépasser ${MAX_DISPLAY_NAME_LEN} caractères.`;
+      return translate('Le nom affiché ne peut pas dépasser {MAX_DISPLAY_NAME_LEN} caractères.', { MAX_DISPLAY_NAME_LEN: MAX_DISPLAY_NAME_LEN });
     }
     const rule = credentialsRuleError(this.adminUsername().trim(), this.adminPassword());
     if (rule) return rule;
-    return this.adminPassword() === this.adminPasswordConfirm() ? '' : 'Les mots de passe ne correspondent pas.';
+    return this.adminPassword() === this.adminPasswordConfirm() ? '' : translate('Les mots de passe ne correspondent pas.');
   }
   private fillOrganization(saved: Organization): void {
     this.orgName.set(saved.name);

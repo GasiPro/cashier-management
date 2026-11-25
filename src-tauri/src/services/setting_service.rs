@@ -1,11 +1,12 @@
 use crate::config::clock;
 use crate::config::setting_config::{
-    clamp_font_size, clamp_max_connected_devices, DATE_FORMATS, MAX_CLOCK_OFFSET_SECS,
-    MAX_ORGANIZATION_NAME_LEN, MAX_TIMEZONE_LEN, MAX_UTC_OFFSET_SECS, PRODUCT_KEY,
+    clamp_font_size, clamp_max_connected_devices, DATE_FORMATS, LANGUAGES, MAX_CLOCK_OFFSET_SECS,
+    MAX_ORGANIZATION_NAME_LEN, MAX_TIMEZONE_LEN, MAX_UTC_OFFSET_SECS, PRODUCT_KEY, REGIONS,
 };
 use crate::models::account::UserType;
 use crate::models::setting::{
-    AppMode, AppSettings, DateTimeSettings, DateTimeSync, DisplayPrefs, Organization, Theme,
+    AppMode, AppSettings, DateTimeSettings, DateTimeSync, DisplayPrefs, LocaleSettings,
+    Organization, Theme,
 };
 use crate::repositories::{account_repository, setting_repository};
 use std::sync::{Arc, Mutex as SyncMutex};
@@ -42,9 +43,24 @@ pub fn get_font_size(app: &AppHandle, user_type: UserType, username: &str) -> u3
 pub fn get_datetime(app: &AppHandle) -> DateTimeSettings {
     setting_repository::load(app).datetime
 }
+pub fn get_locale(app: &AppHandle) -> LocaleSettings {
+    setting_repository::load(app).locale
+}
+pub fn set_locale(app: &AppHandle, value: LocaleSettings) -> Result<LocaleSettings, String> {
+    if !LANGUAGES.contains(&value.language.as_str()) {
+        return Err("Langue invalide.".to_string());
+    }
+    if !REGIONS.contains(&value.region.as_str()) {
+        return Err("Région invalide.".to_string());
+    }
+    update_settings(app, |settings| settings.locale = value.clone())?;
+    Ok(value)
+}
 pub fn datetime_sync(app: &AppHandle) -> DateTimeSync {
+    let settings = setting_repository::load(app);
     DateTimeSync {
-        settings: get_datetime(app),
+        settings: settings.datetime,
+        locale: settings.locale,
         server_ms: chrono::Utc::now().timestamp_millis(),
     }
 }

@@ -1,4 +1,5 @@
-export function errorMessage(e: unknown, fallback: string): string {
+import { translate } from '../i18n/translate';
+function pick(e: unknown, fallback: string): string {
   if (typeof e === 'string') return e.trim() || fallback;
   if (e instanceof Error) return e.message.trim() || fallback;
   if (e && typeof e === 'object' && 'message' in e) {
@@ -8,4 +9,7 @@ export function errorMessage(e: unknown, fallback: string): string {
   if (e === null || e === undefined) return fallback;
   const text = String(e).trim();
   return text && text !== '[object Object]' ? text : fallback;
+}
+export function errorMessage(e: unknown, fallback: string): string {
+  return translate(pick(e, fallback));
 }

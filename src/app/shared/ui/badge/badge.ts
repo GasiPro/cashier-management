@@ -1,4 +1,5 @@
 import { Component, computed, input } from '@angular/core';
+import { TranslatePipe } from '../../pipes/translate.pipe';
 export type BadgeTone = 'brand' | 'success' | 'danger' | 'warning' | 'info';
 const TONE_CLASSES: Record<BadgeTone, string> = {
   brand: 'text-[#1E3A5F] bg-[#EFF4FA] border-[#1E3A5F]/20',
@@ -8,6 +9,7 @@ const TONE_CLASSES: Record<BadgeTone, string> = {
   info: 'text-sky-700 bg-sky-50 border-sky-200',
 };
 @Component({
+  imports: [TranslatePipe],
   selector: 'app-badge',
   standalone: true,
   templateUrl: './badge.html',

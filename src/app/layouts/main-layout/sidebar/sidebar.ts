@@ -4,6 +4,7 @@ import { NavigationEnd, Router } from '@angular/router';
 import { filter } from 'rxjs';
 import { DenominationStore } from '../../../data/pricing/denomination.store';
 import { Billetage, BilletageResult } from './billetage/billetage';
+import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
 export type ToolSlot = 'A' | 'B' | 'C';
 const SETTINGS_ROUTE = '/reglages';
 const SLOT_POSITION_CLASS: Record<ToolSlot, string> = {
@@ -14,14 +15,13 @@ const SLOT_POSITION_CLASS: Record<ToolSlot, string> = {
 @Component({
   selector: 'app-left-sidebar',
   standalone: true,
-  imports: [CommonModule, Billetage],
+  imports: [CommonModule, Billetage, TranslatePipe],
   templateUrl: './sidebar.html',
 })
 export class LeftSidebar {
   @Output() calculatriceClick = new EventEmitter<void>();
   @Output() memoClick = new EventEmitter<void>();
   @Output() billetageValidated = new EventEmitter<BilletageResult>();
-  /** Caisse théorique du jour : le billetage n'est proposé que lorsqu'elle est fournie (caisse). */
   theoreticalCash = input<number | null>(null);
   private currentUrl = signal('');
   calculatriceSlot = signal<ToolSlot | null>(null);

@@ -2,7 +2,7 @@ use crate::app::{runtime, AppState};
 use crate::infrastructure::websocket::broadcast_to_approved;
 use crate::models::connection::ServerMessage;
 use crate::models::account::UserType;
-use crate::models::setting::{AppMode, DateTimeSettings};
+use crate::models::setting::{AppMode, DateTimeSettings, LocaleSettings};
 use crate::services::setting_service;
 use serde::Deserialize;
 use tauri::Manager;
@@ -17,12 +17,24 @@ pub enum SettingsCommand {
     FontSizeSet { user_type: UserType, username: String, value: u32 },
     DatetimeGet,
     DatetimeSet { value: DateTimeSettings },
+    LocaleGet,
+    LocaleSet { value: LocaleSettings },
     ActivationGet,
     ActivationSet { value: String },
     OrganizationGet,
     OrganizationSet { name: String, email: String, phone: String },
     ModeGet,
     ModeSet { value: String },
+}
+async fn broadcast_datetime(app: &tauri::AppHandle) {
+    let state = app.state::<AppState>();
+    broadcast_to_approved(
+        &state.peers,
+        &ServerMessage::DateTime {
+            data: setting_service::datetime_sync(app),
+        },
+    )
+    .await;
 }
 #[tauri::command]
 pub async fn settings(
@@ -51,14 +63,13 @@ pub async fn settings(
         SettingsCommand::DatetimeGet => Ok(serde_json::json!(setting_service::get_datetime(&app))),
         SettingsCommand::DatetimeSet { value } => {
             let saved = setting_service::set_datetime(&app, value)?;
-            let state = app.state::<AppState>();
-            broadcast_to_approved(
-                &state.peers,
-                &ServerMessage::DateTime {
-                    data: setting_service::datetime_sync(&app),
-                },
-            )
-            .await;
+            broadcast_datetime(&app).await;
+            Ok(serde_json::json!(saved))
+        }
+        SettingsCommand::LocaleGet => Ok(serde_json::json!(setting_service::get_locale(&app))),
+        SettingsCommand::LocaleSet { value } => {
+            let saved = setting_service::set_locale(&app, value)?;
+            broadcast_datetime(&app).await;
             Ok(serde_json::json!(saved))
         }
         SettingsCommand::ActivationGet => Ok(serde_json::json!(setting_service::is_activated(&app))),

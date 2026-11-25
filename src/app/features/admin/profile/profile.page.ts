@@ -7,14 +7,16 @@ import { getStoredDisplayName, getStoredUsername, setStoredDisplayName } from '.
 import * as accountApi from '../../../data/account/account.api';
 import { PasswordInput } from '../../../shared/ui/password-input/password-input';
 import { passwordRuleError } from '../../../shared/utils/validators';
+import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
+import { translate } from '../../../core/i18n/translate';
 @Component({
   selector: 'app-admin-profile',
   standalone: true,
-  imports: [FormsModule, RouterLink, PasswordInput],
+  imports: [FormsModule, RouterLink, PasswordInput, TranslatePipe],
   templateUrl: './profile.page.html',
 })
 export class AdminProfilePage {
-  readonly username = getStoredUsername() ?? 'Admin';
+  readonly username = getStoredUsername() ?? translate('Admin');
   readonly maxDisplayNameLen = MAX_DISPLAY_NAME_LEN;
   readonly minPasswordLen = MIN_PASSWORD_LEN;
   readonly editDisplayName = signal(getStoredDisplayName() ?? '');
@@ -26,14 +28,14 @@ export class AdminProfilePage {
   readonly success = signal('');
   private readonly formError = computed(() => {
     if (this.editDisplayName().trim().length > MAX_DISPLAY_NAME_LEN) {
-      return `Le nom affiché ne peut pas dépasser ${MAX_DISPLAY_NAME_LEN} caractères.`;
+      return translate('Le nom affiché ne peut pas dépasser {MAX_DISPLAY_NAME_LEN} caractères.', { MAX_DISPLAY_NAME_LEN: MAX_DISPLAY_NAME_LEN });
     }
     const password = this.editPassword();
     const confirm = this.editPasswordConfirm();
     if (password.length === 0 && confirm.length === 0) return '';
     const ruleError = passwordRuleError(password);
     if (ruleError) return ruleError;
-    return password === confirm ? '' : 'Les mots de passe ne correspondent pas.';
+    return password === confirm ? '' : translate('Les mots de passe ne correspondent pas.');
   });
   readonly canSubmit = computed(() => !this.saving() && this.formError() === '');
   async save(): Promise<void> {
@@ -57,10 +59,10 @@ export class AdminProfilePage {
       this.editDisplayName.set(updated.display_name);
       this.editPassword.set('');
       this.editPasswordConfirm.set('');
-      this.success.set('Compte mis à jour.');
+      this.success.set(translate('Compte mis à jour.'));
     } catch (e) {
       console.error('account update failed', e);
-      this.error.set(errorMessage(e, 'Échec de la mise à jour du compte. Réessayez.'));
+      this.error.set(errorMessage(e, translate('Échec de la mise à jour du compte. Réessayez.')));
     } finally {
       this.saving.set(false);
     }

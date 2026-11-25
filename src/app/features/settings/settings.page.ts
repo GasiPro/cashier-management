@@ -6,14 +6,16 @@ import { getStoredDisplayName, getStoredUsername } from '../../core/storage/loca
 import { BottomBar } from '../../layouts/main-layout/bottom-bar/bottom-bar';
 import { LeftSidebar } from '../../layouts/main-layout/sidebar/sidebar';
 import { Navbar } from '../../layouts/main-layout/navbar/navbar';
+import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { translate } from '../../core/i18n/translate';
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, Navbar, LeftSidebar, BottomBar],
+  imports: [CommonModule, Navbar, LeftSidebar, BottomBar, TranslatePipe],
   templateUrl: './settings.page.html'
 })
 export class SettingsPage implements OnInit, OnDestroy {
-  username = getStoredUsername() ?? 'Caisse';
+  username = getStoredUsername() ?? translate('Caisse');
   private displayName = getStoredDisplayName() ?? '';
   /** Name shown in the navbar — the account display name when one exists, otherwise the username. */
   get displayLabel(): string {

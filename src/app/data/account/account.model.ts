@@ -1,3 +1,4 @@
+import { translate } from '../../core/i18n/translate';
 export type AccountStatus = 'active' | 'suspended';
 export type UserType = 'admin' | 'caissier' | 'comptoir';
 export interface UserTypeChoice {
@@ -33,18 +34,18 @@ export interface AccountActivity {
   at: string;
 }
 export function userTypeLabel(type: UserType): string {
-  return USER_TYPES.find((t) => t.value === type)?.label ?? type;
+  return translate(USER_TYPES.find((t) => t.value === type)?.label ?? type);
 }
 export function accountHistoryLabel(entry: AccountHistoryEntry): string {
   switch (entry.kind) {
     case 'created':
-      return 'Compte créé';
+      return translate('Compte créé');
     case 'suspended':
-      return entry.reason ? `Suspendu — ${entry.reason}` : 'Suspendu';
+      return entry.reason ? translate('Suspendu — {reason}', { reason: entry.reason }) : translate('Suspendu');
     case 'reactivated':
-      return 'Réactivé';
+      return translate('Réactivé');
     case 'modified':
-      return 'Modifié';
+      return translate('Modifié');
     default:
       return entry.kind;
   }

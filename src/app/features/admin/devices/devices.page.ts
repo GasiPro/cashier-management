@@ -12,6 +12,8 @@ import {
   PendingConnection,
 } from '../../../data/device/device.model';
 import { DeviceCard } from './device-card/device-card';
+import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
+import { translate } from '../../../core/i18n/translate';
 export interface ConnectedRow {
   entry: ConnectionHistoryEntry;
   peerId: PeerId | null;
@@ -19,7 +21,7 @@ export interface ConnectedRow {
 @Component({
   selector: 'app-admin-devices',
   standalone: true,
-  imports: [CommonModule, DeviceCard],
+  imports: [CommonModule, DeviceCard, TranslatePipe],
   templateUrl: './devices.page.html'
 })
 export class DevicesPage implements OnInit, OnDestroy {
@@ -69,7 +71,7 @@ export class DevicesPage implements OnInit, OnDestroy {
     } catch (e) {
       console.error('failed to load pending connections', e);
       if (!silent) {
-        this.setStatus(errorMessage(e, 'Impossible de charger les demandes de connexion.'), true);
+        this.setStatus(errorMessage(e, translate('Impossible de charger les demandes de connexion.')), true);
       }
     } finally {
       this.loadingPending.set(false);
@@ -82,10 +84,10 @@ export class DevicesPage implements OnInit, OnDestroy {
     try {
       await deviceApi.approveConnection(connection.id);
       await Promise.all([this.loadPending(true), this.loadConnected(true), this.loadHistory(true)]);
-      this.setStatus(`« ${this.displayName(connection)} » approuvé.`, false);
+      this.setStatus(translate('« {displayName} » approuvé.', { displayName: this.displayName(connection) }), false);
     } catch (e) {
       console.error('approve_connection failed', e);
-      const message = errorMessage(e, "Échec de l'approbation. Réessayez.");
+      const message = errorMessage(e, translate('Échec de l\'approbation. Réessayez.'));
       this.setStatus(message, true);
     } finally {
       this.respondingToId.set(null);
@@ -98,11 +100,11 @@ export class DevicesPage implements OnInit, OnDestroy {
     try {
       await deviceApi.rejectConnection(connection.id);
       this.pendingConnections.update((list) => list.filter((c) => c.id !== connection.id));
-      this.setStatus(`« ${this.displayName(connection)} » refusé.`, false);
+      this.setStatus(translate('« {displayName} » refusé.', { displayName: this.displayName(connection) }), false);
       void this.loadHistory(true);
     } catch (e) {
       console.error('reject_connection failed', e);
-      const message = errorMessage(e, 'Échec du refus. Réessayez.');
+      const message = errorMessage(e, translate('Échec du refus. Réessayez.'));
       this.setStatus(message, true);
     } finally {
       this.respondingToId.set(null);
@@ -117,7 +119,7 @@ export class DevicesPage implements OnInit, OnDestroy {
     } catch (e) {
       console.error('failed to load connected devices', e);
       if (!silent) {
-        this.setStatus(errorMessage(e, 'Impossible de charger les appareils connectés.'), true);
+        this.setStatus(errorMessage(e, translate('Impossible de charger les appareils connectés.')), true);
       }
     }
   }
@@ -135,11 +137,11 @@ export class DevicesPage implements OnInit, OnDestroy {
     try {
       await deviceApi.disconnectDevice(id);
       this.connectedDevices.update((list) => list.filter((d) => d.id !== id));
-      this.setStatus(`« ${row.entry.username} » déconnecté.`, false);
+      this.setStatus(translate('« {username} » déconnecté.', { username: row.entry.username }), false);
       void this.loadHistory(true);
     } catch (e) {
       console.error('disconnect_device failed', e);
-      const message = errorMessage(e, 'Échec de la déconnexion. Réessayez.');
+      const message = errorMessage(e, translate('Échec de la déconnexion. Réessayez.'));
       this.setStatus(message, true);
     } finally {
       this.disconnectingId.set(null);
@@ -167,10 +169,10 @@ export class DevicesPage implements OnInit, OnDestroy {
       await deviceApi.blockDevice(id);
       await Promise.all([this.loadConnected(true), this.loadHistory(true)]);
       this.confirmingBlockId.set(null);
-      this.setStatus(`« ${row.entry.username} » bloqué et déconnecté.`, false);
+      this.setStatus(translate('« {username} » bloqué et déconnecté.', { username: row.entry.username }), false);
     } catch (e) {
       console.error('block_device failed', e);
-      const message = errorMessage(e, 'Échec du blocage. Réessayez.');
+      const message = errorMessage(e, translate('Échec du blocage. Réessayez.'));
       this.blockError.set(message);
     } finally {
       this.blockingId.set(null);
@@ -194,7 +196,7 @@ export class DevicesPage implements OnInit, OnDestroy {
     } catch (e) {
       console.error('failed to load connection history', e);
       if (!silent) {
-        this.setStatus(errorMessage(e, "Impossible de charger l'historique des connexions."), true);
+        this.setStatus(errorMessage(e, translate('Impossible de charger l\'historique des connexions.')), true);
       }
     } finally {
       this.loadingHistory.set(false);

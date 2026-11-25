@@ -1,8 +1,10 @@
 import { Component, computed, input, output } from '@angular/core';
+import { TranslatePipe } from '../../pipes/translate.pipe';
 export type ModalVariant = 'dialog' | 'side-panel' | 'sheet' | 'fixed-dialog';
 export type ModalSize = 'sm' | 'md';
 export type ModalOverflow = 'auto' | 'hidden';
 @Component({
+  imports: [TranslatePipe],
   selector: 'app-modal',
   standalone: true,
   templateUrl: './modal.html',

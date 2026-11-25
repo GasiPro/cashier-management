@@ -1,4 +1,5 @@
 import { UserType } from '../account/account.model';
+import { translate } from '../../core/i18n/translate';
 export const MAX_BLACKLIST_ADDR_LEN = 64;
 export const MAX_BLACKLIST_REASON_LEN = 120;
 export const MAX_ALLOWED_CONNECTED_DEVICES = 50;
@@ -53,15 +54,15 @@ export function deviceAddress(item: { ip_address: string; port: number }): strin
 export function connectionEventLabel(event: ConnectionEvent): string {
   switch (event) {
     case 'requested':
-      return 'Demande reçue';
+      return translate('Demande reçue');
     case 'approved':
-      return 'Approuvé';
+      return translate('Approuvé');
     case 'refused':
-      return 'Refusé';
+      return translate('Refusé');
     case 'disconnected':
-      return 'Déconnecté';
+      return translate('Déconnecté');
     case 'blocked':
-      return 'Bloqué';
+      return translate('Bloqué');
     default:
       return event;
   }

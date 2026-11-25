@@ -3,6 +3,8 @@ import { userTypeLabel } from '../../../../data/account/account.model';
 import { ConnectionEvent, Device } from '../../../../data/device/device.model';
 import { TimePipe } from '../../../../shared/pipes/time.pipe';
 import { Badge, BadgeTone } from '../../../../shared/ui/badge/badge';
+import { TranslatePipe } from '../../../../shared/pipes/translate.pipe';
+import { translate } from '../../../../core/i18n/translate';
 const EVENT_BADGES: Record<ConnectionEvent, { label: string; tone: BadgeTone }> = {
   requested: { label: 'En attente', tone: 'warning' },
   approved: { label: 'Connecté', tone: 'success' },
@@ -14,7 +16,7 @@ type CopyKey = 'device' | 'account';
 @Component({
   selector: 'app-device-card',
   standalone: true,
-  imports: [Badge, TimePipe],
+  imports: [Badge, TimePipe, TranslatePipe],
   templateUrl: './device-card.html',
 })
 export class DeviceCard implements OnDestroy {
@@ -26,13 +28,13 @@ export class DeviceCard implements OnDestroy {
   autoDisconnected = input<boolean>(false);
   readonly badge = computed(() => EVENT_BADGES[this.event()]);
   readonly roleLabel = computed(() => userTypeLabel(this.device().user_type));
-  readonly atLabel = computed(() => (this.event() === 'requested' ? 'Demande' : 'Connexion'));
+  readonly atLabel = computed(() => (this.event() === 'requested' ? translate('Demande') : translate('Connexion')));
   readonly cardClasses = computed(() =>
     this.event() === 'requested' ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200',
   );
   readonly ids = computed<{ key: CopyKey; label: string; value: string }[]>(() => [
-    { key: 'device', label: 'Appareil', value: this.device().device_id },
-    { key: 'account', label: 'Compte', value: this.device().account_id },
+    { key: 'device', label: translate('Appareil'), value: this.device().device_id },
+    { key: 'account', label: translate('Compte'), value: this.device().account_id },
   ]);
   readonly copied = signal<CopyKey | null>(null);
   private copiedTimer?: ReturnType<typeof setTimeout>;

@@ -3,15 +3,15 @@
     <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
       <div>
         <h2 id="report-heading" class="text-base font-semibold text-[#1A1A1A]">
-          Rapports
+          {{ 'Rapports' | t }}
         </h2>
         <p class="text-xs text-gray-400 mt-0.5">
-          Exports des caissiers.
+          {{ 'Exports des caissiers.' | t }}
         </p>
       </div>
       @if (!loading() && reports().length > 0) {
       <span class="text-xs text-gray-400 tabular-nums whitespace-nowrap">
-        {{ reports().length }} rapport{{ reports().length > 1 ? 's' : '' }}
+        {{ '{length} rapport{length2}' | t: { length: (reports().length), length2: (reports().length > 1 ? 's' : '') } }}
       </span>
       }
     </div>
@@ -22,7 +22,7 @@
     </p>
     }
     @if (loading()) {
-    <p class="text-sm text-gray-400 italic py-4">Chargement…</p>
+    <p class="text-sm text-gray-400 italic py-4">{{ 'Chargement…' | t }}</p>
     } @else if (loadError()) {
     <div class="py-4 flex flex-wrap items-center gap-3">
       <p role="alert" class="text-sm text-red-600">{{ loadError() }}</p>
@@ -30,11 +30,11 @@
         class="text-xs font-semibold text-[#1E3A5F] border border-[#1E3A5F]/30 rounded-full px-3 py-1
                hover:bg-[#EFF4FA] transition-colors
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-        Réessayer
+        {{ 'Réessayer' | t }}
       </button>
     </div>
     } @else if (rows().length === 0) {
-    <p class="text-sm text-gray-400 py-4">Aucun rapport.</p>
+    <p class="text-sm text-gray-400 py-4">{{ 'Aucun rapport.' | t }}</p>
     } @else {
     <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg" [attr.aria-label]="rows().length + ' rapport(s)'">
       @for (row of rows(); track row.record.id) {
@@ -44,7 +44,7 @@
             (click)="toggle(row.record.id)"
             [attr.aria-expanded]="isExpanded(row.record.id)"
             [attr.aria-controls]="'report-panel-' + row.record.id"
-            [attr.aria-label]="(isExpanded(row.record.id) ? 'Masquer le détail du rapport ' : 'Voir le détail du rapport ') + row.idLabel"
+            [attr.aria-label]="(isExpanded(row.record.id) ? ('Masquer le détail du rapport ' | t) : ('Voir le détail du rapport ' | t)) + row.idLabel"
             class="flex-1 min-w-0 flex items-center gap-3 px-3 py-3.5 text-left rounded-lg
                    hover:bg-gray-50 transition-colors motion-reduce:transition-none
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
@@ -67,13 +67,12 @@
                 {{ row.record.payload.title }} — <span class="capitalize">{{ row.record.payload.dateLabel }}</span>
               </p>
               <p class="text-xs text-gray-400 mt-0.5 truncate">
-                Par <span class="font-medium text-gray-600">{{ row.record.cashier_username }}</span>,
-                le {{ row.record.created_at | clockDate }} à {{ row.record.created_at | time }}
+                {{ 'Par' | t }} <span class="font-medium text-gray-600">{{ row.record.cashier_username }}</span>{{ ', le {created_at} à {created_at2}' | t: { created_at: (row.record.created_at | clockDate), created_at2: (row.record.created_at | time) } }}
               </p>
             </div>
           </button>
           <button type="button" (click)="copyId(row.record)"
-            title="Copier l'identifiant" [attr.aria-label]="'Copier ID ' + row.idLabel"
+            [attr.title]="'Copier l\'identifiant' | t" [attr.aria-label]="('Copier ID {idLabel}' | t: { idLabel: (row.idLabel) })"
             class="flex-shrink-0 flex items-center gap-1 font-mono text-[10px] text-gray-400 hover:text-[#1E3A5F]
                    bg-white border border-gray-200 rounded px-1.5 py-0.5 transition-colors motion-reduce:transition-none
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
@@ -95,31 +94,31 @@
           [attr.aria-labelledby]="'report-toggle-' + row.record.id" class="px-4 pb-4 pt-1">
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <div class="bg-white border border-gray-200 rounded-lg px-3 py-2.5">
-              <p class="text-[11px] text-gray-400 uppercase tracking-wide">Chiffre d'affaires</p>
+              <p class="text-[11px] text-gray-400 uppercase tracking-wide">{{ 'Chiffre d\'affaires' | t }}</p>
               <p class="text-sm font-semibold text-[#1E3A5F] tabular-nums mt-0.5">{{ row.revenue | money: row.record.payload.currency }}</p>
             </div>
             <div class="bg-white border border-gray-200 rounded-lg px-3 py-2.5">
-              <p class="text-[11px] text-gray-400 uppercase tracking-wide">Transactions</p>
+              <p class="text-[11px] text-gray-400 uppercase tracking-wide">{{ 'Transactions' | t }}</p>
               <p class="text-sm font-semibold text-[#1A1A1A] tabular-nums mt-0.5">{{ row.transactions }}</p>
             </div>
             <div class="bg-white border border-gray-200 rounded-lg px-3 py-2.5">
-              <p class="text-[11px] text-gray-400 uppercase tracking-wide">Panier moyen</p>
+              <p class="text-[11px] text-gray-400 uppercase tracking-wide">{{ 'Panier moyen' | t }}</p>
               <p class="text-sm font-semibold text-[#1A1A1A] tabular-nums mt-0.5">{{ row.averageBasket | money: row.record.payload.currency }}</p>
             </div>
             <div class="bg-white border border-gray-200 rounded-lg px-3 py-2.5">
-              <p class="text-[11px] text-gray-400 uppercase tracking-wide">Articles vendus</p>
+              <p class="text-[11px] text-gray-400 uppercase tracking-wide">{{ 'Articles vendus' | t }}</p>
               <p class="text-sm font-semibold text-[#1A1A1A] tabular-nums mt-0.5">{{ row.items }}</p>
             </div>
           </div>
           <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
             <p class="text-xs text-gray-400 min-w-0">
-              Comptoirs :
+              {{ 'Comptoirs :' | t }}
               <span class="text-gray-600">{{ row.counters || '—' }}</span>
             </p>
             <button type="button" (click)="download(row.record)"
               [disabled]="downloadingId() !== null"
               [attr.aria-busy]="downloadingId() === row.record.id"
-              [attr.aria-label]="'Télécharger le rapport ' + row.idLabel"
+              [attr.aria-label]="('Télécharger le rapport {idLabel}' | t: { idLabel: (row.idLabel) })"
               class="flex-shrink-0 flex items-center gap-1.5 bg-white text-[#1E3A5F] text-xs font-semibold
                      border border-[#1E3A5F]/30 px-3 py-1.5 rounded-full
                      hover:bg-[#EFF4FA] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
@@ -130,12 +129,12 @@
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
               </svg>
-              Téléchargement…
+              {{ 'Téléchargement…' | t }}
               } @else {
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
               </svg>
-              Télécharger
+              {{ 'Télécharger' | t }}
               }
             </button>
           </div>

@@ -1,4 +1,5 @@
-import { getDateTime } from '../../data/settings/settings.api';
+import { activeLocale, setLocaleSelection } from '../i18n/locale';
+import { getDateTime, getLocale } from '../../data/settings/settings.api';
 import {
   DEFAULT_DATETIME_SETTINGS,
   DateTimeSettings,
@@ -21,7 +22,7 @@ export function timeZoneList(): string[] {
 }
 function isValidTimeZone(timeZone: string): boolean {
   try {
-    new Intl.DateTimeFormat('fr-FR', { timeZone });
+    new Intl.DateTimeFormat(activeLocale(), { timeZone });
     return true;
   } catch {
     return false;
@@ -74,11 +75,14 @@ export function applyDateTimeSync(sync: DateTimeSync): void {
   synced = true;
   skewMs = sync.serverMs - Date.now();
   applyDateTimeSettings(sync.settings);
+  setLocaleSelection(sync.locale);
 }
 export async function initDateTimeSettings(): Promise<void> {
   try {
-    const settings = await getDateTime();
-    if (!synced) applyDateTimeSettings(settings);
+    const [settings, locale] = await Promise.all([getDateTime(), getLocale()]);
+    if (synced) return;
+    applyDateTimeSettings(settings);
+    setLocaleSelection(locale);
   } catch (e) {
     console.error('failed to load date and time settings', e);
   }
@@ -100,13 +104,13 @@ export function localeTime(
   value: DateInput,
   options: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' },
 ): string {
-  return toDate(value).toLocaleTimeString('fr-FR', clockOptions(options));
+  return toDate(value).toLocaleTimeString(activeLocale(), clockOptions(options));
 }
 export function localeDate(value: DateInput, options: Intl.DateTimeFormatOptions = {}): string {
-  return toDate(value).toLocaleDateString('fr-FR', clockOptions(options));
+  return toDate(value).toLocaleDateString(activeLocale(), clockOptions(options));
 }
 export function localeDateTime(value: DateInput, options: Intl.DateTimeFormatOptions = {}): string {
-  return toDate(value).toLocaleString('fr-FR', clockOptions(options));
+  return toDate(value).toLocaleString(activeLocale(), clockOptions(options));
 }
 export function currentDayIso(): string {
   return wallClock(clockNow().getTime(), activeTimeZone(current)).date;
@@ -129,7 +133,7 @@ export function formatClockTime(date: Date): string {
 export function formatClockDate(date: Date): string {
   const timeZone = activeTimeZone(current);
   if (current.dateFormat === 'long') {
-    return date.toLocaleDateString('fr-FR', {
+    return date.toLocaleDateString(activeLocale(), {
       weekday: 'long',
       day: 'numeric',
       month: 'long',

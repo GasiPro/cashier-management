@@ -24,10 +24,12 @@ import {
 import { BottomBar } from '../../../layouts/main-layout/bottom-bar/bottom-bar';
 import { LeftSidebar } from '../../../layouts/main-layout/sidebar/sidebar';
 import { Navbar } from '../../../layouts/main-layout/navbar/navbar';
+import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
+import { translate } from '../../../core/i18n/translate';
 @Component({
   selector: 'app-display-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, Navbar, LeftSidebar, BottomBar],
+  imports: [CommonModule, FormsModule, RouterLink, Navbar, LeftSidebar, BottomBar, TranslatePipe],
   templateUrl: './display.page.html'
 })
 export class DisplayPage implements OnInit, OnDestroy {
@@ -36,7 +38,7 @@ export class DisplayPage implements OnInit, OnDestroy {
   readonly themeChoices = THEME_CHOICES;
   private readonly role = inject(SessionStore).role() as UserRole;
   readonly isAdmin = this.role === 'admin';
-  username = getStoredUsername() ?? 'Caisse';
+  username = getStoredUsername() ?? translate('Caisse');
   private displayName = getStoredDisplayName() ?? '';
   /** Name shown in the navbar — the account display name when one exists, otherwise the username. */
   get displayLabel(): string {
@@ -95,7 +97,7 @@ export class DisplayPage implements OnInit, OnDestroy {
       this.fontSizeDraft.set(fontSize);
     } catch (e) {
       console.error('failed to load display settings', e);
-      this.setStatus("Impossible de charger les réglages d'affichage.", true);
+      this.setStatus(translate('Impossible de charger les réglages d\'affichage.'), true);
     } finally {
       this.loading.set(false);
     }
@@ -146,10 +148,10 @@ export class DisplayPage implements OnInit, OnDestroy {
       this.fontSize.set(fontSize);
       this.fontSizeDraft.set(fontSize);
       applyDisplaySettings({ theme, backgroundColor, fontSize });
-      this.setStatus('Réglages d\'affichage enregistrés.', false);
+      this.setStatus(translate('Réglages d\'affichage enregistrés.'), false);
     } catch (e) {
       console.error('failed to save display settings', e);
-      const message = errorMessage(e, "Échec de l'enregistrement. Réessayez.");
+      const message = errorMessage(e, translate('Échec de l\'enregistrement. Réessayez.'));
       this.setStatus(message, true);
     } finally {
       this.saving.set(false);

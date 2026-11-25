@@ -18,6 +18,8 @@ import type {
 } from '../../../data/pricing/pricing.model';
 import { Badge, BadgeTone } from '../../../shared/ui/badge/badge';
 import { PendingFab } from '../../../shared/ui/pending-fab/pending-fab';
+import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
+import { translate } from '../../../core/i18n/translate';
 type PricingTab = 'price' | 'currency' | 'money' | 'journal';
 interface JournalEntry {
   key: string;
@@ -93,7 +95,7 @@ const COPIED_FEEDBACK_MS = 1500;
 @Component({
   selector: 'app-admin-pricing',
   standalone: true,
-  imports: [FormsModule, NgTemplateOutlet, Badge, PendingFab],
+  imports: [FormsModule, NgTemplateOutlet, Badge, PendingFab, TranslatePipe],
   templateUrl: './pricing.page.html',
 })
 export class PricingPage implements OnInit, OnDestroy {
@@ -119,10 +121,10 @@ export class PricingPage implements OnInit, OnDestroy {
   private copiedTimer?: ReturnType<typeof setTimeout>;
   readonly currency = computed(() => this.currencyInfo()?.selected ?? '');
   readonly tabs = computed<{ value: PricingTab; label: string; count: string }[]>(() => [
-    { value: 'price', label: 'Prix', count: String(this.items().length) },
-    { value: 'currency', label: 'Devise', count: this.currency() },
-    { value: 'money', label: 'Monnaie', count: String(this.shownDenominations().length) },
-    { value: 'journal', label: 'Journal', count: String(this.journal().length) },
+    { value: 'price', label: translate('Prix'), count: String(this.items().length) },
+    { value: 'currency', label: translate('Devise'), count: this.currency() },
+    { value: 'money', label: translate('Monnaie'), count: String(this.shownDenominations().length) },
+    { value: 'journal', label: translate('Journal'), count: String(this.journal().length) },
   ]);
   readonly journal = computed<JournalEntry[]>(() => {
     const fromHistory: JournalEntry[] = this.history().map((h) => ({
@@ -175,7 +177,7 @@ export class PricingPage implements OnInit, OnDestroy {
       this.denominations.set(denominations);
     } catch (e) {
       console.error('failed to load pricing', e);
-      this.loadError.set(errorMessage(e, 'Impossible de charger la grille tarifaire.'));
+      this.loadError.set(errorMessage(e, translate('Impossible de charger la grille tarifaire.')));
     } finally {
       this.loading.set(false);
     }
@@ -233,7 +235,7 @@ export class PricingPage implements OnInit, OnDestroy {
       this.copiedTimer = setTimeout(() => this.copied.set(null), COPIED_FEEDBACK_MS);
     } catch (e) {
       console.error('failed to copy id', e);
-      this.setStatus("Impossible de copier l'ID.", true);
+      this.setStatus(translate('Impossible de copier l\'ID.'), true);
     }
   }
   money(value: number): string {
@@ -253,15 +255,15 @@ export class PricingPage implements OnInit, OnDestroy {
   }
   logLabel(entry: PriceLogEntry): string {
     if (entry.action === 'currency_changed') {
-      return `Devise : ${entry.before_code ?? '—'} → ${entry.after_code ?? '—'}`;
+      return translate('Devise : {before_code} → {after_code}', { before_code: entry.before_code ?? '—', after_code: entry.after_code ?? '—' });
     }
     if (entry.action === 'price_changed') {
-      return `Prix : ${this.money(entry.before ?? 0)} → ${this.money(entry.after ?? 0)} ${this.currency()}`;
+      return translate('Prix : {money} → {money2} {currency}', { money: this.money(entry.before ?? 0), money2: this.money(entry.after ?? 0), currency: this.currency() });
     }
-    const kind = entry.kind ? MOR_LABELS[entry.kind] : 'MOR';
+    const kind = entry.kind ? translate(MOR_LABELS[entry.kind]) : 'MOR';
     return entry.before === null
-      ? `Ajout ${kind} : ${entry.after} %`
-      : `Modification ${kind} : ${entry.before} % → ${entry.after} %`;
+      ? translate('Ajout {kind} : {after} %', { kind: kind, after: entry.after })
+      : translate('Modification {kind} : {before} % → {after} %', { kind: kind, before: entry.before, after: entry.after });
   }
   limitPrice(price: number, rate: number, kind: PriceAdjustmentKind): number {
     const delta = Math.round((price * rate) / 100);
@@ -277,9 +279,9 @@ export class PricingPage implements OnInit, OnDestroy {
     if (rule.max_orders !== null) parts.push(`${rule.used_orders}/${rule.max_orders} commande(s)`);
     if (rule.days !== null) {
       const end = this.ruleEnd(rule);
-      parts.push(`jusqu'au ${end ? localeDate(end) : '—'}`);
+      parts.push(translate('jusqu\'au {localeDate}', { localeDate: end ? localeDate(end) : '—' }));
     }
-    return parts.length ? parts.join(' · ') : 'Sans limite';
+    return parts.length ? parts.join(' · ') : translate('Sans limite');
   }
   private matchingRule(entry: JournalEntry): PriceRule | null {
     if (!entry.kind) return null;
@@ -303,12 +305,12 @@ export class PricingPage implements OnInit, OnDestroy {
     return {
       rate: `${rule.rate} %`,
       start: this.formatAt(rule.created_at),
-      end: end ? this.formatAt(end.toISOString()) : 'Sans limite',
-      orders: rule.max_orders !== null ? `${rule.used_orders}/${rule.max_orders}` : 'Illimitées',
+      end: end ? this.formatAt(end.toISOString()) : translate('Sans limite'),
+      orders: rule.max_orders !== null ? `${rule.used_orders}/${rule.max_orders}` : translate('Illimitées'),
     };
   }
   typeLabel(type: PricingItemType): string {
-    return type === 'service' ? 'Service' : 'Produit';
+    return type === 'service' ? translate('Service') : translate('Produit');
   }
   typeTone(type: PricingItemType): BadgeTone {
     return type === 'service' ? 'brand' : 'success';
@@ -418,16 +420,16 @@ export class PricingPage implements OnInit, OnDestroy {
     });
   }
   private draftError(kind: PriceAdjustmentKind, draft: MorDraft): string {
-    const label = MOR_LABELS[kind];
+    const label = translate(MOR_LABELS[kind]);
     const { rate, days, max_orders } = draft;
     if (rate === null || !Number.isInteger(rate) || rate < 1 || rate > MAX_RATE) {
-      return `Taux de ${label} : entier entre 1 et ${MAX_RATE} %.`;
+      return translate('Taux de {label} : entier entre 1 et {MAX_RATE} %.', { label: label, MAX_RATE: MAX_RATE });
     }
     if (days !== null && (!Number.isInteger(days) || days < 1 || days > MAX_DAYS)) {
-      return `Durée de ${label} : entier entre 1 et ${MAX_DAYS} jours, ou vide.`;
+      return translate('Durée de {label} : entier entre 1 et {MAX_DAYS} jours, ou vide.', { label: label, MAX_DAYS: MAX_DAYS });
     }
     if (max_orders !== null && (!Number.isInteger(max_orders) || max_orders < 1 || max_orders > MAX_ORDERS)) {
-      return `Commandes de ${label} : entier entre 1 et ${MAX_ORDERS.toLocaleString('fr-FR')}, ou vide.`;
+      return translate('Commandes de {label} : entier entre 1 et {toLocaleString}, ou vide.', { label: label, toLocaleString: MAX_ORDERS.toLocaleString('fr-FR') });
     }
     return '';
   }
@@ -459,7 +461,7 @@ export class PricingPage implements OnInit, OnDestroy {
     void this.refreshJournal();
     void this.refreshCurrency();
     void this.refreshDenominations();
-    this.setStatus('Modifications appliquées.', false);
+    this.setStatus(translate('Modifications appliquées.'), false);
   }
   cancelEdit(): void {
     const id = this.editingId();
@@ -472,15 +474,15 @@ export class PricingPage implements OnInit, OnDestroy {
     if (!real) return;
     const price = this.editPrice();
     if (price === null || Number.isNaN(price)) {
-      this.editError.set('Le prix est obligatoire.');
+      this.editError.set(translate('Le prix est obligatoire.'));
       return;
     }
     if (price < 0) {
-      this.editError.set('Le prix ne peut pas être négatif.');
+      this.editError.set(translate('Le prix ne peut pas être négatif.'));
       return;
     }
     if (!Number.isInteger(price)) {
-      this.editError.set('Le prix doit être un nombre entier.');
+      this.editError.set(translate('Le prix doit être un nombre entier.'));
       return;
     }
     const editable = this.editPriceEditable();
@@ -544,12 +546,12 @@ export class PricingPage implements OnInit, OnDestroy {
         : [];
     const counter = [...priceLines];
     if (editable !== real.price_editable) {
-      counter.push(`${real.label} : prix ${editable ? 'modifiable' : 'verrouillé'} au comptoir`);
+      counter.push(translate('{label} : prix {mode} au comptoir', { label: real.label, mode: editable ? translate('modifiable') : translate('verrouillé') }));
     }
     for (const kind of MOR_KINDS) {
       const rule = rules[kind];
-      if (rule) counter.push(`${real.label} : ${MOR_LABELS[kind]} ${rule.rate} %`);
-      else if (drops.includes(kind)) counter.push(`${real.label} : ${MOR_LABELS[kind]} retirée`);
+      if (rule) counter.push(`${real.label} : ${translate(MOR_LABELS[kind])} ${rule.rate} %`);
+      else if (drops.includes(kind)) counter.push(translate('{label} : {kind} retirée', { label: real.label, kind: translate(MOR_LABELS[kind]) }));
     }
     return { counter, cashier: priceLines };
   }
@@ -567,11 +569,11 @@ export class PricingPage implements OnInit, OnDestroy {
     const code = this.customCode().trim();
     const name = this.customName().trim();
     if (!CURRENCY_CODE_PATTERN.test(code)) {
-      this.currencyError.set('Code invalide : 2 à 6 lettres attendues (ex. : USD, EUR, CNY).');
+      this.currencyError.set(translate('Code invalide : 2 à 6 lettres attendues (ex. : USD, EUR, CNY).'));
       return;
     }
     if (name.length > MAX_CURRENCY_NAME_LEN) {
-      this.currencyError.set('Le nom de la devise est trop long.');
+      this.currencyError.set(translate('Le nom de la devise est trop long.'));
       return;
     }
     this.stageCurrency(code.toUpperCase(), name || null);
@@ -586,7 +588,7 @@ export class PricingPage implements OnInit, OnDestroy {
       this.pending.unstage(CURRENCY_KEY);
       return;
     }
-    const line = `Devise : ${from} → ${code}`;
+    const line = translate('Devise : {from} → {code}', { from: from, code: code });
     const patch: CurrencyPatch = { code, name };
     this.pending.stage({
       key: CURRENCY_KEY,
@@ -607,11 +609,11 @@ export class PricingPage implements OnInit, OnDestroy {
   addDenomination(): void {
     const value = this.denominationInput();
     if (value === null || !Number.isInteger(value) || value < 1 || value > MAX_DENOMINATION) {
-      this.denominationError.set(`Valeur : entier entre 1 et ${this.money(MAX_DENOMINATION)}.`);
+      this.denominationError.set(translate('Valeur : entier entre 1 et {money}.', { money: this.money(MAX_DENOMINATION) }));
       return;
     }
     if (this.shownDenominations().includes(value)) {
-      this.denominationError.set('Cette valeur existe déjà.');
+      this.denominationError.set(translate('Cette valeur existe déjà.'));
       return;
     }
     this.denominationInput.set(null);
@@ -633,8 +635,8 @@ export class PricingPage implements OnInit, OnDestroy {
     }
     const code = this.currency();
     const lines = [
-      ...added.map((v) => `Monnaie : ajout de ${this.money(v)} ${code}`),
-      ...removed.map((v) => `Monnaie : retrait de ${this.money(v)} ${code}`),
+      ...added.map((v) => translate('Monnaie : ajout de {money} {code}', { money: this.money(v), code: code })),
+      ...removed.map((v) => translate('Monnaie : retrait de {money} {code}', { money: this.money(v), code: code })),
     ];
     const patch: DenominationPatch = { values };
     this.pending.stage({

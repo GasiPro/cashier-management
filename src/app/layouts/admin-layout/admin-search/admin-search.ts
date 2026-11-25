@@ -1,3 +1,4 @@
+import { translate } from '../../../core/i18n/translate';
 export interface SearchSegment {
   text: string;
   match: boolean;
@@ -146,6 +147,11 @@ const SEARCH_PAGES: SearchPage[] = [
     items: ['Automatique', 'Manuel', 'Fuseau horaire', "Format de l'heure", 'Format de la date', '12 heures', '24 heures'],
   },
   {
+    label: 'Langue et région',
+    route: 'langue-region',
+    items: ['Langue', 'Région', 'Français'],
+  },
+  {
     label: 'Profil',
     route: 'profil',
     items: ["Nom d'utilisateur", 'Nom affiché', 'Nouveau mot de passe', 'Confirmer le nouveau mot de passe'],
@@ -176,8 +182,7 @@ function highlight(label: string, needle: string): SearchSegment[] {
 export function searchAdmin(query: string): SearchResult[] {
   const needle = fold(query.trim());
   if (!needle) return [];
-  return ENTRIES.filter((entry) => fold(entry.label).includes(needle)).map((entry) => ({
-    ...entry,
-    segments: highlight(entry.label, needle),
-  }));
+  return ENTRIES.map((entry) => ({ ...entry, label: translate(entry.label), page: translate(entry.page) }))
+    .filter((entry) => fold(entry.label).includes(needle))
+    .map((entry) => ({ ...entry, segments: highlight(entry.label, needle) }));
 }

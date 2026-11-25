@@ -1,5 +1,5 @@
 <footer class="bg-white border-t border-gray-100 px-4 sm:px-6 py-2 sticky bottom-0 z-40 shrink-0" role="contentinfo"
-  [attr.aria-label]="roleLabel + ' — barre d\'état'">
+  [attr.aria-label]="('{roleLabel} — barre d\'état' | t: { roleLabel: (roleLabel) })">
   <div class="max-w-6xl mx-auto flex items-center justify-between gap-4">
     <div class="flex items-center gap-2 text-xs text-gray-400">
       <span class="text-sm capitalize selectable">{{ currentDate() }}</span>
@@ -7,7 +7,7 @@
       <span class="text-sm tabular-nums selectable">{{ currentTime() }}</span>
     </div>
     <div class="px-6 py-3 text-center shrink-0">
-      <p class="text-xs text-gray-400">Système de prise de commande</p>
+      <p class="text-xs text-gray-400">{{ 'Système de prise de commande' | t }}</p>
     </div>
     <button type="button" (click)="onNotificationsClick()" [attr.aria-label]="resolvedNotificationLabel"
       [title]="resolvedNotificationLabel" class="relative flex items-center gap-1.5 text-gray-400 hover:text-gray-600 transition-colors p-1 rounded
@@ -33,7 +33,7 @@
     [attr.aria-label]="resolvedNotificationLabel">
     <div class="flex items-center justify-between gap-2 px-3 py-2 flex-shrink-0"
       [class]="notificationsExpanded() ? 'border-b border-gray-100' : ''">
-      <button type="button" (click)="closeNotificationsPanel()" aria-label="Fermer les notifications" title="Fermer"
+      <button type="button" (click)="closeNotificationsPanel()" [attr.aria-label]="'Fermer les notifications' | t" [attr.title]="'Fermer' | t"
         class="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded flex-shrink-0
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -42,8 +42,8 @@
       </button>
       <span class="text-sm font-medium text-gray-700 truncate">{{ resolvedNotificationLabel }}</span>
       <button type="button" (click)="toggleNotificationsExpanded()"
-        [attr.aria-label]="notificationsExpanded() ? 'Réduire les notifications' : 'Agrandir les notifications'"
-        [title]="notificationsExpanded() ? 'Réduire' : 'Agrandir'" class="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded flex-shrink-0
+        [attr.aria-label]="notificationsExpanded() ? ('Réduire les notifications' | t) : ('Agrandir les notifications' | t)"
+        [title]="notificationsExpanded() ? ('Réduire' | t) : ('Agrandir' | t)" class="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded flex-shrink-0
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
         @if (notificationsExpanded()) {
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -61,14 +61,14 @@
       @if (latestNotification) {
       <p [class]="latestNotification.alert ? 'text-red-700 font-medium' : 'text-gray-700'">{{ latestNotification.message }}</p>
       } @else {
-      <p class="text-gray-400 italic">Aucune notification</p>
+      <p class="text-gray-400 italic">{{ 'Aucune notification' | t }}</p>
       }
     </div>
     }
     @if (notificationsExpanded()) {
     <div class="flex-1 overflow-y-auto px-3 py-2">
       @if (notifications.length === 0) {
-      <p class="text-sm text-gray-400 italic py-4 text-center">Aucune notification</p>
+      <p class="text-sm text-gray-400 italic py-4 text-center">{{ 'Aucune notification' | t }}</p>
       } @else {
       <div class="space-y-2">
         @for (n of reversedNotifications; track n.id) {

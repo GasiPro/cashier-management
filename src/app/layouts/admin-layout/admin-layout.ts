@@ -8,6 +8,8 @@ import { WsRegistration } from '../../core/auth/ws-registration';
 import { WsClient } from '../../core/realtime/ws-client';
 import { WsMessage } from '../../core/realtime/ws-protocol';
 import { searchAdmin } from './admin-search/admin-search';
+import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { translate } from '../../core/i18n/translate';
 interface AdminNavItem {
   id: string;
   label: string;
@@ -28,14 +30,14 @@ const HOME_ICON = 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10
 @Component({
   selector: 'app-admin-layout',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink],
+  imports: [CommonModule, RouterOutlet, RouterLink, TranslatePipe],
   templateUrl: './admin-layout.html'
 })
 export class AdminLayout implements OnInit, OnDestroy {
   readonly navItems = NAV_ITEMS;
   readonly homeRoute = HOME_ROUTE;
   readonly homeIcon = HOME_ICON;
-  readonly username = getStoredUsername() ?? 'Admin';
+  readonly username = getStoredUsername() ?? translate('Admin');
   readonly showMenu = signal(false);
   readonly displayName = signal(this.storedLabel());
   readonly searchOpen = signal(false);

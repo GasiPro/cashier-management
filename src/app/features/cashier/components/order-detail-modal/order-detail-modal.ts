@@ -12,10 +12,12 @@ import {
   isLineIncreased,
 } from '../../../../data/order/order.utils';
 import { MoneyPipe } from '../../../../shared/pipes/money.pipe';
+import { TranslatePipe } from '../../../../shared/pipes/translate.pipe';
+import { translate } from '../../../../core/i18n/translate';
 @Component({
   selector: 'app-order-detail-modal',
   standalone: true,
-  imports: [CommonModule, MoneyPipe],
+  imports: [CommonModule, MoneyPipe, TranslatePipe],
   templateUrl: './order-detail-modal.html',
 })
 export class OrderDetailModal {
@@ -41,9 +43,9 @@ export class OrderDetailModal {
   priceAdjustmentLabel(g: OrderGroup): string {
     const discount = groupHasDiscount(g);
     const increase = groupHasIncrease(g);
-    if (discount && increase) return 'Remise / Majoration';
-    if (discount) return 'Remise';
-    if (increase) return 'Majoration';
-    return 'Aucun';
+    if (discount && increase) return translate('Remise / Majoration');
+    if (discount) return translate('Remise');
+    if (increase) return translate('Majoration');
+    return translate('Aucun');
   }
 }

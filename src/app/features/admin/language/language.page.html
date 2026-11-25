@@ -1,0 +1,89 @@
+<div class="max-w-3xl mx-auto">
+  <a routerLink="/admin/reglages" [attr.aria-label]="'Retour' | t"
+    class="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors mb-4
+           focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+    </svg>
+    {{ 'Retour' | t }}
+  </a>
+  <div class="space-y-6">
+    @if (loading()) {
+    <p class="text-sm text-gray-400 italic py-4">{{ 'Chargement…' | t }}</p>
+    } @else {
+    <section aria-labelledby="language-heading"
+      class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
+      <div class="mb-4">
+        <h2 id="language-heading" class="text-base font-semibold text-[#1A1A1A]">
+          {{ 'Langue' | t }}
+        </h2>
+        <p class="text-xs text-gray-400 mt-0.5">
+          {{ 'Langue de l\'interface.' | t }}
+        </p>
+      </div>
+      <div role="radiogroup" aria-labelledby="language-heading" class="flex flex-wrap gap-2">
+        @for (choice of languageChoices; track choice.value) {
+        <button type="button" role="radio" [attr.aria-checked]="languageDraft() === choice.value"
+          (click)="languageDraft.set(choice.value)"
+          class="px-4 py-2 rounded-lg text-sm font-semibold border transition-colors
+                 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
+          [class.bg-[#1E3A5F]]="languageDraft() === choice.value"
+          [class.text-white]="languageDraft() === choice.value"
+          [class.border-[#1E3A5F]]="languageDraft() === choice.value"
+          [class.bg-white]="!(languageDraft() === choice.value)"
+          [class.text-gray-600]="!(languageDraft() === choice.value)"
+          [class.border-gray-200]="!(languageDraft() === choice.value)">
+          {{ choice.label | t }}
+        </button>
+        }
+      </div>
+    </section>
+    <section aria-labelledby="region-heading"
+      class="bg-white border border-gray-200 rounded-xl p-5 sm:p-6">
+      <div class="mb-4">
+        <h2 id="region-heading" class="text-base font-semibold text-[#1A1A1A]">
+          {{ 'Région' | t }}
+        </h2>
+        <p class="text-xs text-gray-400 mt-0.5">
+          {{ 'Influence l\'affichage de l\'heure et de la date.' | t }}
+        </p>
+      </div>
+      <label for="language-region"
+        class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+        {{ 'Région' | t }}
+      </label>
+      <select id="language-region" [value]="regionDraft()"
+        (change)="regionDraft.set($any($event.target).value)"
+        class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-[#1A1A1A]
+               focus:outline-none focus:border-[#1E3A5F] transition-colors">
+        @for (choice of regionChoices; track choice.value) {
+        <option [value]="choice.value" [selected]="choice.value === regionDraft()">{{ choice.label | t }}</option>
+        }
+      </select>
+    </section>
+    <div class="flex items-center gap-2">
+      <button type="button" (click)="save()"
+        [disabled]="!dirty() || saving()"
+        [attr.aria-busy]="saving()"
+        class="bg-[#1E3A5F] text-white text-sm font-semibold px-4 py-2 rounded-md
+               hover:bg-[#16304f] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
+               disabled:opacity-40 disabled:hover:bg-[#1E3A5F] disabled:active:scale-100
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+        {{ saving() ? ('Enregistrement…' | t) : ('Enregistrer' | t) }}
+      </button>
+      <button type="button" (click)="resetDraft()"
+        [disabled]="!dirty() || saving()"
+        class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
+               disabled:opacity-40
+               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
+        {{ 'Annuler' | t }}
+      </button>
+    </div>
+    <p role="status" aria-live="polite" class="text-xs"
+      [class.text-red-600]="statusIsError()"
+      [class.text-emerald-600]="!statusIsError() && statusMessage()">
+      {{ statusMessage() }}
+    </p>
+    }
+  </div>
+</div>

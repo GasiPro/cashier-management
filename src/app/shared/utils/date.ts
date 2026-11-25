@@ -1,4 +1,5 @@
 import { currentDayIso, dayOfIso, localeDate } from '../../core/display/datetime-settings';
+import { translate } from '../../core/i18n/translate';
 export function formatIsoDate(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -15,7 +16,7 @@ export function formatRelativeDay(iso: string): string {
   const diffDays = Math.round(
     (parseIsoDate(currentDayIso()).getTime() - parseIsoDate(dayOfIso(date)).getTime()) / 86_400_000,
   );
-  if (diffDays === 0) return "aujourd'hui";
+  if (diffDays === 0) return translate('aujourd\'hui');
   if (diffDays === 1) return 'hier';
   return localeDate(date);
 }

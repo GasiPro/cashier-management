@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { DenominationStore } from '../../../../data/pricing/denomination.store';
 import { BilletageStore } from '../../../../data/report/billetage.store';
 import { MoneyPipe } from '../../../../shared/pipes/money.pipe';
+import { TranslatePipe } from '../../../../shared/pipes/translate.pipe';
+import { translate } from '../../../../core/i18n/translate';
 export interface BilletageResult {
   theoretical: number;
   physical: number;
@@ -17,7 +19,7 @@ const MAX_COUNT = 1_000_000;
 @Component({
   selector: 'app-billetage',
   standalone: true,
-  imports: [CommonModule, MoneyPipe],
+  imports: [CommonModule, MoneyPipe, TranslatePipe],
   templateUrl: './billetage.html',
   host: { class: 'flex flex-col flex-1 min-h-0' },
 })
@@ -45,8 +47,8 @@ export class Billetage implements OnDestroy {
   });
   readonly gapLabel = computed(() => {
     const gap = this.gap();
-    if (gap === 0) return 'Caisse juste';
-    return gap > 0 ? 'Excédent' : 'Manquant';
+    if (gap === 0) return translate('Caisse juste');
+    return gap > 0 ? translate('Excédent') : translate('Manquant');
   });
   countId(value: number): string {
     return `billetage-count-${value}`;

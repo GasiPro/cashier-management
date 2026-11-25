@@ -1,4 +1,5 @@
 import { Component, input } from '@angular/core';
+import { TranslatePipe } from '../../pipes/translate.pipe';
 export interface DataTableColumn {
   label: string;
   align?: 'left' | 'right';
@@ -7,6 +8,7 @@ export interface DataTableColumn {
   widthClass?: string;
 }
 @Component({
+  imports: [TranslatePipe],
   selector: 'app-data-table',
   standalone: true,
   templateUrl: './data-table.html',

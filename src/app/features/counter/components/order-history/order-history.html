@@ -1,6 +1,6 @@
 @if (store.orderGroups().length > 0) {
 <div class="mt-4 bg-white border border-gray-200 rounded-xl p-5">
-  <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">Historique</h3>
+  <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">{{ 'Historique' | t }}</h3>
   <div class="space-y-2">
     @for (g of store.recentOrderGroups(); track g.groupId) {
     <div class="text-sm border-b border-gray-50 last:border-0 pb-2 last:pb-0">
@@ -9,7 +9,7 @@
                     hover:bg-gray-50 transition-colors
                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]"
              role="button" tabindex="0"
-             [attr.aria-label]="'Voir le détail de la commande ' + store.groupLabel(g.groupId)"
+             [attr.aria-label]="('Voir le détail de la commande {groupLabel}' | t: { groupLabel: (store.groupLabel(g.groupId)) })"
              (click)="store.openGroupDetail(g)"
              (keydown.enter)="store.openGroupDetail(g)"
              (keydown.space)="$event.preventDefault(); store.openGroupDetail(g)">
@@ -18,36 +18,36 @@
             <p class="text-gray-600 text-xs leading-snug line-clamp-2">{{ store.groupSummary(g) }}</p>
             <p class="text-gray-400 text-[11px] leading-snug mt-0.5">{{ store.groupTimeLabel(g) }}</p>
             @if (g.status === 'REJETEE' && store.groupRejectReason(g); as reason) {
-            <p class="text-red-600 text-[11px] leading-snug mt-0.5 italic">Motif : {{ reason }}</p>
+            <p class="text-red-600 text-[11px] leading-snug mt-0.5 italic">{{ 'Motif : {reason}' | t: { reason: (reason) } }}</p>
             }
             @if (store.groupHasDiscount(g)) {
             <span class="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-amber-700
                          bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full"
-                  title="Un ou plusieurs prix ont été réduits par le comptoir">
+                  [attr.title]="'Un ou plusieurs prix ont été réduits par le comptoir' | t">
               <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M20.59 13.41L11 3.83A2 2 0 009.59 3.24H4a1 1 0 00-1 1v5.59a2 2 0 00.59 1.41l9.58 9.58a2 2 0 002.82 0l4.6-4.6a2 2 0 000-2.82z"/>
                 <circle cx="7.5" cy="7.5" r="1.5"/>
               </svg>
-              Remise
-              <span class="sr-only">appliquée sur cette commande</span>
+              {{ 'Remise' | t }}
+              <span class="sr-only">{{ 'appliquée sur cette commande' | t }}</span>
             </span>
             }
             @if (store.groupHasIncrease(g)) {
             <span class="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-sky-700
                          bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full"
-                  title="Un ou plusieurs prix ont été majorés par le comptoir">
+                  [attr.title]="'Un ou plusieurs prix ont été majorés par le comptoir' | t">
               <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M5 12l7-7 7 7"/>
               </svg>
-              Majoration
-              <span class="sr-only">appliquée sur cette commande</span>
+              {{ 'Majoration' | t }}
+              <span class="sr-only">{{ 'appliquée sur cette commande' | t }}</span>
             </span>
             }
           </div>
         </div>
         <div class="flex items-center gap-1 flex-shrink-0">
           @if (g.status === 'EN_ATTENTE') {
-          <button (click)="store.toggleEditGroup(g.groupId)" title="Modifier"
+          <button (click)="store.toggleEditGroup(g.groupId)" [attr.title]="'Modifier' | t"
             class="text-gray-400 hover:text-[#1E3A5F] p-1 rounded transition-colors
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -55,7 +55,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
             </svg>
           </button>
-          <button (click)="store.deleteOrderGroup(g.groupId)" title="Annuler la commande"
+          <button (click)="store.deleteOrderGroup(g.groupId)" [attr.title]="'Annuler la commande' | t"
             class="text-gray-400 hover:text-red-600 p-1 rounded transition-colors
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -82,7 +82,7 @@
                              text-gray-500 hover:bg-gray-100 transition-colors leading-none text-xs
                              focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">+</button>
           </div>
-          <label class="sr-only" [attr.for]="'edit-price-sb-' + line.id">Prix unitaire pour {{ line.service_type }}</label>
+          <label class="sr-only" [attr.for]="'edit-price-sb-' + line.id">{{ 'Prix unitaire pour {service_type}' | t: { service_type: (line.service_type) } }}</label>
           <input [id]="'edit-price-sb-' + line.id" type="number" [(ngModel)]="line.unit_price" (change)="store.updateOrderLine(line)" min="0"
             [attr.aria-describedby]="(store.isLineDiscounted(line) || store.isLineIncreased(line)) ? ('edit-price-sb-hint-' + line.id) : null"
             class="w-16 border rounded px-1 py-0.5 text-xs font-medium flex-shrink-0
@@ -90,16 +90,16 @@
             [class]="store.isLineDiscounted(line) ? 'border-amber-300 bg-amber-50' : store.isLineIncreased(line) ? 'border-sky-300 bg-sky-50' : 'border-gray-200'" />
           @if (store.isLineDiscounted(line)) {
           <span [id]="'edit-price-sb-hint-' + line.id" class="text-[10px] text-amber-600 flex-shrink-0 whitespace-nowrap">
-            <span aria-hidden="true">initial {{ line.original_unit_price | money }}</span>
-            <span class="sr-only">Prix réduit, initialement {{ line.original_unit_price | money }}</span>
+            <span aria-hidden="true">{{ 'initial {original_unit_price}' | t: { original_unit_price: (line.original_unit_price | money) } }}</span>
+            <span class="sr-only">{{ 'Prix réduit, initialement {original_unit_price}' | t: { original_unit_price: (line.original_unit_price | money) } }}</span>
           </span>
           } @else if (store.isLineIncreased(line)) {
           <span [id]="'edit-price-sb-hint-' + line.id" class="text-[10px] text-sky-600 flex-shrink-0 whitespace-nowrap">
-            <span aria-hidden="true">initial {{ line.original_unit_price | money }}</span>
-            <span class="sr-only">Prix majoré, initialement {{ line.original_unit_price | money }}</span>
+            <span aria-hidden="true">{{ 'initial {original_unit_price}' | t: { original_unit_price: (line.original_unit_price | money) } }}</span>
+            <span class="sr-only">{{ 'Prix majoré, initialement {original_unit_price}' | t: { original_unit_price: (line.original_unit_price | money) } }}</span>
           </span>
           }
-          <button (click)="store.deleteOrderLine(line)" title="Supprimer cette ligne"
+          <button (click)="store.deleteOrderLine(line)" [attr.title]="'Supprimer cette ligne' | t"
             class="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-400 rounded">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">

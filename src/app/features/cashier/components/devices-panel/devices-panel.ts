@@ -5,6 +5,7 @@ import {
   PeerId,
   PendingConnection,
 } from '../../../../data/device/device.model';
+import { TranslatePipe } from '../../../../shared/pipes/translate.pipe';
 export function deviceDisplayName(device: { username?: string | null; label: string }): string {
   return device.username?.trim() || device.label;
 }
@@ -14,7 +15,7 @@ export function deviceAddress(device: { ip_address: string; port: number }): str
 @Component({
   selector: 'app-devices-panel',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TranslatePipe],
   templateUrl: './devices-panel.html',
 })
 export class DevicesPanel {

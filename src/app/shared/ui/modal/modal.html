@@ -8,14 +8,14 @@
     @if (heading()) {
     <div [class]="headerClasses()">
       <div class="min-w-0">
-        <h2 [attr.id]="headingId() || null" [class]="headingClasses()">{{ heading() }}</h2>
+        <h2 [attr.id]="headingId() || null" [class]="headingClasses()">{{ heading() | t }}</h2>
         @if (subtitle()) {
-        <p class="text-xs text-gray-400 mt-0.5">{{ subtitle() }}</p>
+        <p class="text-xs text-gray-400 mt-0.5">{{ subtitle() | t }}</p>
         }
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
         <ng-content select="[modalHeaderExtra]" />
-        <button type="button" (click)="closed.emit()" autofocus [attr.aria-label]="closeLabel()"
+        <button type="button" (click)="closed.emit()" autofocus [attr.aria-label]="closeLabel() | t"
           [class]="closeButtonClasses()">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />

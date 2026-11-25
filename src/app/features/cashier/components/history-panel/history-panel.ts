@@ -11,10 +11,11 @@ import {
 } from '../../../../data/order/order.utils';
 import { HistoriqueDayGroup } from '../../cashier.store';
 import { MoneyPipe } from '../../../../shared/pipes/money.pipe';
+import { TranslatePipe } from '../../../../shared/pipes/translate.pipe';
 @Component({
   selector: 'app-history-panel',
   standalone: true,
-  imports: [CommonModule, MoneyPipe],
+  imports: [CommonModule, MoneyPipe, TranslatePipe],
   templateUrl: './history-panel.html',
 })
 export class HistoryPanel {

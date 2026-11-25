@@ -8,12 +8,14 @@ import { OrderGroup, OrderLine } from '../../../data/order/order.model';
 import { buildGroups, formatGroupId, getGroupItemsSummary } from '../../../data/order/order.utils';
 import { localeDate, localeTime, msUntilNextDay, startOfTodayMs } from '../../../core/display/datetime-settings';
 import { MoneyPipe } from '../../../shared/pipes/money.pipe';
+import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
+import { translate } from '../../../core/i18n/translate';
 type StatusFilter = 'all' | OrderLine['status'];
 type SortKey = 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc';
 @Component({
   selector: 'app-admin-orders',
   standalone: true,
-  imports: [CommonModule, FormsModule, MoneyPipe],
+  imports: [CommonModule, FormsModule, MoneyPipe, TranslatePipe],
   templateUrl: './orders.page.html'
 })
 export class OrdersPage implements OnDestroy {
@@ -33,10 +35,10 @@ export class OrdersPage implements OnDestroy {
     try {
       await orderApi.markGroupPaid(group.groupId);
       await this.orderStore.resync();
-      this.setOrderStatus(`Commande ${this.formatGroupId(group.groupId)} encaissée.`, false);
+      this.setOrderStatus(translate('Commande {formatGroupId} encaissée.', { formatGroupId: this.formatGroupId(group.groupId) }), false);
     } catch (e) {
       console.error('group_mark_paid failed', e);
-      this.setOrderStatus(errorMessage(e, "Échec de l'encaissement de la commande. Réessayez."), true);
+      this.setOrderStatus(errorMessage(e, translate('Échec de l\'encaissement de la commande. Réessayez.')), true);
     } finally {
       this.markingPaidGroupId.set(null);
     }
@@ -141,12 +143,12 @@ export class OrdersPage implements OnDestroy {
   statusLabel(status: OrderLine['status']): string {
     switch (status) {
       case 'PAYE':
-        return 'Payée';
+        return translate('Payée');
       case 'REJETEE':
-        return 'Refusée';
+        return translate('Refusée');
       case 'EN_ATTENTE':
       default:
-        return 'En attente';
+        return translate('En attente');
     }
   }
   statusBadgeClass(status: OrderLine['status']): string {
@@ -211,11 +213,11 @@ export class OrdersPage implements OnDestroy {
       );
       await this.orderStore.resync();
       this.confirmingRejectGroupId.set(null);
-      this.setOrderStatus(`Commande ${this.formatGroupId(group.groupId)} refusée.`, false);
+      this.setOrderStatus(translate('Commande {formatGroupId} refusée.', { formatGroupId: this.formatGroupId(group.groupId) }), false);
       document.getElementById(`order-toggle-btn-${group.groupId}`)?.focus();
     } catch (e) {
       console.error('reject_group failed', e);
-      const message = errorMessage(e, 'Échec du refus de la commande. Réessayez.');
+      const message = errorMessage(e, translate('Échec du refus de la commande. Réessayez.'));
       this.rejectGroupError.set(message);
     } finally {
       this.rejectingGroup.set(false);

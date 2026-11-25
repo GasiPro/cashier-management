@@ -1,10 +1,11 @@
 import { Component, input, model, output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { withRetryCountdown } from '../../../../shared/utils/retry-countdown';
+import { TranslatePipe } from '../../../../shared/pipes/translate.pipe';
 @Component({
   selector: 'app-counter-setup',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, TranslatePipe],
   templateUrl: './counter-setup.html',
 })
 export class CounterSetup {

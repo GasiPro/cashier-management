@@ -2,6 +2,8 @@ import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { check, type Update } from '@tauri-apps/plugin-updater';
+import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
+import { translate } from '../../../core/i18n/translate';
 type UpdatePhase = 'idle' | 'checking' | 'up-to-date' | 'available' | 'installing' | 'completed';
 interface AvailableUpdate {
   version: string;
@@ -12,6 +14,7 @@ const NO_NOTE = 'Aucune note de version.';
 const CHECK_ERROR = 'Vérification impossible. Contrôlez la connexion.';
 const INSTALL_ERROR = 'Échec de la mise à jour.';
 @Component({
+  imports: [TranslatePipe],
   selector: 'app-admin-update',
   standalone: true,
   templateUrl: './update.page.html',
@@ -51,10 +54,10 @@ export class UpdatePage implements OnInit, OnDestroy {
         return;
       }
       this.pendingUpdate = found;
-      this.update.set({ version: found.version, note: found.body?.trim() || NO_NOTE });
+      this.update.set({ version: found.version, note: found.body?.trim() || translate(NO_NOTE) });
       this.phase.set('available');
     } catch {
-      this.errorMessage.set(CHECK_ERROR);
+      this.errorMessage.set(translate(CHECK_ERROR));
       this.phase.set('idle');
     }
   }
@@ -78,7 +81,7 @@ export class UpdatePage implements OnInit, OnDestroy {
         }
       });
     } catch {
-      this.errorMessage.set(INSTALL_ERROR);
+      this.errorMessage.set(translate(INSTALL_ERROR));
       this.phase.set('available');
       return;
     }

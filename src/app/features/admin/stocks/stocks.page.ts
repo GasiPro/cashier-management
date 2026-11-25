@@ -12,6 +12,8 @@ import * as stockApi from '../../../data/stock/stock.api';
 import type { StockAction, StockHistoryEntry, StockItem, StockItemFields } from '../../../data/stock/stock.model';
 import { Badge, BadgeTone } from '../../../shared/ui/badge/badge';
 import { PendingFab } from '../../../shared/ui/pending-fab/pending-fab';
+import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
+import { translate } from '../../../core/i18n/translate';
 type StockTab = 'product' | 'service' | 'journal';
 const ACTION_BADGES: Record<StockAction, { label: string; tone: BadgeTone }> = {
   availability: { label: 'Disponibilité', tone: 'info' },
@@ -28,7 +30,7 @@ const TYPE_OPTIONS: { value: PricingItemType; label: string }[] = [
 @Component({
   selector: 'app-admin-stocks',
   standalone: true,
-  imports: [FormsModule, NgTemplateOutlet, Badge, PendingFab],
+  imports: [FormsModule, NgTemplateOutlet, Badge, PendingFab, TranslatePipe],
   templateUrl: './stocks.page.html',
 })
 export class StocksPage implements OnInit, OnDestroy {
@@ -69,9 +71,9 @@ export class StocksPage implements OnInit, OnDestroy {
   expandedId = signal<number | null>(null);
   private copiedTimer?: ReturnType<typeof setTimeout>;
   readonly tabs = computed<{ value: StockTab; label: string; count: number }[]>(() => [
-    { value: 'product', label: 'Produit', count: this.viewItems().filter((i) => i.type === 'product').length },
-    { value: 'service', label: 'Service', count: this.viewItems().filter((i) => i.type === 'service').length },
-    { value: 'journal', label: 'Journal', count: this.history().length },
+    { value: 'product', label: translate('Produit'), count: this.viewItems().filter((i) => i.type === 'product').length },
+    { value: 'service', label: translate('Service'), count: this.viewItems().filter((i) => i.type === 'service').length },
+    { value: 'journal', label: translate('Journal'), count: this.history().length },
   ]);
   readonly visibleItems = computed<StockItem[]>(() => {
     const tab = this.tab();
@@ -109,7 +111,7 @@ export class StocksPage implements OnInit, OnDestroy {
       this.history.set(history);
     } catch (e) {
       console.error('failed to load stocks', e);
-      if (!silent) this.loadError.set(errorMessage(e, 'Impossible de charger les stocks.'));
+      if (!silent) this.loadError.set(errorMessage(e, translate('Impossible de charger les stocks.')));
     } finally {
       if (!silent) this.loading.set(false);
     }
@@ -136,17 +138,17 @@ export class StocksPage implements OnInit, OnDestroy {
     this.expandedId.update((current) => (current === id ? null : id));
   }
   sourceLabel(entry: StockHistoryEntry): string {
-    return entry.order_group_id === null ? 'Réglage manuel' : `Commande ${formatGroupId(entry.order_group_id)}`;
+    return entry.order_group_id === null ? translate('Réglage manuel') : translate('Commande {formatGroupId}', { formatGroupId: formatGroupId(entry.order_group_id) });
   }
   typeLabel(type: PricingItemType): string {
-    return type === 'service' ? 'Service' : 'Produit';
+    return type === 'service' ? translate('Service') : translate('Produit');
   }
   typeTone(type: PricingItemType): BadgeTone {
     return type === 'service' ? 'brand' : 'success';
   }
   quantityLabel(item: StockItem): string {
-    if (item.quantity === null) return item.type === 'service' ? 'Illimité' : 'Non suivi';
-    return item.type === 'service' ? `Limite : ${item.quantity}` : String(item.quantity);
+    if (item.quantity === null) return item.type === 'service' ? translate('Illimité') : translate('Non suivi');
+    return item.type === 'service' ? translate('Limite : {quantity}', { quantity: item.quantity }) : String(item.quantity);
   }
   formatAt(iso: string): string {
     const date = new Date(iso);
@@ -168,7 +170,7 @@ export class StocksPage implements OnInit, OnDestroy {
       this.copiedTimer = setTimeout(() => this.copied.set(null), COPIED_FEEDBACK_MS);
     } catch (e) {
       console.error('failed to copy id', e);
-      this.setStatus("Impossible de copier l'ID.", true);
+      this.setStatus(translate('Impossible de copier l\'ID.'), true);
     }
   }
   private project(item: StockItem): StockItem {
@@ -189,7 +191,7 @@ export class StocksPage implements OnInit, OnDestroy {
     this.editingId.set(null);
     this.itemEditingId.set(null);
     void this.load(true);
-    this.setStatus('Modifications appliquées.', false);
+    this.setStatus(translate('Modifications appliquées.'), false);
   }
   toggleAvailability(item: StockItem): void {
     const real = this.items().find((i) => i.id === item.id);
@@ -204,7 +206,7 @@ export class StocksPage implements OnInit, OnDestroy {
     this.pending.stage({
       key,
       payload: desired,
-      counter: [`${item.label} : ${desired ? 'disponible' : 'indisponible'}`],
+      counter: [translate('{label} : {state}', { label: item.label, state: desired ? translate('disponible') : translate('indisponible') })],
       cashier: [],
       apply: async () => {
         await stockApi.setStockAvailability(item.id, desired, this.username);
@@ -226,16 +228,16 @@ export class StocksPage implements OnInit, OnDestroy {
   }
   private quantityLine(item: StockItem, quantity: number | null): string {
     const service = item.type === 'service';
-    if (quantity === null) return `${item.label} : ${service ? 'sans limite' : 'stock non suivi'}`;
-    if (quantity === 0) return `${item.label} : rupture de stock`;
-    return `${item.label} : ${service ? 'limite' : 'stock'} ${quantity}`;
+    if (quantity === null) return translate('{label} : {state}', { label: item.label, state: service ? translate('sans limite') : translate('stock non suivi') });
+    if (quantity === 0) return translate('{label} : rupture de stock', { label: item.label });
+    return translate('{label} : {kind} {quantity}', { label: item.label, kind: service ? translate('limite') : translate('stock'), quantity: quantity });
   }
   saveQuantity(item: StockItem): void {
     const real = this.items().find((i) => i.id === item.id);
     if (!real) return;
     const quantity = this.editQuantity();
     if (quantity !== null && (!Number.isInteger(quantity) || quantity < 0)) {
-      this.editError.set('La quantité doit être un nombre entier positif ou nul.');
+      this.editError.set(translate('La quantité doit être un nombre entier positif ou nul.'));
       return;
     }
     const key = `stock:${item.id}:quantity`;
@@ -258,13 +260,13 @@ export class StocksPage implements OnInit, OnDestroy {
     document.getElementById(`stock-edit-btn-${item.id}`)?.focus();
   }
   private fieldsError(label: string, category: string): string {
-    if (!label) return "Le nom de l'article est obligatoire.";
-    if (!category) return 'La catégorie est obligatoire.';
+    if (!label) return translate('Le nom de l\'article est obligatoire.');
+    if (!category) return translate('La catégorie est obligatoire.');
     return '';
   }
   private numberError(value: number | null, what: string): string {
     if (value === null || (Number.isInteger(value) && value >= 0)) return '';
-    return `${what} doit être un nombre entier positif ou nul.`;
+    return translate('{what} doit être un nombre entier positif ou nul.', { what: what });
   }
   openCreate(): void {
     this.newType.set(this.tab() === 'service' ? 'service' : 'product');
@@ -292,8 +294,8 @@ export class StocksPage implements OnInit, OnDestroy {
     const quantity = this.newQuantity();
     const invalid =
       this.fieldsError(fields.label, fields.category) ||
-      this.numberError(price, 'Le prix') ||
-      this.numberError(quantity, fields.type === 'service' ? 'La limite' : 'La quantité');
+      this.numberError(price, translate('Le prix')) ||
+      this.numberError(quantity, fields.type === 'service' ? translate('La limite') : translate('La quantité'));
     if (invalid) {
       this.createError.set(invalid);
       return;
@@ -305,11 +307,11 @@ export class StocksPage implements OnInit, OnDestroy {
       this.items.update((list) => [...list, created]);
       this.showCreate.set(false);
       this.setTab(created.type);
-      this.setStatus(`« ${created.label} » a été ajouté.`, false);
+      this.setStatus(translate('« {label} » a été ajouté.', { label: created.label }), false);
       if (quantity !== null) await this.refreshHistory();
     } catch (e) {
       console.error('create_item failed', e);
-      this.createError.set(errorMessage(e, "Échec de l'ajout de l'article. Réessayez."));
+      this.createError.set(errorMessage(e, translate('Échec de l\'ajout de l\'article. Réessayez.')));
     } finally {
       this.creating.set(false);
     }
@@ -332,10 +334,10 @@ export class StocksPage implements OnInit, OnDestroy {
   }
   private itemLines(real: StockItem, fields: StockItemFields): string[] {
     const lines: string[] = [];
-    if (fields.label !== real.label) lines.push(`« ${real.label} » renommé « ${fields.label} »`);
-    if (fields.category !== real.category) lines.push(`${fields.label} : catégorie « ${fields.category} »`);
+    if (fields.label !== real.label) lines.push(translate('« {label} » renommé « {label2} »', { label: real.label, label2: fields.label }));
+    if (fields.category !== real.category) lines.push(translate('{label} : catégorie « {category} »', { label: fields.label, category: fields.category }));
     if (fields.type !== real.type) {
-      lines.push(`${fields.label} : désormais ${fields.type === 'service' ? 'un service' : 'un produit'}`);
+      lines.push(translate('{label} : désormais {type}', { label: fields.label, type: fields.type === 'service' ? translate('un service') : translate('un produit') }));
     }
     return lines;
   }

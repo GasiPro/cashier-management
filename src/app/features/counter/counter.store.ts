@@ -30,6 +30,7 @@ import { ServiceItem } from '../../data/pricing/pricing.model';
 import { formatRelativeDay } from '../../shared/utils/date';
 import { credentialsRuleError, isValidHostPort, stripWsScheme } from '../../shared/utils/validators';
 import { BottomBarNotification } from '../../layouts/main-layout/bottom-bar/bottom-bar';
+import { translate } from '../../core/i18n/translate';
 export interface CartItem {
   service: ServiceItem;
   qty: number;
@@ -45,7 +46,7 @@ export interface HistoriqueDayGroup {
 const HISTORIQUE_ALL_STATUSES = 'TOUS';
 @Injectable()
 export class CounterStore {
-  username = getStoredUsername() ?? 'Comptoir';
+  username = getStoredUsername() ?? translate('Comptoir');
   cashierHost = stripWsScheme(getStoredCashierWsUrl() ?? DEFAULT_WS);
   private password = '';
   private pendingPassword: string | null = null;
@@ -237,8 +238,7 @@ export class CounterStore {
       }
       if (this.awaitingConnectResult) {
         this.awaitingConnectResult = false;
-        const message = `Impossible de joindre le serveur à l'adresse ${this.cashierHost} : ` +
-          'il est peut-être éteint ou l\'adresse est incorrecte.';
+        const message = translate('Impossible de joindre le serveur à l\'adresse {cashierHost} : il est peut-être éteint ou l\'adresse est incorrecte.', { cashierHost: this.cashierHost });
         this.serverConnectError.set(message);
         this.showToast(message);
       }
@@ -249,25 +249,25 @@ export class CounterStore {
         this.waitingApproval.set(false);
         this.ws.send({ type: 'request_orders' });
         this.ws.send({ type: 'request_pricing' });
-        this.showToast('Connexion approuvée par la caisse.');
+        this.showToast(translate('Connexion approuvée par la caisse.'));
       } else if (msg.type === 'connection_rejected') {
         this.wsConnected.set(false);
         this.waitingApproval.set(false);
         this.ws.disconnect();
         this.session.clearCounterCredentials();
-        this.showToast("Connexion refusée : identifiant ou mot de passe incorrect, ou accès refusé par la caisse.", 'alert');
+        this.showToast(translate('Connexion refusée : identifiant ou mot de passe incorrect, ou accès refusé par la caisse.'), 'alert');
       } else if (msg.type === 'connection_blocked') {
         this.wsConnected.set(false);
         this.waitingApproval.set(false);
         this.lockReason.set('blocked');
         this.ws.disconnect();
-        this.showToast('Accès bloqué par la caisse.', 'alert');
+        this.showToast(translate('Accès bloqué par la caisse.'), 'alert');
       } else if (msg.type === 'connection_disconnected') {
         this.wsConnected.set(false);
         this.waitingApproval.set(false);
         this.lockReason.set('disconnected');
         this.ws.disconnect();
-        this.showToast('Déconnecté par la caisse.', 'alert');
+        this.showToast(translate('Déconnecté par la caisse.'), 'alert');
       } else if (msg.type === 'order_notification') {
         this.notifyOrderResult(msg.data);
       } else if (msg.type === 'orders') {
@@ -291,7 +291,7 @@ export class CounterStore {
         this.editPasswordConfirm.set('');
         this.editAccountError.set('');
         this.showAccountPanel.set(false);
-        this.showToast('Compte mis à jour.');
+        this.showToast(translate('Compte mis à jour.'));
       } else if (msg.type === 'account_update_error') {
         this.pendingPassword = null;
         this.savingAccount.set(false);
@@ -330,19 +330,19 @@ export class CounterStore {
   }
   private validateEditAccountForm(): string {
     if (this.editDisplayName().trim().length > this.maxDisplayNameLen) {
-      return `Le nom affiché ne peut pas dépasser ${this.maxDisplayNameLen} caractères.`;
+      return translate('Le nom affiché ne peut pas dépasser {maxDisplayNameLen} caractères.', { maxDisplayNameLen: this.maxDisplayNameLen });
     }
     const password = this.editPassword();
     const confirm = this.editPasswordConfirm();
     if (password.length > 0 || confirm.length > 0) {
       if (password.length < this.minPasswordLen) {
-        return `Le mot de passe doit contenir au moins ${this.minPasswordLen} caractères.`;
+        return translate('Le mot de passe doit contenir au moins {minPasswordLen} caractères.', { minPasswordLen: this.minPasswordLen });
       }
       if (!PASSWORD_HAS_LETTER.test(password) || !PASSWORD_HAS_DIGIT.test(password)) {
-        return 'Le mot de passe doit contenir au moins une lettre et un chiffre.';
+        return translate('Le mot de passe doit contenir au moins une lettre et un chiffre.');
       }
       if (password !== confirm) {
-        return 'Les mots de passe ne correspondent pas.';
+        return translate('Les mots de passe ne correspondent pas.');
       }
     }
     return '';
@@ -350,7 +350,7 @@ export class CounterStore {
   saveAccountSettings(): void {
     if (this.savingAccount()) return;
     if (!this.wsConnected()) {
-      this.editAccountError.set('Non connecté à la caisse — vérifiez la connexion réseau.');
+      this.editAccountError.set(translate('Non connecté à la caisse — vérifiez la connexion réseau.'));
       return;
     }
     const formError = this.validateEditAccountForm();
@@ -367,7 +367,7 @@ export class CounterStore {
     if (!sent) {
       this.pendingPassword = null;
       this.savingAccount.set(false);
-      this.editAccountError.set('Échec de l\'enregistrement — vérifiez la connexion réseau.');
+      this.editAccountError.set(translate('Échec de l\'enregistrement — vérifiez la connexion réseau.'));
     }
   }
   onNewCashierHostChanged(): void {
@@ -394,7 +394,7 @@ export class CounterStore {
     if (!raw) return;
     if (!isValidHostPort(raw)) {
       this.newCashierAddressCheck.set('invalid_format');
-      this.showToast("Adresse invalide : utilisez le format IP:port, par exemple 192.168.1.5:8080.");
+      this.showToast(translate('Adresse invalide : utilisez le format IP:port, par exemple 192.168.1.5:8080.'));
       return;
     }
     const host = stripWsScheme(raw);
@@ -428,24 +428,24 @@ export class CounterStore {
   envoyerCommande(): void {
     if (this.cart.length === 0) return;
     if (this.hasInvalidCartPrice) {
-      this.showToast('Le panier contient un prix invalide — corrigez-le avant d\'envoyer la commande.');
+      this.showToast(translate('Le panier contient un prix invalide — corrigez-le avant d\'envoyer la commande.'));
       return;
     }
     if (!this.wsConnected()) {
-      this.showToast('Non connecté à la caisse — vérifiez la connexion réseau');
+      this.showToast(translate('Non connecté à la caisse — vérifiez la connexion réseau'));
       return;
     }
     const groupId = this.appendTargetGroupId();
     const sent = this.ws.send({ type: 'order_create', cart: this.cart, group_id: groupId });
     if (!sent) {
-      this.showToast("Échec de l'envoi de la commande — vérifiez la connexion réseau.");
+      this.showToast(translate('Échec de l\'envoi de la commande — vérifiez la connexion réseau.'));
       return;
     }
     this.cart = [];
     this.noteOpenIds.clear();
     this.confirmingCancel = false;
     this.appendToGroupId.set(null);
-    this.showToast(groupId === null ? 'Commande envoyée à la caisse !' : 'Articles ajoutés à la commande en attente !');
+    this.showToast(groupId === null ? translate('Commande envoyée à la caisse !') : translate('Articles ajoutés à la commande en attente !'));
   }
   setAppendTarget(groupId: number | null): void {
     this.appendToGroupId.set(groupId);
@@ -462,7 +462,7 @@ export class CounterStore {
     this.noteOpenIds.clear();
     this.confirmingCancel = false;
     this.appendToGroupId.set(null);
-    this.showToast('Commande annulée.');
+    this.showToast(translate('Commande annulée.'));
   }
   toggleEditGroup(groupId: number): void {
     this.editingGroupId.set(this.editingGroupId() === groupId ? null : groupId);
@@ -481,7 +481,7 @@ export class CounterStore {
   }
   updateOrderLine(order: OrderLine): void {
     if (!this.wsConnected()) {
-      this.showToast('Non connecté à la caisse — vérifiez la connexion réseau');
+      this.showToast(translate('Non connecté à la caisse — vérifiez la connexion réseau'));
       return;
     }
     if (
@@ -491,7 +491,7 @@ export class CounterStore {
       !Number.isInteger(Number(order.quantity)) ||
       Number(order.quantity) < 1
     ) {
-      this.showToast('Quantité ou prix invalide — la modification n\'a pas été envoyée.');
+      this.showToast(translate('Quantité ou prix invalide — la modification n\'a pas été envoyée.'));
       return;
     }
     const sent = this.ws.send({
@@ -501,12 +501,12 @@ export class CounterStore {
       unit_price: order.unit_price,
     });
     if (!sent) {
-      this.showToast('Échec de la mise à jour — vérifiez la connexion réseau.');
+      this.showToast(translate('Échec de la mise à jour — vérifiez la connexion réseau.'));
     }
   }
   incrementOrderLine(order: OrderLine): void {
     if (!this.wsConnected()) {
-      this.showToast('Non connecté à la caisse — vérifiez la connexion réseau');
+      this.showToast(translate('Non connecté à la caisse — vérifiez la connexion réseau'));
       return;
     }
     order.quantity++;
@@ -514,7 +514,7 @@ export class CounterStore {
   }
   decrementOrderLine(order: OrderLine): void {
     if (!this.wsConnected()) {
-      this.showToast('Non connecté à la caisse — vérifiez la connexion réseau');
+      this.showToast(translate('Non connecté à la caisse — vérifiez la connexion réseau'));
       return;
     }
     if (order.quantity > 1) {
@@ -526,19 +526,19 @@ export class CounterStore {
   }
   deleteOrderLine(order: OrderLine): void {
     if (!this.wsConnected()) {
-      this.showToast('Non connecté à la caisse — vérifiez la connexion réseau');
+      this.showToast(translate('Non connecté à la caisse — vérifiez la connexion réseau'));
       return;
     }
     const sent = this.ws.send({ type: 'order_delete', id: order.id });
     if (!sent) {
-      this.showToast('Échec de la suppression — vérifiez la connexion réseau.');
+      this.showToast(translate('Échec de la suppression — vérifiez la connexion réseau.'));
     }
   }
   private confirmDeleteGroupId: number | null = null;
   private confirmDeleteGroupTimer: ReturnType<typeof setTimeout> | null = null;
   deleteOrderGroup(groupId: number): void {
     if (!this.wsConnected()) {
-      this.showToast('Non connecté à la caisse — vérifiez la connexion réseau');
+      this.showToast(translate('Non connecté à la caisse — vérifiez la connexion réseau'));
       return;
     }
     if (this.confirmDeleteGroupId !== groupId) {
@@ -548,7 +548,7 @@ export class CounterStore {
         this.confirmDeleteGroupId = null;
         this.confirmDeleteGroupTimer = null;
       }, 4000);
-      this.showToast('Appuyez à nouveau pour annuler cette commande.');
+      this.showToast(translate('Appuyez à nouveau pour annuler cette commande.'));
       return;
     }
     this.confirmDeleteGroupId = null;
@@ -558,12 +558,12 @@ export class CounterStore {
     }
     const sent = this.ws.send({ type: 'order_delete_group', group_id: groupId });
     if (!sent) {
-      this.showToast('Échec de l\'annulation — vérifiez la connexion réseau.');
+      this.showToast(translate('Échec de l\'annulation — vérifiez la connexion réseau.'));
       return;
     }
     this.editingGroupId.set(null);
     this.closeGroupDetail();
-    this.showToast('Commande annulée.');
+    this.showToast(translate('Commande annulée.'));
   }
   get filteredServices(): ServiceItem[] {
     return this.allServices().filter((s) => {
@@ -695,10 +695,10 @@ export class CounterStore {
     return g.lines.some((l) => this.isLineIncreased(l));
   }
   groupStatusLabel(g: OrderGroup): string {
-    if (g.status === 'PAYE')       return 'Payé';
-    if (g.status === 'EN_ATTENTE') return 'En attente';
-    if (g.status === 'REJETEE')    return 'Refusée';
-    return 'Mixte';
+    if (g.status === 'PAYE')       return translate('Payé');
+    if (g.status === 'EN_ATTENTE') return translate('En attente');
+    if (g.status === 'REJETEE')    return translate('Refusée');
+    return translate('Mixte');
   }
   groupStatusClass(g: OrderGroup): string {
     if (g.status === 'PAYE')       return 'bg-emerald-50 text-emerald-700 border border-emerald-100';
@@ -714,26 +714,26 @@ export class CounterStore {
       const date = new Date(g.paidAt);
       const dayLabel = formatRelativeDay(g.paidAt);
       const time = localeTime(date);
-      return `Encaissé ${dayLabel} à ${time}`;
+      return translate('Encaissé {dayLabel} à {time}', { dayLabel: dayLabel, time: time });
     }
     const dayLabel = formatRelativeDay(g.createdAt);
-    return `Envoyé ${dayLabel} à ${g.time}`;
+    return translate('Envoyé {dayLabel} à {time}', { dayLabel: dayLabel, time: g.time });
   }
   historiqueTimeLabel(g: OrderGroup): string {
     if (g.status === 'PAYE' && g.paidAt) {
       const time = localeTime(g.paidAt);
-      return `Encaissé à ${time}`;
+      return translate('Encaissé à {time}', { time: time });
     }
-    return `Envoyé à ${g.time}`;
+    return translate('Envoyé à {time}', { time: g.time });
   }
   private notifyOrderResult(change: OrderChange): void {
     const label = this.groupLabel(change.group_id);
     if (change.kind === 'paid') {
-      this.showToast(`Commande ${label} payée.`);
+      this.showToast(translate('Commande {label} payée.', { label: label }));
     } else if (change.kind === 'rejected') {
       const reason = change.reason?.trim();
       this.showToast(
-        reason ? `Commande ${label} refusée : ${reason}` : `Commande ${label} refusée.`,
+        reason ? translate('Commande {label} refusée : {reason}', { label: label, reason: reason }) : translate('Commande {label} refusée.', { label: label }),
         'sound',
       );
     }

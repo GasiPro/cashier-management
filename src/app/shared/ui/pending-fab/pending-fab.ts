@@ -1,15 +1,15 @@
 import { Component, inject, input, output, signal } from '@angular/core';
 import { PendingStore } from '../../../data/pending/pending.store';
 import { Badge } from '../badge/badge';
+import { TranslatePipe } from '../../pipes/translate.pipe';
 @Component({
   selector: 'app-pending-fab',
   standalone: true,
-  imports: [Badge],
+  imports: [Badge, TranslatePipe],
   templateUrl: './pending-fab.html',
 })
 export class PendingFab {
   readonly store = inject(PendingStore);
-  /** Position in the floating button column: 1 = bottom, 2 = just above (when the page has an add button). */
   readonly slot = input<1 | 2>(1);
   readonly applied = output<void>();
   readonly open = signal(false);
