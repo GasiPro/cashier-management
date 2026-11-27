@@ -6,6 +6,7 @@ import {
   DEFAULT_LOCALE_SETTINGS,
   LANGUAGE_CHOICES,
   LocaleSettings,
+  OTHER_REGION,
   regionChoices,
 } from '../../../data/settings/locale.model';
 import * as settingsApi from '../../../data/settings/settings.api';
@@ -19,7 +20,10 @@ import { translate } from '../../../core/i18n/translate';
 })
 export class LanguagePage implements OnInit, OnDestroy {
   readonly languageChoices = LANGUAGE_CHOICES;
-  readonly regionOptions = computed(() => regionChoices(activeLocale()));
+  readonly regionOptions = computed(() => [
+    ...regionChoices(activeLocale()),
+    { value: OTHER_REGION, label: translate('Autre') },
+  ]);
   loading = signal(true);
   saving = signal(false);
   statusMessage = signal('');

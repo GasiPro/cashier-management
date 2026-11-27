@@ -126,7 +126,7 @@ export class AccountsPage implements OnInit {
     this.expandedUsername.set(this.isExpanded(account.username) ? null : account.username);
   }
   userTypeLabel(type: UserType): string {
-    return this.userTypes.find((t) => t.value === type)?.label ?? type;
+    return translate(this.userTypes.find((t) => t.value === type)?.label ?? type);
   }
   historyLabel(entry: AccountHistoryEntry): string {
     switch (entry.kind) {
@@ -454,7 +454,6 @@ export class AccountsPage implements OnInit {
       this.loadingActivities.set(false);
     }
   }
-  // ── Security: blacklist ──────────────────────────────────────────────────
   blacklist = signal<BlacklistEntry[]>([]);
   loadingBlacklist = signal(true);
   newBlacklistType = signal<BlacklistEntryType>('ip');
@@ -566,7 +565,6 @@ export class AccountsPage implements OnInit {
       this.removingBlacklistId.set(null);
     }
   }
-  // ── Security: max connected devices ──────────────────────────────────────
   maxConnectedDevices = signal(0);
   maxConnectedDevicesDraft = signal(0);
   connectedDevicesCount = signal(0);

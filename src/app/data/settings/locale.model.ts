@@ -10,6 +10,7 @@ export const LANGUAGE_CHOICES: LocaleChoice[] = [
   { value: 'en', label: 'English' },
   { value: 'fr', label: 'Français' },
 ];
+export const OTHER_REGION = 'OTHER';
 export const REGION_CODES: string[] = [
   'GB', 'US', 'CA', 'AU', 'IE', 'FR', 'BE', 'CH', 'LU', 'DE', 'AT', 'ES',
   'PT', 'IT', 'NL', 'SE', 'BR', 'MX', 'CN', 'JP', 'KR', 'IN', 'ZA', 'MG',

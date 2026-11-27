@@ -8,9 +8,9 @@ pub const DATE_FORMATS: [&str; 4] = ["long", "dmy", "mdy", "ymd"];
 pub const DEFAULT_DATE_FORMAT: &str = "long";
 pub const LANGUAGES: [&str; 2] = ["fr", "en"];
 pub const DEFAULT_LANGUAGE: &str = "en";
-pub const REGIONS: [&str; 24] = [
+pub const REGIONS: [&str; 25] = [
     "GB", "US", "CA", "AU", "IE", "FR", "BE", "CH", "LU", "DE", "AT", "ES", "PT", "IT", "NL", "SE",
-    "BR", "MX", "CN", "JP", "KR", "IN", "ZA", "MG",
+    "BR", "MX", "CN", "JP", "KR", "IN", "ZA", "MG", "OTHER",
 ];
 pub const DEFAULT_REGION: &str = "GB";
 pub const MAX_TIMEZONE_LEN: usize = 64;
