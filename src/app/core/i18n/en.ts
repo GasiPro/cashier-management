@@ -550,6 +550,7 @@ export const ENGLISH_PACK: LanguagePack = {
     "Panier moyen": "Average basket",
     "Par": "By",
     "Par comptoir": "By counter",
+    "Par défaut": "Default",
     "Passage à": "Switch to",
     "Patientez…": "Please wait…",
     "Payé": "Paid",

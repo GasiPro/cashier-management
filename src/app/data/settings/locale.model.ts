@@ -26,4 +26,4 @@ export function regionChoices(locale: string): LocaleChoice[] {
     a.label.localeCompare(b.label, locale),
   );
 }
-export const DEFAULT_LOCALE_SETTINGS: LocaleSettings = { language: 'en', region: 'GB' };
+export const DEFAULT_LOCALE_SETTINGS: LocaleSettings = { language: 'en', region: OTHER_REGION };

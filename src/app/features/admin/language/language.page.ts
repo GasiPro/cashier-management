@@ -1,6 +1,5 @@
-import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { errorMessage } from '../../../core/error/error-messages';
 import { activeLocale, setLocaleSelection } from '../../../core/i18n/locale';
 import {
   DEFAULT_LOCALE_SETTINGS,
@@ -9,23 +8,26 @@ import {
   OTHER_REGION,
   regionChoices,
 } from '../../../data/settings/locale.model';
+import { PendingStore } from '../../../data/pending/pending.store';
 import * as settingsApi from '../../../data/settings/settings.api';
+import { PendingFab } from '../../../shared/ui/pending-fab/pending-fab';
 import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
 import { translate } from '../../../core/i18n/translate';
+const LOCALE_KEY = 'locale';
 @Component({
   selector: 'app-admin-language',
   standalone: true,
-  imports: [RouterLink, TranslatePipe],
+  imports: [RouterLink, PendingFab, TranslatePipe],
   templateUrl: './language.page.html',
 })
 export class LanguagePage implements OnInit, OnDestroy {
+  private readonly pending = inject(PendingStore);
   readonly languageChoices = LANGUAGE_CHOICES;
   readonly regionOptions = computed(() => [
+    { value: OTHER_REGION, label: translate('Par défaut') },
     ...regionChoices(activeLocale()),
-    { value: OTHER_REGION, label: translate('Autre') },
   ]);
   loading = signal(true);
-  saving = signal(false);
   statusMessage = signal('');
   statusIsError = signal(false);
   saved = signal<LocaleSettings>(DEFAULT_LOCALE_SETTINGS);
@@ -38,15 +40,17 @@ export class LanguagePage implements OnInit, OnDestroy {
   ngOnInit(): void {
     void this.loadSettings();
   }
+  readonly staged = computed(() => this.pending.get(LOCALE_KEY) !== undefined);
   ngOnDestroy(): void {
+    this.pending.discard();
     if (this.dirty()) setLocaleSelection(this.saved());
   }
   private applyDrafts(value: LocaleSettings): void {
     this.languageDraft.set(value.language);
     this.regionDraft.set(value.region);
   }
-  private async loadSettings(): Promise<void> {
-    this.loading.set(true);
+  private async loadSettings(silent = false): Promise<void> {
+    if (!silent) this.loading.set(true);
     try {
       const value = await settingsApi.getLocale();
       this.saved.set(value);
@@ -55,7 +59,7 @@ export class LanguagePage implements OnInit, OnDestroy {
       console.error('failed to load language and region settings', e);
       this.setStatus(translate('Impossible de charger la langue et la région.'), true);
     } finally {
-      this.loading.set(false);
+      if (!silent) this.loading.set(false);
     }
   }
   selectLanguage(code: string): void {
@@ -70,29 +74,41 @@ export class LanguagePage implements OnInit, OnDestroy {
     setLocaleSelection({ language: this.languageDraft(), region: this.regionDraft() });
   }
   resetDraft(): void {
+    this.pending.unstage(LOCALE_KEY);
     this.applyDrafts(this.saved());
     setLocaleSelection(this.saved());
     this.setStatus('', false);
   }
-  async save(): Promise<void> {
-    if (!this.dirty() || this.saving()) return;
-    this.saving.set(true);
-    this.setStatus('', false);
-    try {
-      const value = await settingsApi.setLocale({
-        language: this.languageDraft(),
-        region: this.regionDraft(),
-      });
-      this.saved.set(value);
-      this.applyDrafts(value);
-      setLocaleSelection(value);
-      this.setStatus(translate('Langue et région enregistrées.'), false);
-    } catch (e) {
-      console.error('failed to save language and region settings', e);
-      this.setStatus(errorMessage(e, translate('Échec de l\'enregistrement. Réessayez.')), true);
-    } finally {
-      this.saving.set(false);
+  onApplied(): void {
+    void this.loadSettings(true);
+    this.setStatus(translate('Modifications appliquées.'), false);
+  }
+  save(): void {
+    if (!this.dirty()) {
+      this.pending.unstage(LOCALE_KEY);
+      return;
     }
+    const value: LocaleSettings = { language: this.languageDraft(), region: this.regionDraft() };
+    const before = this.saved();
+    const lines: string[] = [];
+    if (value.language !== before.language) {
+      const label = this.languageChoices.find((c) => c.value === value.language)?.label ?? value.language;
+      lines.push(`${translate('Langue')} : ${label}`);
+    }
+    if (value.region !== before.region) {
+      const label = this.regionOptions().find((c) => c.value === value.region)?.label ?? value.region;
+      lines.push(`${translate('Région')} : ${label}`);
+    }
+    this.setStatus('', false);
+    this.pending.stage({
+      key: LOCALE_KEY,
+      payload: value,
+      counter: lines,
+      cashier: lines,
+      apply: async () => {
+        setLocaleSelection(await settingsApi.setLocale(value));
+      },
+    });
   }
   private setStatus(message: string, isError: boolean): void {
     this.statusMessage.set(message);

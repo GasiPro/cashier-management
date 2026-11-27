@@ -12,7 +12,7 @@ pub const REGIONS: [&str; 25] = [
     "GB", "US", "CA", "AU", "IE", "FR", "BE", "CH", "LU", "DE", "AT", "ES", "PT", "IT", "NL", "SE",
     "BR", "MX", "CN", "JP", "KR", "IN", "ZA", "MG", "OTHER",
 ];
-pub const DEFAULT_REGION: &str = "GB";
+pub const DEFAULT_REGION: &str = "OTHER";
 pub const MAX_TIMEZONE_LEN: usize = 64;
 pub const MAX_CLOCK_OFFSET_SECS: i64 = 10 * 366 * 86_400;
 pub const MAX_UTC_OFFSET_SECS: i32 = 18 * 3_600;

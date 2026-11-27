@@ -1,6 +1,5 @@
-import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { errorMessage } from '../../../core/error/error-messages';
 import {
   applyDateTimeSettings,
   systemTimeZone,
@@ -15,20 +14,23 @@ import {
   DateFormat,
   DateTimeSettings,
 } from '../../../data/settings/datetime.model';
+import { PendingStore } from '../../../data/pending/pending.store';
 import * as settingsApi from '../../../data/settings/settings.api';
+import { PendingFab } from '../../../shared/ui/pending-fab/pending-fab';
 import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
 import { translate } from '../../../core/i18n/translate';
+const DATETIME_KEY = 'datetime';
 @Component({
   selector: 'app-admin-datetime',
   standalone: true,
-  imports: [RouterLink, TranslatePipe],
+  imports: [RouterLink, PendingFab, TranslatePipe],
   templateUrl: './datetime.page.html',
 })
 export class DateTimePage implements OnInit, OnDestroy {
+  private readonly pending = inject(PendingStore);
   readonly dateFormatChoices = DATE_FORMAT_CHOICES;
   readonly timeZones = timeZoneList();
   loading = signal(true);
-  saving = signal(false);
   statusMessage = signal('');
   statusIsError = signal(false);
   saved = signal<DateTimeSettings>(DEFAULT_DATETIME_SETTINGS);
@@ -40,6 +42,7 @@ export class DateTimePage implements OnInit, OnDestroy {
   timeDraft = signal('');
   manualEdited = signal(false);
   private clockInterval?: ReturnType<typeof setInterval>;
+  readonly staged = computed(() => this.pending.get(DATETIME_KEY) !== undefined);
   dirty = computed(() => {
     const s = this.saved();
     return (
@@ -57,6 +60,7 @@ export class DateTimePage implements OnInit, OnDestroy {
     if (this.clockInterval) {
       clearInterval(this.clockInterval);
     }
+    this.pending.discard();
   }
   private baseOffset(): number {
     const s = this.saved();
@@ -77,8 +81,8 @@ export class DateTimePage implements OnInit, OnDestroy {
     this.manualEdited.set(false);
     this.tick();
   }
-  private async loadSettings(): Promise<void> {
-    this.loading.set(true);
+  private async loadSettings(silent = false): Promise<void> {
+    if (!silent) this.loading.set(true);
     try {
       const settings = await settingsApi.getDateTime();
       this.saved.set(settings);
@@ -87,7 +91,7 @@ export class DateTimePage implements OnInit, OnDestroy {
       console.error('failed to load date and time settings', e);
       this.setStatus(translate('Impossible de charger la date et l\'heure.'), true);
     } finally {
-      this.loading.set(false);
+      if (!silent) this.loading.set(false);
     }
   }
   selectAuto(auto: boolean): void {
@@ -108,11 +112,40 @@ export class DateTimePage implements OnInit, OnDestroy {
     this.manualEdited.set(true);
   }
   resetDraft(): void {
+    this.pending.unstage(DATETIME_KEY);
     this.applyDrafts(this.saved());
     this.setStatus('', false);
   }
-  async save(): Promise<void> {
-    if (!this.dirty() || this.saving()) return;
+  onApplied(): void {
+    void this.loadSettings(true);
+    this.setStatus(translate('Modifications appliquées.'), false);
+  }
+  private changeLines(value: DateTimeSettings): string[] {
+    const s = this.saved();
+    const lines: string[] = [];
+    if (value.auto !== s.auto) {
+      lines.push(`${translate('Mode')} : ${value.auto ? translate('Automatique') : translate('Manuel')}`);
+    }
+    if (!value.auto && (value.timezone !== s.timezone || this.manualEdited())) {
+      lines.push(`${translate('Fuseau horaire')} : ${value.timezone}`);
+    }
+    if (!value.auto && this.manualEdited()) {
+      lines.push(`${translate('Date')} : ${this.dateDraft()} ${this.timeDraft()}`);
+    }
+    if (value.hour12 !== s.hour12) {
+      lines.push(`${translate('Format de l\'heure')} : ${value.hour12 ? translate('12 heures') : translate('24 heures')}`);
+    }
+    if (value.dateFormat !== s.dateFormat) {
+      const label = DATE_FORMAT_CHOICES.find((c) => c.value === value.dateFormat)?.label ?? value.dateFormat;
+      lines.push(`${translate('Format de la date')} : ${translate(label)}`);
+    }
+    return lines;
+  }
+  save(): void {
+    if (!this.dirty()) {
+      this.pending.unstage(DATETIME_KEY);
+      return;
+    }
     const auto = this.autoDraft();
     let offsetSecs = 0;
     let utcOffsetSecs = 0;
@@ -131,27 +164,25 @@ export class DateTimePage implements OnInit, OnDestroy {
       }
       utcOffsetSecs = zoneOffsetSecs(instant, this.timezoneDraft());
     }
-    this.saving.set(true);
+    const value: DateTimeSettings = {
+      auto,
+      timezone: auto ? '' : this.timezoneDraft(),
+      hour12: this.hour12Draft(),
+      dateFormat: this.dateFormatDraft(),
+      offsetSecs,
+      utcOffsetSecs,
+    };
+    const lines = this.changeLines(value);
     this.setStatus('', false);
-    try {
-      const settings = await settingsApi.setDateTime({
-        auto,
-        timezone: auto ? '' : this.timezoneDraft(),
-        hour12: this.hour12Draft(),
-        dateFormat: this.dateFormatDraft(),
-        offsetSecs,
-        utcOffsetSecs,
-      });
-      this.saved.set(settings);
-      this.applyDrafts(settings);
-      applyDateTimeSettings(settings);
-      this.setStatus(translate('Date et heure enregistrées.'), false);
-    } catch (e) {
-      console.error('failed to save date and time settings', e);
-      this.setStatus(errorMessage(e, translate('Échec de l\'enregistrement. Réessayez.')), true);
-    } finally {
-      this.saving.set(false);
-    }
+    this.pending.stage({
+      key: DATETIME_KEY,
+      payload: value,
+      counter: lines,
+      cashier: lines,
+      apply: async () => {
+        applyDateTimeSettings(await settingsApi.setDateTime(value));
+      },
+    });
   }
   private setStatus(message: string, isError: boolean): void {
     this.statusMessage.set(message);

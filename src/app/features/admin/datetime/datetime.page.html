@@ -1,4 +1,5 @@
-<div class="max-w-3xl mx-auto">
+<div class="max-w-3xl mx-auto pb-24">
+  <app-pending-fab [slot]="1" (applied)="onApplied()" />
   <a routerLink="/admin/reglages" [attr.aria-label]="'Retour' | t"
     class="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors mb-4
            focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F] rounded">
@@ -169,16 +170,15 @@
     </section>
     <div class="flex items-center gap-2">
       <button type="button" (click)="save()"
-        [disabled]="!dirty() || saving()"
-        [attr.aria-busy]="saving()"
+        [disabled]="!dirty() && !staged()"
         class="bg-[#1E3A5F] text-white text-sm font-semibold px-4 py-2 rounded-md
                hover:bg-[#16304f] active:scale-95 transition-all motion-reduce:transition-none motion-reduce:active:scale-100
                disabled:opacity-40 disabled:hover:bg-[#1E3A5F] disabled:active:scale-100
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
-        {{ saving() ? ('Enregistrement…' | t) : ('Enregistrer' | t) }}
+        {{ 'Enregistrer' | t }}
       </button>
       <button type="button" (click)="resetDraft()"
-        [disabled]="!dirty() || saving()"
+        [disabled]="!dirty() && !staged()"
         class="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md transition-colors
                disabled:opacity-40
                focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]">
