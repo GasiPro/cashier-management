@@ -36,7 +36,7 @@
     } @else if (rows().length === 0) {
     <p class="text-sm text-gray-400 py-4">{{ 'Aucun rapport.' | t }}</p>
     } @else {
-    <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg" [attr.aria-label]="rows().length + ' rapport(s)'">
+    <ul class="divide-y divide-gray-100 border border-gray-100 rounded-lg" [attr.aria-label]="('{length} rapport{length2}' | t: { length: (rows().length), length2: (rows().length > 1 ? 's' : '') })">
       @for (row of rows(); track row.record.id) {
       <li class="transition-colors motion-reduce:transition-none" [class.bg-gray-50]="isExpanded(row.record.id)">
         <div class="flex items-center gap-2 pr-3">

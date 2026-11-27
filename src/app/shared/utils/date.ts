@@ -17,6 +17,6 @@ export function formatRelativeDay(iso: string): string {
     (parseIsoDate(currentDayIso()).getTime() - parseIsoDate(dayOfIso(date)).getTime()) / 86_400_000,
   );
   if (diffDays === 0) return translate('aujourd\'hui');
-  if (diffDays === 1) return 'hier';
+  if (diffDays === 1) return translate('Hier').toLowerCase();
   return localeDate(date);
 }

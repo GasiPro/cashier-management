@@ -14,6 +14,7 @@ import { Badge, BadgeTone } from '../../../shared/ui/badge/badge';
 import { PendingFab } from '../../../shared/ui/pending-fab/pending-fab';
 import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
 import { translate } from '../../../core/i18n/translate';
+import { activeLocale } from '../../../core/i18n/locale';
 type StockTab = 'product' | 'service' | 'journal';
 const ACTION_BADGES: Record<StockAction, { label: string; tone: BadgeTone }> = {
   availability: { label: 'Disponibilité', tone: 'info' },
@@ -85,10 +86,10 @@ export class StocksPage implements OnInit, OnDestroy {
           item.type === tab &&
           (!term || item.label.toLowerCase().includes(term) || item.category.toLowerCase().includes(term)),
       )
-      .sort((a, b) => a.category.localeCompare(b.category, 'fr') || a.label.localeCompare(b.label, 'fr'));
+      .sort((a, b) => a.category.localeCompare(b.category, activeLocale()) || a.label.localeCompare(b.label, activeLocale()));
   });
   readonly categories = computed<string[]>(() =>
-    [...new Set(this.viewItems().map((i) => i.category))].sort((a, b) => a.localeCompare(b, 'fr')),
+    [...new Set(this.viewItems().map((i) => i.category))].sort((a, b) => a.localeCompare(b, activeLocale())),
   );
   ngOnInit(): void {
     void this.load();

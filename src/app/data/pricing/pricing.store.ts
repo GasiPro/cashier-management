@@ -3,6 +3,7 @@ import { errorMessage } from '../../core/error/error-messages';
 import { getPricingMatrix } from './pricing.api';
 import type { ServiceItem } from './pricing.model';
 import { translate } from '../../core/i18n/translate';
+import { activeLocale } from '../../core/i18n/locale';
 @Injectable({ providedIn: 'root' })
 export class PricingStore {
   readonly items = signal<ServiceItem[]>([]);
@@ -10,7 +11,7 @@ export class PricingStore {
   readonly loadError = signal('');
   readonly categories = computed<string[]>(() => {
     const set = new Set(this.items().map((i) => i.category).filter((c) => c.trim().length > 0));
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'fr'));
+    return Array.from(set).sort((a, b) => a.localeCompare(b, activeLocale()));
   });
   readonly serviceCount = computed(() => this.items().filter((i) => i.type === 'service').length);
   readonly productCount = computed(() => this.items().filter((i) => i.type === 'product').length);

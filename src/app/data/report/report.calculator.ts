@@ -3,6 +3,7 @@ import { isLineDiscounted, isLineIncreased } from '../order/order.utils';
 import { dayOfIso, localeTime } from '../../core/display/datetime-settings';
 import { isWithinPeriod, PeriodBounds } from './report-period';
 import { translate } from '../../core/i18n/translate';
+import { activeLocale } from '../../core/i18n/locale';
 export const REPORT_ALL_COUNTERS = 'all';
 export const UNKNOWN_COUNTER_LABEL = 'Non renseigné';
 export interface CategoryLine {
@@ -47,7 +48,7 @@ export function paidOrdersOf(orders: OrderLine[]): OrderLine[] {
 }
 export function counterNames(paidOrders: OrderLine[]): string[] {
   const set = new Set(paidOrders.map((o) => counterKey(o)));
-  return Array.from(set).sort((a, b) => a.localeCompare(b, 'fr'));
+  return Array.from(set).sort((a, b) => a.localeCompare(b, activeLocale()));
 }
 export function paidOrdersInPeriod(
   paidOrders: OrderLine[],

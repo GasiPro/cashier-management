@@ -38,6 +38,7 @@ import { RejectDialog } from './components/reject-dialog/reject-dialog';
 import { ReportPanel } from './components/report-panel/report-panel';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { translate } from '../../core/i18n/translate';
+import { activeLocale } from '../../core/i18n/locale';
 const ORDER_UPDATE_COALESCE_MS = 1500;
 @Component({
   selector: 'app-cashier',
@@ -279,7 +280,7 @@ export class CashierPage implements OnInit, OnDestroy {
     this.store.closeRejectDialog();
   }
   onBilletageValidated(result: BilletageResult): void {
-    const gap = result.gap === 0 ? translate('caisse juste') : translate('écart {gap}{toLocaleString}', { gap: result.gap > 0 ? '+' : '', toLocaleString: result.gap.toLocaleString('fr-FR') });
+    const gap = result.gap === 0 ? translate('caisse juste') : translate('écart {gap}{toLocaleString}', { gap: result.gap > 0 ? '+' : '', toLocaleString: result.gap.toLocaleString(activeLocale()) });
     this.store.notify(translate('Billetage validé ({gap}).', { gap: gap }));
   }
   copyWsAddress(): void {

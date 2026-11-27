@@ -8,10 +8,12 @@ import {
   MIN_PASSWORD_LEN,
 } from '../../core/config/app.constants';
 import { errorMessage } from '../../core/error/error-messages';
+import { localeSelection, setLocaleSelection } from '../../core/i18n/locale';
 import { ipcEndSetup } from '../../core/ipc/tauri-ipc';
 import { createInitialAdmin } from '../../data/account/account.api';
 import { OrganizationStore } from '../../data/settings/organization.store';
-import { activate, getActivated } from '../../data/settings/settings.api';
+import { LANGUAGE_CHOICES } from '../../data/settings/locale.model';
+import { activate, getActivated, setLocale } from '../../data/settings/settings.api';
 import {
   AppMode,
   Organization,
@@ -21,7 +23,7 @@ import { PasswordInput } from '../../shared/ui/password-input/password-input';
 import { credentialsRuleError, formatPhone, isValidEmail, isValidPhone } from '../../shared/utils/validators';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { translate } from '../../core/i18n/translate';
-type SetupStep = 'key' | 'organization' | 'admin' | 'mode';
+type SetupStep = 'language' | 'key' | 'organization' | 'admin' | 'mode';
 interface StepInfo {
   id: SetupStep;
   label: string;
@@ -49,6 +51,7 @@ function cleanKey(value: string): string {
 })
 export class SetupPage implements OnInit, OnDestroy {
   readonly steps: StepInfo[] = [
+    { id: 'language', label: 'Langue' },
     { id: 'key', label: 'Clé de produit' },
     { id: 'organization', label: 'Organisation' },
     { id: 'admin', label: 'Administrateur' },
@@ -68,6 +71,7 @@ export class SetupPage implements OnInit, OnDestroy {
       description: 'Saisie des commandes clients, envoyées à la caisse par le réseau.',
     },
   ];
+  readonly languageChoices = LANGUAGE_CHOICES;
   readonly regions = PHONE_REGIONS;
   readonly otherPrefix = OTHER_PREFIX;
   readonly maxNameLen = MAX_ORGANIZATION_NAME_LEN;
@@ -96,6 +100,7 @@ export class SetupPage implements OnInit, OnDestroy {
   readonly adminPasswordConfirm = signal('');
   readonly showAdminPassword = signal(false);
   readonly selectedMode = signal<AppMode | null>(null);
+  readonly language = computed(() => localeSelection().language);
   /** Full key in the XXXX-XXXX-XXXX-XXXX form expected by the backend; the dashes are added here, never typed. */
   readonly productKey = computed(() => this.segments().join('-'));
   readonly isKeyComplete = computed(() => this.segments().every((s) => s.length === KEY_SEGMENT_LEN));
@@ -129,7 +134,7 @@ export class SetupPage implements OnInit, OnDestroy {
     const saved = await this.organization.load();
     if (saved) this.fillOrganization(saved);
     else this.prefixChoice.set(this.detectPrefix());
-    this.stepIndex.set(!this.keyValidated() ? 0 : saved ? 2 : 1);
+    this.go(!this.keyValidated() ? 'language' : saved ? 'admin' : 'organization');
     this.ready.set(true);
   }
   ngOnDestroy(): void {
@@ -179,6 +184,11 @@ export class SetupPage implements OnInit, OnDestroy {
     }
     this.startContactTimer();
   }
+  selectLanguage(code: string): void {
+    if (this.busy()) return;
+    setLocaleSelection({ language: code, region: localeSelection().region });
+    this.error.set('');
+  }
   selectMode(value: AppMode): void {
     if (this.busy()) return;
     this.selectedMode.set(value);
@@ -196,6 +206,9 @@ export class SetupPage implements OnInit, OnDestroy {
     this.error.set('');
     try {
       switch (this.currentStep()) {
+        case 'language':
+          await this.submitLanguage();
+          break;
         case 'key':
           await this.submitKey();
           break;
@@ -213,6 +226,16 @@ export class SetupPage implements OnInit, OnDestroy {
       this.busy.set(false);
     }
   }
+  private async submitLanguage(): Promise<void> {
+    try {
+      await setLocale(localeSelection());
+    } catch (e) {
+      console.error('failed to save language', e);
+      this.error.set(errorMessage(e, translate('Échec de l\'enregistrement. Réessayez.')));
+      return;
+    }
+    this.go('key');
+  }
   private async submitKey(): Promise<void> {
     if (!this.keyValidated()) {
       try {
@@ -229,7 +252,7 @@ export class SetupPage implements OnInit, OnDestroy {
     }
     this.clearContactTimer();
     this.showContact.set(false);
-    this.stepIndex.set(1);
+    this.go('organization');
   }
   private async submitOrganization(): Promise<void> {
     const problem = this.organizationProblem();
@@ -252,7 +275,7 @@ export class SetupPage implements OnInit, OnDestroy {
       await this.launch();
       return;
     }
-    this.stepIndex.set(2);
+    this.go('admin');
   }
   private async submitAdmin(): Promise<void> {
     const problem = this.adminProblem();
@@ -271,7 +294,7 @@ export class SetupPage implements OnInit, OnDestroy {
       this.error.set(errorMessage(e, translate('Impossible de créer l\'administrateur. Veuillez réessayer.')));
       return;
     }
-    this.stepIndex.set(3);
+    this.go('mode');
   }
   private async submitMode(): Promise<void> {
     const value = this.selectedMode();
@@ -284,6 +307,9 @@ export class SetupPage implements OnInit, OnDestroy {
       return;
     }
     await this.launch();
+  }
+  private go(id: SetupStep): void {
+    this.stepIndex.set(this.steps.findIndex((s) => s.id === id));
   }
   private async launch(): Promise<void> {
     this.launching.set(true);

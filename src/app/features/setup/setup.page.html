@@ -39,6 +39,31 @@
     </header>
     <main class="flex-1 min-h-0 overflow-y-auto px-2 py-5">
       @switch (currentStep()) {
+      @case ('language') {
+      <section class="max-w-md mx-auto" [attr.aria-label]="'Langue' | t">
+        <div class="mb-4">
+          <h1 class="text-xl font-semibold mb-1">{{ 'Langue' | t }}</h1>
+          <p class="text-sm text-gray-500">{{ 'Langue de l\'interface.' | t }}</p>
+        </div>
+        <div class="space-y-3" role="radiogroup" [attr.aria-label]="'Langue' | t">
+          @for (choice of languageChoices; track choice.value) {
+          <button
+            type="button"
+            role="radio"
+            [attr.lang]="choice.value"
+            (click)="selectLanguage(choice.value)"
+            [disabled]="busy()"
+            [attr.aria-checked]="language() === choice.value"
+            [class]="language() === choice.value
+              ? 'w-full text-left border-2 border-[#1E3A5F] bg-[#EFF4FA] rounded-xl px-5 py-3 transition-colors'
+              : 'w-full text-left border border-gray-200 bg-white rounded-xl px-5 py-3 hover:border-[#1E3A5F] transition-colors'"
+            class="disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1E3A5F]">
+            <span class="text-base font-semibold">{{ choice.label }}</span>
+          </button>
+          }
+        </div>
+      </section>
+      }
       @case ('key') {
       <section class="max-w-md mx-auto" [attr.aria-label]="'Clé de produit' | t">
         <h1 class="text-xl font-semibold mb-1">{{ 'Nous vous souhaitons la bienvenue,' | t }}</h1>

@@ -24,7 +24,8 @@
       <div role="radiogroup" aria-labelledby="language-heading" class="flex flex-wrap gap-2">
         @for (choice of languageChoices; track choice.value) {
         <button type="button" role="radio" [attr.aria-checked]="languageDraft() === choice.value"
-          (click)="languageDraft.set(choice.value)"
+          [attr.lang]="choice.value"
+          (click)="selectLanguage(choice.value)"
           class="px-4 py-2 rounded-lg text-sm font-semibold border transition-colors
                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1E3A5F]"
           [class.bg-[#1E3A5F]]="languageDraft() === choice.value"
@@ -33,7 +34,7 @@
           [class.bg-white]="!(languageDraft() === choice.value)"
           [class.text-gray-600]="!(languageDraft() === choice.value)"
           [class.border-gray-200]="!(languageDraft() === choice.value)">
-          {{ choice.label | t }}
+          {{ choice.label }}
         </button>
         }
       </div>
@@ -53,11 +54,11 @@
         {{ 'Région' | t }}
       </label>
       <select id="language-region" [value]="regionDraft()"
-        (change)="regionDraft.set($any($event.target).value)"
+        (change)="selectRegion($any($event.target).value)"
         class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-[#1A1A1A]
                focus:outline-none focus:border-[#1E3A5F] transition-colors">
-        @for (choice of regionChoices; track choice.value) {
-        <option [value]="choice.value" [selected]="choice.value === regionDraft()">{{ choice.label | t }}</option>
+        @for (choice of regionOptions(); track choice.value) {
+        <option [value]="choice.value" [selected]="choice.value === regionDraft()">{{ choice.label }}</option>
         }
       </select>
     </section>

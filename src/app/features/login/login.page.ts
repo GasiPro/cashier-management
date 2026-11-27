@@ -305,7 +305,7 @@ export class LoginPage implements OnInit, OnDestroy {
         this.failCounterConnection(translate('Cet appareil ou ce nom d\'utilisateur est bloqué par la caisse.'));
       } else if (msg.type === 'error_protocol') {
         this.failCounterConnection(
-          typeof msg.data === 'string' && msg.data.trim() ? msg.data : translate('Erreur de protocole. Réessayez.'),
+          typeof msg.data === 'string' && msg.data.trim() ? translate(msg.data) : translate('Erreur de protocole. Réessayez.'),
         );
       }
     });

@@ -20,6 +20,7 @@ import { Badge, BadgeTone } from '../../../shared/ui/badge/badge';
 import { PendingFab } from '../../../shared/ui/pending-fab/pending-fab';
 import { TranslatePipe } from '../../../shared/pipes/translate.pipe';
 import { translate } from '../../../core/i18n/translate';
+import { activeLocale } from '../../../core/i18n/locale';
 type PricingTab = 'price' | 'currency' | 'money' | 'journal';
 interface JournalEntry {
   key: string;
@@ -239,7 +240,7 @@ export class PricingPage implements OnInit, OnDestroy {
     }
   }
   money(value: number): string {
-    return value.toLocaleString('fr-FR');
+    return value.toLocaleString(activeLocale());
   }
   formatAt(iso: string): string {
     const date = new Date(iso);
@@ -262,8 +263,8 @@ export class PricingPage implements OnInit, OnDestroy {
     }
     const kind = entry.kind ? translate(MOR_LABELS[entry.kind]) : 'MOR';
     return entry.before === null
-      ? translate('Ajout {kind} : {after} %', { kind: kind, after: entry.after })
-      : translate('Modification {kind} : {before} % → {after} %', { kind: kind, before: entry.before, after: entry.after });
+      ? translate('Ajout {kind} : {after} %', { kind: kind, after: entry.after ?? 0 })
+      : translate('Modification {kind} : {before} % → {after} %', { kind: kind, before: entry.before, after: entry.after ?? 0 });
   }
   limitPrice(price: number, rate: number, kind: PriceAdjustmentKind): number {
     const delta = Math.round((price * rate) / 100);
@@ -331,7 +332,7 @@ export class PricingPage implements OnInit, OnDestroy {
         .map((i) => i.category)
         .filter((c) => c.trim().length > 0),
     );
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'fr'));
+    return Array.from(set).sort((a, b) => a.localeCompare(b, activeLocale()));
   });
   private readonly effectiveCategory = computed<string>(() => {
     const category = this.categoryFilter();
@@ -380,10 +381,10 @@ export class PricingPage implements OnInit, OnDestroy {
         case 'price-desc':
           return b.price - a.price;
         case 'label':
-          return a.label.localeCompare(b.label, 'fr');
+          return a.label.localeCompare(b.label, activeLocale());
         case 'category':
         default:
-          return a.category.localeCompare(b.category, 'fr') || a.label.localeCompare(b.label, 'fr');
+          return a.category.localeCompare(b.category, activeLocale()) || a.label.localeCompare(b.label, activeLocale());
       }
     });
   });
@@ -429,7 +430,7 @@ export class PricingPage implements OnInit, OnDestroy {
       return translate('Durée de {label} : entier entre 1 et {MAX_DAYS} jours, ou vide.', { label: label, MAX_DAYS: MAX_DAYS });
     }
     if (max_orders !== null && (!Number.isInteger(max_orders) || max_orders < 1 || max_orders > MAX_ORDERS)) {
-      return translate('Commandes de {label} : entier entre 1 et {toLocaleString}, ou vide.', { label: label, toLocaleString: MAX_ORDERS.toLocaleString('fr-FR') });
+      return translate('Commandes de {label} : entier entre 1 et {toLocaleString}, ou vide.', { label: label, toLocaleString: MAX_ORDERS.toLocaleString(activeLocale()) });
     }
     return '';
   }

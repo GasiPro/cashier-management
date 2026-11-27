@@ -603,7 +603,11 @@
               </svg>
             </button>
             <span class="text-sm text-gray-400 ml-1">
-              {{ maxConnectedDevicesDraft() === 0 ? ('Illimité' | t) : 'appareil(s)' }}
+              @if (maxConnectedDevicesDraft() === 0) {
+                {{ 'Illimité' | t }}
+              } @else {
+                <span class="lowercase">{{ (maxConnectedDevicesDraft() > 1 ? 'Appareils' : 'Appareil') | t }}</span>
+              }
             </span>
           </div>
           <p id="max-connected-devices-help" class="text-xs text-gray-400 mt-2">

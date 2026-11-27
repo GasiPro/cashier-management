@@ -295,13 +295,13 @@ export class CounterStore {
       } else if (msg.type === 'account_update_error') {
         this.pendingPassword = null;
         this.savingAccount.set(false);
-        this.editAccountError.set(msg.data as string);
+        this.editAccountError.set(translate(msg.data as string));
       } else if (msg.type === 'pricing') {
         this.applyPricing(msg.data as ServiceItem[]);
       } else if (msg.type === 'error_order') {
-        this.showToast(msg.data as string);
+        this.showToast(translate(msg.data as string));
       } else if (msg.type === 'error_protocol') {
-        this.showToast(msg.data as string);
+        this.showToast(translate(msg.data as string));
       }
     });
   }

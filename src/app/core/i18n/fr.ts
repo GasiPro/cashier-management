@@ -1,7 +1,7 @@
-import { DEFAULT_LANGUAGE, DEFAULT_LOCALE, LanguagePack } from './i18n.model';
+import { LanguagePack, SOURCE_LANGUAGE, SOURCE_LOCALE } from './i18n.model';
 export const FRENCH_PACK: LanguagePack = {
-  code: DEFAULT_LANGUAGE,
+  code: SOURCE_LANGUAGE,
   name: 'Français',
-  locale: DEFAULT_LOCALE,
+  locale: SOURCE_LOCALE,
   messages: {},
 };
